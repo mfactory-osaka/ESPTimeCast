@@ -1,0 +1,590 @@
+substitutions:
+  device: "esp32-time-cast"
+  name: "ESP32 Time Cast"
+
+  ### CHANGE SETTINGS BELOW BEFORE COMPILE ###
+  PIN_CLK: "18"                           # Enter GPIO Pin for CLK
+  PIN_CS: "5"                             # Enter GPIO Pin for CS (DATA)
+  PIN_MOSI: "23"                          # Enter GPIO Pin for MOSI
+
+  font_path: "fonts/MatrixLight8.bdf"     # Enter the path and filename of the font you use. I recommend the file entered.
+                                          # Change the path if you have not placed it in a fonts directory under esphome
+                                          # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series
+
+  brightness: "3"                         # Enter brightness level of the display 1 -15
+  timezone: "Europe/Copenhagen"           # Enter your Timezone
+
+  weekDaysShort: "SØ,MA,TI,ON,TO,FR,LØ"   # Danish
+  # weekDaysShort: "SU,MO,TU,WE,TH,FR,SA" # English
+  # weekDaysShort: "SO,MO,DI,MI,DO,FR,SA" # German
+  # weekDaysShort: "DI,LU,MA,ME,JE,VE,SA" # Frebch
+
+  ############ END OF SETTINGS ############## 
+
+#############################################
+###            CORE SETTINGS              ###
+#############################################
+esphome:
+  name: "${device}"
+  friendly_name: "${name}"
+  min_version: 2025.5.0 # Need this minimum version due to new http_request format
+  name_add_mac_suffix: False
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  level: WARN
+  logs:
+    component: ERROR
+
+ota:
+  - platform: esphome
+    password: "0af1e9a831997bc6563bcd67408a4e70"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "ESPTimeCast Fallback Hotspot"
+    password: "12345678"
+  on_connect:
+    then:
+      - delay: 1s
+      - script.execute: get_openweathermap_data
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+  sorting_groups:
+    - id: sorting_group_settings
+      name: "Clock Settings"
+      sorting_weight: 10
+    - id: sorting_group_openweather
+      name: "Weather Settings"
+      sorting_weight: 15
+    - id: sorting_group_device
+      name: "Device Information"
+      sorting_weight: 20
+  
+#############################################
+###          GENERAL SETTINGS             ###
+#############################################
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: ${timezone}
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+    on_time:
+      # Every Minute
+      - seconds: 0
+        minutes: '*'
+        then:
+           # Fetch Weather Data every 5 minutes
+          - lambda: |-
+              if (id(sntp_time).now().minute % 5 == 0) {
+                id(get_openweathermap_data).execute();
+              }
+
+http_request:
+  id: http_request_data
+  verify_ssl: true
+  timeout: 10s
+  watchdog_timeout: 30s
+
+#############################################
+###             HARDWARE                  ###
+#############################################
+spi:
+  clk_pin: ${PIN_CLK}
+  mosi_pin: ${PIN_MOSI}
+
+display:
+  - platform: max7219digit
+    id: main_display
+    cs_pin: ${PIN_CS}
+    num_chips: 4
+    scroll_mode: STOP
+    scroll_dwell: 1500ms
+    scroll_speed: 500ms
+    intensity: ${brightness}
+    update_interval: 0.2s
+    lambda: |-
+      id(display_text).execute();
+
+#############################################
+###              BUTTONS                  ###
+#############################################
+button:
+  - platform: restart
+    id: btn_restart
+    name: "Restart Device"
+    web_server:
+      sorting_group_id: sorting_group_device
+      sorting_weight: 5
+
+#############################################
+###                FONTS                  ###
+#############################################
+font:
+  - file: ${font_path}
+    id: main_font
+    size: 8
+    glyphs: '!"%()+=,-_.:&°/[]|<>?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ abcdefghijklmnopqrstuvwxyzæøå'
+
+#############################################
+###             GLOBALS                   ###
+#############################################
+globals:
+  - id: current_page
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: scroll_pos
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: set_show_weekday
+    type: bool
+    restore_value: True
+    initial_value: "true"
+  - id: set_show_humidity
+    type: bool
+    restore_value: True
+    initial_value: "false"
+  - id: set_show_12hr_clock
+    type: bool
+    restore_value: True
+    initial_value: "false"
+  - id: page_timer
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: page_duration
+    type: int
+    restore_value: False
+    initial_value: '20'
+
+  - id: weather_fetched
+    type: bool
+    restore_value: False
+    initial_value: "false"
+  - id: temperature
+    type: float
+    restore_value: False
+    initial_value: '0.0'
+  - id: humidity
+    type: int
+    restore_value: False
+    initial_value: '0'
+
+  - id: open_weather_api_key
+    type: std::string
+    restore_value: True
+    initial_value: '""'
+  - id: open_weather_city
+    type: std::string
+    restore_value: True
+    initial_value: '""'
+  - id: open_weather_country
+    type: std::string
+    restore_value: True
+    initial_value: '""'
+  - id: weather_units
+    type: std::string
+    restore_value: True
+    initial_value: '"metric"'
+
+#############################################
+###             TIME BASED                ###
+#############################################
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          id(page_timer)++;
+          if (id(page_timer) >= id(page_duration)) {
+            id(current_page)++;
+            if (id(current_page) > 1) id(current_page) = 0;
+            id(scroll_pos) = 0;
+            id(page_timer) = 0;
+            
+            if (id(current_page) == 0) {
+              id(page_duration) = id(clock_duration).state;  // Clock page timing
+            } else if (id(current_page) == 1) {
+              id(page_duration) = id(weather_duration).state;   // Weather page timing
+            }
+          }
+
+  - interval: 500ms
+    then:
+      - lambda: |-
+          if (id(current_page) == 1) {
+            id(scroll_pos)++;
+          }
+          
+#############################################
+###             NUMBER                    ###
+#############################################
+number:
+  - platform: template
+    id: clock_duration
+    name: "Clock Duration (Sec)"
+    icon: mdi:clock-fast
+    min_value: 5
+    max_value: 60
+    step: 1
+    initial_value: 20
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 15
+  - platform: template
+    id: weather_duration
+    name: "Weather Duration (Sec)"
+    icon: mdi:weather-cloudy-clock
+    min_value: 5
+    max_value: 60
+    step: 1
+    initial_value: 15
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 20
+
+#############################################
+###            SCRIPTS                    ###
+#############################################
+script:
+  ### DISPLAY TEXT ON SCREEN ###
+  - id: display_text
+    then:
+      - lambda: |-
+            int s_width = 16;        
+            int s_height = 4;
+            int display_width = s_width * 2; 
+            int display_height = s_height * 2;       
+            if (id(current_page) == 0) {
+            auto time = id(sntp_time).now();
+            if (!time.is_valid()) {
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "Waiting");
+                return;
+            } else {
+                // Parse weekdays from substitution variable
+                std::string weekdays_str = "${weekDaysShort}";
+                std::vector<std::string> weekdays_vec;
+                
+                size_t start = 0;
+                size_t end = 0;
+                while ((end = weekdays_str.find(',', start)) != std::string::npos) {
+                    weekdays_vec.push_back(weekdays_str.substr(start, end - start));
+                    start = end + 1;
+                }
+                weekdays_vec.push_back(weekdays_str.substr(start)); // Last element
+                
+                char buf[20];
+
+                // Format if using 12-Hour display
+                int display_hour = time.hour;
+                const char* am_pm = "AM";
+
+                if (id(set_show_12hr_clock)) {
+                    if (display_hour == 0) {
+                        display_hour = 12;  // Midnight = 12 AM
+                    } else if (display_hour == 12) {
+                        am_pm = "PM";       // Noon = 12 PM
+                    } else if (display_hour > 12) {
+                        display_hour -= 12; // Convert to 12-hour format
+                        am_pm = "PM";
+                    }
+                }
+
+                if (id(set_show_weekday)) {
+                  char buf[16];
+                  // Ensure we have enough weekdays and valid day_of_week
+                  if (weekdays_vec.size() >= 7 && time.day_of_week >= 1 && time.day_of_week <= 7) {
+                    snprintf(buf, sizeof(buf), "%s", weekdays_vec[time.day_of_week - 1].c_str());
+                  } else {
+                    snprintf(buf, sizeof(buf), "??");
+                  }
+                  if (id(set_show_12hr_clock)) {
+                    id(main_display).print(2, 0, main_font, buf);
+                    snprintf(buf, sizeof(buf), "%d:%02d", display_hour, time.minute);
+                    id(main_display).print(29, 0, main_font, TextAlign::RIGHT, buf);
+                    if (strcmp(am_pm, "AM") == 0) {
+                        id(main_display).filled_rectangle(display_width - 2, 0, 2, 2);
+                    } else {
+                        id(main_display).filled_rectangle(display_width - 2, display_height - 2, 2, 2);
+                    }
+                  } else {
+                    id(main_display).print(2, 0, main_font, buf);                  
+                    snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
+                    id(main_display).print(29, 0, main_font, TextAlign::RIGHT, buf);
+                  }
+                } else {
+                  char buf[16];
+                  if (id(set_show_12hr_clock)) {
+                    snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, time.minute, am_pm);
+                  } else {
+                    snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);                  
+                  }
+                  id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
+                }
+            }
+            } else if (id(current_page) == 1) {
+              char buf[16];
+              if (id(weather_fetched)) {
+                if (id(set_show_humidity)) {
+                  snprintf(buf, sizeof(buf), "%.1f° %d%%", id(temperature), id(humidity));              
+                } else {
+                  snprintf(buf, sizeof(buf), "%.1f°", id(temperature));
+                }
+                id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, buf);
+              } else {
+                id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, "SETUP...");
+              }
+            }      
+        
+  ### FETCH DATA FROM OPENWEATHERMAP ###
+  - id: get_openweathermap_data
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return !id(open_weather_api_key).empty() && 
+                     !id(open_weather_city).empty() && 
+                     !id(open_weather_country).empty();
+          then:
+            - http_request.get:
+                url: !lambda |-
+                  std::string city = id(open_weather_city);
+                  std::string country = id(open_weather_country);
+                  std::string api_key = id(open_weather_api_key);
+                  return esphome::to_string("https://api.openweathermap.org/data/2.5/weather?q=" + city + "," + country + "&appid=" + api_key + "&units=" + id(weather_units));
+                capture_response: True
+                request_headers:
+                  Content-Type: application/json
+                max_response_buffer_size: 4096  # REDUCED from 8192
+                on_response:
+                  then:
+                    - lambda: |-
+                        id(weather_fetched) = false;
+                    - if:
+                        condition:
+                          lambda: return response->status_code == 200;
+                        then:
+                          - lambda: |-
+                              using namespace esphome;
+
+                              DynamicJsonDocument doc(4096);  // REDUCED from 40000 to 4096
+                              DeserializationError error = deserializeJson(doc, body);
+                              if (error) {
+                                ESP_LOGE("json", "Parse error: %s", error.c_str());
+                                return;
+                              }
+
+                              if (!doc.containsKey("main") || !doc["main"].containsKey("temp")) {
+                                ESP_LOGW("WEATHER", "Invalid data format");
+                                return;
+                              }
+
+                              float temp = doc["main"]["temp"];
+                              id(temperature) = temp;
+                              int hum = doc["main"]["humidity"];
+                              id(humidity) = hum;
+
+                              id(weather_fetched) = true;
+                              ESP_LOGI("WEATHER", "Weather data updated: %.1f°C, %d%%", temp, hum);
+                        else:
+                          - logger.log:
+                              format: "Weather API Error: Response status: %d"
+                              args: ["response->status_code"]
+          else:
+            - lambda: |-
+                id(weather_fetched) = false;
+            - logger.log: "Weather settings incomplete - need API key, city, and country"
+
+#############################################
+###                 SELECT                ###
+#############################################
+select:
+  - platform: template
+    id: weather_units_select
+    name: "Temperature Units"
+    icon: mdi:thermometer-lines
+    optimistic: true
+    options:
+      - "metric"
+      - "imperial"
+      - "standard"
+    initial_option: 'metric'
+    restore_value: True
+    set_action: 
+      then:
+        - globals.set:
+            id: weather_units
+            value: !lambda 'return x;'
+        - logger.log:
+            format: "Unit system changed to: %s"
+            args: ['x.c_str()']        
+    web_server:
+      sorting_group_id: sorting_group_openweather
+      sorting_weight: 20
+
+
+#############################################
+###                SWITCHES               ###
+#############################################
+switch:
+  - platform: template
+    id: switch_show_weekday
+    name: "Show Weekday"
+    icon: mdi:calendar-week
+    optimistic: false
+    restore_mode: DISABLED
+    lambda: |-
+      return id(set_show_weekday);
+    turn_on_action: 
+      - lambda: |-
+          id(set_show_weekday) = true;
+    turn_off_action: 
+      - lambda: |-
+          id(set_show_weekday) = false;
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 5
+  - platform: template
+    id: switch_show_humidity
+    name: "Show Humidity"
+    icon: mdi:water-percent
+    optimistic: false
+    restore_mode: DISABLED
+    lambda: |-
+      return id(set_show_humidity);
+    turn_on_action: 
+      - lambda: |-
+          id(set_show_humidity) = true;
+    turn_off_action: 
+      - lambda: |-
+          id(set_show_humidity) = false;
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 10
+  - platform: template
+    id: switch_show_12hr_clock
+    name: "Display 12-Hour Clock"
+    icon: mdi:clock-digital
+    optimistic: false
+    restore_mode: DISABLED
+    lambda: |-
+      return id(set_show_12hr_clock);
+    turn_on_action: 
+      - lambda: |-
+          id(set_show_12hr_clock) = true;
+    turn_off_action: 
+      - lambda: |-
+          id(set_show_12hr_clock) = false;
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 25
+
+#############################################
+###              TEXT INPUT               ###
+#############################################
+text:
+  - platform: template
+    id: text_open_weather_api_key
+    name: "OpenWeather API Key"
+    icon: mdi:api
+    optimistic: True
+    min_length: 0
+    max_length: 40
+    restore_value: True
+    mode: TEXT
+    set_action: 
+      then:
+        - globals.set: 
+            id: open_weather_api_key
+            value: !lambda |-
+              std::string upper = x;
+              std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+              return upper;
+        - logger.log:
+            format: "Text changed to: %s"
+            args: ['x.c_str()']
+    web_server:
+      sorting_group_id: sorting_group_openweather
+      sorting_weight: 5
+  - platform: template
+    id: text_open_weather_city
+    name: "City"
+    icon: mdi:city
+    optimistic: True
+    min_length: 0
+    max_length: 40
+    restore_value: True
+    mode: TEXT
+    set_action: 
+      then:
+        - globals.set: 
+            id: open_weather_city
+            value: !lambda 'return x;'
+        - logger.log:
+            format: "Text changed to: %s"
+            args: ['x.c_str()']
+    web_server:
+      sorting_group_id: sorting_group_openweather
+      sorting_weight: 10
+  - platform: template
+    id: text_open_weather_country
+    name: "Country Code"
+    icon: mdi:map-outline
+    optimistic: True
+    min_length: 0
+    max_length: 3
+    restore_value: True
+    mode: TEXT
+    set_action: 
+      then:
+        - globals.set: 
+            id: open_weather_country
+            value: !lambda |-
+              std::string upper = x;
+              std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+              return upper;
+        - logger.log:
+            format: "Text changed to: %s"
+            args: ['x.c_str()']
+    web_server:
+      sorting_group_id: sorting_group_openweather
+      sorting_weight: 15
+
+#############################################
+###             TEXT SENSOR               ###
+#############################################
+text_sensor:
+  - platform: wifi_info
+    mac_address:
+      name: "MAC Address"
+      id: mac_address
+      icon: mdi:information-slab-circle-outline
+      web_server:
+        sorting_group_id: sorting_group_device
+        sorting_weight: 20
+    ip_address:
+      name: "IP Address"
+      id: ip_address
+      icon: mdi:ip-network
+      web_server:
+        sorting_group_id: sorting_group_device
+        sorting_weight: 10
