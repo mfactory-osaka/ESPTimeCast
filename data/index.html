@@ -197,7 +197,7 @@ textarea::placeholder {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-  @media (min-width: 320px) {
+  @media (min-width: 321px) {
     .form-row.two-col { 
       flex-direction: row; 
       gap: 1rem; }
@@ -287,12 +287,12 @@ textarea::placeholder {
   <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" />
   <div class="form-row two-col">
     <div>
-      <label for="openWeatherCity">City</label>
-      <input type="text" id="openWeatherCity" name="openWeatherCity" />
+      <label for="openWeatherCity">City / ZIP or<br>Latitude</label>
+      <input type="text" id="openWeatherCity" name="openWeatherCity"/>
     </div>
     <div>
-      <label for="openWeatherCountry">Country Code</label>
-      <input type="text" id="openWeatherCountry" name="openWeatherCountry" maxlength="2" />
+      <label for="openWeatherCountry">Country Code or<br>Longitude</label>
+      <input type="text" id="openWeatherCountry" name="openWeatherCountry"/>
     </div>
   </div>
   <label for="weatherUnits">Temperature Units</label>
@@ -302,6 +302,8 @@ textarea::placeholder {
     <option value="standard">Standard (K)</option>
   </select>
   <div class="small">
+    Enter a city name + country code, ZIP + country code or lat. + long.<br>
+    Format examples: Tokyo + JP, 94040 + US, 35.6895 + 139.6917<br><br>
     Consult the <a href="https://openweathermap.org/price" target="_blank" rel="noopener">OpenWeatherMap</a>
     documentation for info about getting your API key, city, and country code.
   </div>
@@ -400,7 +402,7 @@ textarea::placeholder {
     <option value="Etc/UTC">Etc/UTC</option>
   </select>
 
-    <label for="language">Day of Week Language</label>
+    <label for="language">Day of teh wekk language</label>
   <select id="language" name="language" onchange="setLanguage(this.value)">
     <option value="" disabled selected>Select language</option>
     <option value="af">Afrikaans</option>

@@ -53,7 +53,10 @@ int dimEndHour = 8;  // 8am default
 int dimEndMinute = 0;
 int dimBrightness = 2;  // Dimming level (0-15)
 
+bool weatherCycleStarted = false; 
+
 WiFiClient client;
+
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
 
@@ -284,6 +287,60 @@ void setupTime() {
   ntpSyncSuccessful = false;  // Reset the flag
 }
 
+String getValidLang(String lang) {
+  // List of unsupported codes
+  if (lang == "eo" || lang == "sw" || lang == "ja") {
+    return "en";  // fallback to English
+  }
+  return lang;  // supported language, return as is
+}
+
+bool isNumber(const char* str) {
+  for (int i = 0; str[i]; i++) {
+    if (!isdigit(str[i]) && str[i] != '.' && str[i] != '-') return false;
+  }
+  return true;
+}
+
+bool isFiveDigitZip(const char* str) {
+  if (strlen(str) != 5) return false;
+  for (int i = 0; i < 5; i++) {
+    if (!isdigit(str[i])) return false;
+  }
+  return true;
+}
+
+String buildWeatherURL() {
+  String base = "http://api.openweathermap.org/data/2.5/weather?";
+
+  float lat = atof(openWeatherCity);
+  float lon = atof(openWeatherCountry);
+
+  bool latValid = isNumber(openWeatherCity) && isNumber(openWeatherCountry) &&
+                  lat >= -90.0 && lat <= 90.0 &&
+                  lon >= -180.0 && lon <= 180.0;
+
+  if (latValid) {
+    // Latitude/Longitude query
+    base += "lat=" + String(lat, 8) + "&lon=" + String(lon, 8);
+  } else if (isFiveDigitZip(openWeatherCity) &&
+             String(openWeatherCountry).equalsIgnoreCase("US")) {
+    // US ZIP code query
+    base += "zip=" + String(openWeatherCity) + "," + String(openWeatherCountry);
+  } else {
+    // City name and country code
+    base += "q=" + String(openWeatherCity) + "," + String(openWeatherCountry);
+  }
+
+  base += "&appid=" + String(openWeatherApiKey);
+  base += "&units=" + String(weatherUnits);
+  base += "&lang=" + getValidLang(language);  // Optional, safe fallback
+
+  return base;
+}
+
+
+
 void printConfigToSerial() {
   Serial.println(F("========= Loaded Configuration ========="));
   Serial.print(F("WiFi SSID: "));
@@ -304,7 +361,7 @@ void printConfigToSerial() {
   Serial.println(weatherDuration);
   Serial.print(F("TimeZone (IANA): "));
   Serial.println(timeZone);
-  Serial.print(F("Days of the Week language): "));
+  Serial.print(F("Days of the Week/Weather description language: "));
   Serial.println(language);
   Serial.print(F("Brightness: "));
   Serial.println(brightness);
@@ -335,6 +392,8 @@ void printConfigToSerial() {
   Serial.println(F("========================================"));
   Serial.println();
 }
+
+
 
 // This tells the compiler that handleCaptivePortal exists somewhere later in the code.
 void handleCaptivePortal(AsyncWebServerRequest *request);
@@ -399,6 +458,8 @@ void setupWebServer() {
 
       // Specific type casting for known boolean/integer fields
       if (n == "brightness") doc[n] = v.toInt();
+      else if (n == "clockDuration") doc[n] = v.toInt();
+      else if (n == "weatherDuration") doc[n] = v.toInt();
       else if (n == "flipDisplay") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "twelveHourToggle") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showDayOfWeek") doc[n] = (v == "true" || v == "on" || v == "1");
@@ -658,7 +719,7 @@ void fetchWeather() {
 
   Serial.println(F("[WEATHER] Connecting to OpenWeatherMap..."));
   const char *host = "api.openweathermap.org";
-  String url = "/data/2.5/weather?q=" + String(openWeatherCity) + "," + String(openWeatherCountry) + "&appid=" + openWeatherApiKey + "&units=" + String(weatherUnits);
+  String url = buildWeatherURL();
   Serial.println(F("[WEATHER] URL: ") + url);
 
   IPAddress ip;
@@ -755,8 +816,8 @@ void fetchWeather() {
   }
 
   if (doc.containsKey(F("weather")) && doc[F("weather")].is<JsonArray>() && doc[F("weather")][0].containsKey(F("main"))) {
-    const char *desc = doc[F("weather")][0][F("main")];
-    Serial.printf("[WEATHER] Description: %s\n", weatherDescription.c_str());
+    const char *desc = doc[F("weather")][0][F("description")];
+    Serial.printf("[WEATHER] Description: %s\n", desc);
   } else {
     Serial.println(F("[WEATHER] Weather description not found in JSON payload"));
   }
@@ -859,8 +920,9 @@ void loop() {
         P.displayScroll(pendingIpToShow.c_str(), PA_CENTER, PA_SCROLL_LEFT, 120);
       } else {
         // Done showing IP, resume normal display
-        showingIp = false;
+        showingIp = false;        
         P.displayClear();
+        delay(500);
         displayMode = 0;        // Force clock mode
         lastSwitch = millis();  // Reset timer so clock mode gets full duration
       }
