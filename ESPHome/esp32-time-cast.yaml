@@ -18,8 +18,17 @@ substitutions:
   default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
   timezone: "Europe/Copenhagen"           # Enter your Timezone
 
-  weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"    # Danish
-  # weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"  # English
+  compass_N: "N"                          # Compass Direction North
+  compass_NE: "NE"                        # Compass Direction North East
+  compass_E: "E"                          # Compass Direction East
+  compass_SE: "SE"                        # Compass Direction South East
+  compass_S: "S"                          # Compass Direction South
+  compass_SW: "SW"                        # Compass Direction South West
+  compass_W: "W"                          # Compass Direction West
+  compass_NW: "NW"                        # Compass Direction North West
+
+  # weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"    # Danish
+  weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"  # English
   # weekDaysShort: "Son,Mon,Din,Mid,Don,Fre,Sam"  # German
   # weekDaysShort: "Dim,Lun,Mar,Mer,Jeu,Ven,Sam"  # French
   # weekDaysShort: "Dom,Lun,Mar,Mer,Gio,Ven,Sab"  # Italien
@@ -511,14 +520,14 @@ script:
                 int bearing = id(wind_bearing);
                 
                 // Convert bearing to compass direction
-                if (bearing >= 337.5 || bearing < 22.5) wind_dir = "N";
-                else if (bearing >= 22.5 && bearing < 67.5) wind_dir = "NE";
-                else if (bearing >= 67.5 && bearing < 112.5) wind_dir = "E";
-                else if (bearing >= 112.5 && bearing < 157.5) wind_dir = "SE";
-                else if (bearing >= 157.5 && bearing < 202.5) wind_dir = "S";
-                else if (bearing >= 202.5 && bearing < 247.5) wind_dir = "SW";
-                else if (bearing >= 247.5 && bearing < 292.5) wind_dir = "W";
-                else if (bearing >= 292.5 && bearing < 337.5) wind_dir = "NW";
+                if (bearing >= 337.5 || bearing < 22.5) wind_dir = "${compass_N}";
+                else if (bearing >= 22.5 && bearing < 67.5) wind_dir = "${compass_NE}";
+                else if (bearing >= 67.5 && bearing < 112.5) wind_dir = "${compass_E}";
+                else if (bearing >= 112.5 && bearing < 157.5) wind_dir = "${compass_SE}";
+                else if (bearing >= 157.5 && bearing < 202.5) wind_dir = "${compass_S}";
+                else if (bearing >= 202.5 && bearing < 247.5) wind_dir = "${compass_SW}";
+                else if (bearing >= 247.5 && bearing < 292.5) wind_dir = "${compass_W}";
+                else if (bearing >= 292.5 && bearing < 337.5) wind_dir = "${compass_NW}";
                 
                 // Format wind speed based on units
                 if (id(weather_units) == "metric") {
