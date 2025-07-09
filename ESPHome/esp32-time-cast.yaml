@@ -68,10 +68,13 @@ web_server:
       sorting_weight: 10
     - id: sorting_group_openweather
       name: "Weather Settings"
-      sorting_weight: 15
+      sorting_weight: 20
+    - id: sorting_group_night_mode
+      name: "Night Mode"
+      sorting_weight: 25
     - id: sorting_group_device
       name: "Device"
-      sorting_weight: 20
+      sorting_weight: 30
   
 #############################################
 ###          GENERAL SETTINGS             ###
@@ -89,6 +92,8 @@ time:
       - seconds: 0
         minutes: '*'
         then:
+          # Check if Night Mode should run
+          - script.execute: check_night_mode
            # Fetch Weather Data every 5 minutes
           - lambda: |-
               if (id(sntp_time).now().minute % 5 == 0) {
@@ -279,6 +284,69 @@ number:
       then:
         - lambda: |-
             id(main_display).intensity(x);
+  - platform: template
+    id: night_mode_intensity
+    name: "Night Mode Brightness"
+    icon: mdi:brightness-6
+    min_value: 0
+    max_value: 15
+    step: 1
+    initial_value: 3
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 7
+  - platform: template
+    id: night_mode_hour_start
+    name: "Night Mode Start Hour"
+    icon: mdi:clock-start
+    min_value: 0
+    max_value: 23
+    step: 1
+    initial_value: 22
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 10
+  - platform: template
+    id: night_mode_minute_start
+    name: "Start Minute"
+    min_value: 0
+    max_value: 55
+    step: 5
+    initial_value: 0
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 15
+  - platform: template
+    id: night_mode_hour_end
+    name: "Night Mode End Hour"
+    icon: mdi:clock-end
+    min_value: 0
+    max_value: 23
+    step: 1
+    initial_value: 6
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 20
+  - platform: template
+    id: night_mode_minute_end
+    name: "End Minute"
+    min_value: 0
+    max_value: 55
+    step: 5
+    initial_value: 0
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 25
 
 #############################################
 ###            SCRIPTS                    ###
@@ -431,6 +499,71 @@ script:
             - lambda: |-
                 id(weather_fetched) = false;
             - logger.log: "Weather settings incomplete - need API key, city, and country"
+  
+  ### NIGHT MODE AUTO TOGGLE ###
+  - id: check_night_mode
+    then:
+      - lambda: |-
+          if (!id(night_mode_enabled)) {
+            return; // Night mode is disabled, do nothing
+          }
+          
+          auto time = id(sntp_time).now();
+          if (!time.is_valid()) {
+            return; // No valid time, skip
+          }
+          
+          int current_hour = time.hour;
+          int current_minute = time.minute;
+          int current_time_minutes = current_hour * 60 + current_minute;
+          
+          int start_hour = (int)id(night_mode_hour_start).state;
+          int start_minute = (int)id(night_mode_minute_start).state;
+          int start_time_minutes = start_hour * 60 + start_minute;
+          
+          int end_hour = (int)id(night_mode_hour_end).state;
+          int end_minute = (int)id(night_mode_minute_end).state;
+          int end_time_minutes = end_hour * 60 + end_minute;
+          
+          bool should_be_night_mode = false;
+          
+          // Handle night mode timing (can span across midnight)
+          if (start_time_minutes <= end_time_minutes) {
+            // Night mode doesn't cross midnight (e.g., 22:00 to 23:30)
+            should_be_night_mode = (current_time_minutes >= start_time_minutes && current_time_minutes < end_time_minutes);
+          } else {
+            // Night mode crosses midnight (e.g., 22:00 to 06:00)
+            should_be_night_mode = (current_time_minutes >= start_time_minutes || current_time_minutes < end_time_minutes);
+          }
+          
+          if (should_be_night_mode) {
+            // Activate night mode
+            if (id(night_mode_turn_off).state) {
+              // Turn display completely off
+              id(main_display).turn_on_off(false);
+              ESP_LOGI("NIGHT_MODE", "Night mode activated - display turned OFF");
+            } else {
+              // Just dim to night mode brightness
+              int night_brightness = (int)id(night_mode_intensity).state;
+              id(main_display).intensity(night_brightness);
+              ESP_LOGI("NIGHT_MODE", "Night mode activated - brightness set to %d", night_brightness);
+            }
+          } else {
+            // Deactivate night mode
+            if (id(night_mode_turn_off).state) {
+              // Turn display back on at normal brightness
+              id(main_display).turn_on_off(true);
+              int normal_brightness = (int)id(intensity).state;
+              id(main_display).intensity(normal_brightness);
+              ESP_LOGI("NIGHT_MODE", "Night mode deactivated - display turned ON at brightness %d", normal_brightness);
+            } else {
+              // Just restore normal brightness
+              int normal_brightness = (int)id(intensity).state;
+              id(main_display).intensity(normal_brightness);
+              ESP_LOGI("NIGHT_MODE", "Night mode deactivated - brightness set to %d", normal_brightness);
+            }
+          }
+
 
 #############################################
 ###                 SELECT                ###
@@ -531,6 +664,25 @@ switch:
     web_server:
       sorting_group_id: sorting_group_device
       sorting_weight: 1
+
+  - platform: template
+    id: night_mode_enabled
+    name: "Toggle Night Mode"
+    icon: mdi:lightbulb-night
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 5
+  - platform: template
+    id: night_mode_turn_off
+    name: "Turn Off Display at Night"
+    icon: mdi:lightbulb-off
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 6
 
 #############################################
 ###              TEXT INPUT               ###
