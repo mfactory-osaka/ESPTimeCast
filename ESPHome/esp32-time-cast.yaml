@@ -327,9 +327,9 @@ script:
                         id(main_display).filled_rectangle(display_width - 2, display_height - 2, 2, 2);
                     }
                   } else {
-                    id(main_display).print(2, 0, main_font, buf);                  
+                    id(main_display).print(1, 0, main_font, buf);                  
                     snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
-                    id(main_display).print(29, 0, main_font, TextAlign::RIGHT, buf);
+                    id(main_display).print(31, 0, main_font, TextAlign::RIGHT, buf);
                   }
                 } else {
                   char buf[16];
