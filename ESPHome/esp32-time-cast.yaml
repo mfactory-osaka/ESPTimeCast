@@ -517,8 +517,8 @@ switch:
       sorting_weight: 25
   - platform: template
     id: switch_on_off
-    name: "Toggle Display On/Off"
-    icon: mdi:lightbulb-off
+    name: "Toggle Display"
+    icon: mdi:lightbulb-on
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     device_class: switch
@@ -530,7 +530,7 @@ switch:
           id(main_display).turn_on_off(false);
     web_server:
       sorting_group_id: sorting_group_device
-      sorting_weight: 25
+      sorting_weight: 1
 
 #############################################
 ###              TEXT INPUT               ###

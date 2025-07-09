@@ -77,4 +77,7 @@ The interface in ESPHome cannot be made as nice as the one @mfactory-osaka made 
 | **City** | Yes | The city to retrieve weather data for  |
 | **Country Code** | Yes | The 2-letter country code where the city is located |
 | **Weather Units** | Yes | Weather Units to display data for. Metric, Imperial or Standard (Kelvin Temperature)   |
+| **DEVICE** |  |  |
+| **Toggle Display** | No | Turn the display on or off |
+| **Restart Device** | No | Reboot the device |
 
