@@ -22,7 +22,7 @@ For the Display, I have used the same *MAX7219* display as for the Arduino versi
 You must have [ESPHome](https://esphome.io/) installed already and I will not here describe how to create a new Device as this is already covered in the ESPHome documentation.
 
 * Once you have a new device, edit it, and paste the code from `esp-time-cast.yaml` in to the file, overwriting everything that is in there.
-* Make sure you have the [MatrixLight8 Font File](https://github.com/trip5/Matrix-Fonts/blob/main/8-series/MatrixLight8.bdf) downloaded and copied to a directory in your ESPHome directory. The default in the YAML file is a directory called `fonts` under the `esphome` directory.
+* Make sure you have the [MatrixLight8X Font File](https://github.com/trip5/Matrix-Fonts/blob/main/8-series/MatrixLight8X.ttf) downloaded and copied to a directory in your ESPHome directory. The default in the YAML file is a directory called `fonts` under the `esphome` directory.
 * In the top of the YAML file you will find the below section in the top of the file:
   ```yaml
     ### CHANGE SETTINGS BELOW BEFORE COMPILE ###
