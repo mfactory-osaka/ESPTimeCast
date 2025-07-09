@@ -7,11 +7,12 @@ substitutions:
   PIN_CS: "5"                             # Enter GPIO Pin for CS (DATA)
   PIN_MOSI: "23"                          # Enter GPIO Pin for MOSI
 
-  font_path: "fonts/MatrixLight8.bdf"     # Enter the path and filename of the font you use. I recommend the file entered.
+  font_path: "fonts/MatrixLight8X.ttf"    # Enter the path and filename of the font you use. I recommend the file entered.
                                           # Change the path if you have not placed it in a fonts directory under esphome
                                           # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series
+                                          # The default font can be found in the Github Repository for this project.
 
-  brightness: "3"                         # Enter brightness level of the display 1 -15
+  default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
   timezone: "Europe/Copenhagen"           # Enter your Timezone
 
   weekDaysShort: "SØ,MA,TI,ON,TO,FR,LØ"   # Danish
@@ -69,7 +70,7 @@ web_server:
       name: "Weather Settings"
       sorting_weight: 15
     - id: sorting_group_device
-      name: "Device Information"
+      name: "Device"
       sorting_weight: 20
   
 #############################################
@@ -115,7 +116,7 @@ display:
     scroll_mode: STOP
     scroll_dwell: 1500ms
     scroll_speed: 500ms
-    intensity: ${brightness}
+    intensity: ${default_brightness}
     update_interval: 0.2s
     lambda: |-
       id(display_text).execute();
@@ -261,6 +262,23 @@ number:
     web_server:
       sorting_group_id: sorting_group_settings
       sorting_weight: 20
+  - platform: template
+    id: intensity
+    name: "Brightness (0-15)"
+    icon: mdi:brightness-6
+    min_value: 0
+    max_value: 15
+    step: 1
+    initial_value: ${default_brightness}
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 30
+    on_value:
+      then:
+        - lambda: |-
+            id(main_display).intensity(x);
 
 #############################################
 ###            SCRIPTS                    ###
@@ -496,6 +514,22 @@ switch:
           id(set_show_12hr_clock) = false;
     web_server:
       sorting_group_id: sorting_group_settings
+      sorting_weight: 25
+  - platform: template
+    id: switch_on_off
+    name: "Toggle Display On/Off"
+    icon: mdi:lightbulb-off
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    device_class: switch
+    turn_on_action: 
+      - lambda: |-
+          id(main_display).turn_on_off(true);
+    turn_off_action: 
+      - lambda: |-
+          id(main_display).turn_on_off(false);
+    web_server:
+      sorting_group_id: sorting_group_device
       sorting_weight: 25
 
 #############################################

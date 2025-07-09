@@ -34,7 +34,7 @@ You must have [ESPHome](https://esphome.io/) installed already and I will not he
                                           # Change the path if you have not placed it in a fonts directory under esphome
                                           # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series
 
-  brightness: "3"                         # Enter brightness level of the display 1 -15
+  default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
   timezone: "Europe/Copenhagen"           # Enter your Timezone
 
   # weekDaysShort: "SØ,MA,TI,ON,TO,FR,LØ" # Danish
@@ -71,6 +71,7 @@ The interface in ESPHome cannot be made as nice as the one @mfactory-osaka made 
 | **Clock Duration** | No | The number of seconds the Clock is displayed |
 | **Weather Duration** | No | The number of seconds the Weather info is shown |
 | **12-Hour Clock** | No | Set to On to show a 12-Hour clock instead of 24-Hour |
+| **Brightness** | No | Set the brightness of the display. A number between 0 and 15, where 0 is low and 15 is high |
 | **WEATHER SETTINGS** |  |  |
 | **OpenWeather API Key** | Yes | Type your personal [OpenWeather API Key](https://openweathermap.org/api). |
 | **City** | Yes | The city to retrieve weather data for  |
