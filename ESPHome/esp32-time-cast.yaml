@@ -7,6 +7,9 @@ substitutions:
   PIN_CS: "5"                             # Enter GPIO Pin for CS (DATA)
   PIN_MOSI: "23"                          # Enter GPIO Pin for MOSI
 
+  ssid: !secret wifi_ssid                 # The name of the WiFi network. When using !secret that means that wifi_ssid needs to be defined in secrets.yaml
+  password: !secret wifi_password         # The password for the WiFi Network
+
   font_path: "fonts/MatrixLight8X.ttf"    # Enter the path and filename of the font you use. I recommend the file entered.
                                           # Change the path if you have not placed it in a fonts directory under esphome
                                           # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series
@@ -15,11 +18,11 @@ substitutions:
   default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
   timezone: "Europe/Copenhagen"           # Enter your Timezone
 
-  weekDaysShort: "SØ,MA,TI,ON,TO,FR,LØ"   # Danish
-  # weekDaysShort: "SU,MO,TU,WE,TH,FR,SA" # English
-  # weekDaysShort: "SO,MO,DI,MI,DO,FR,SA" # German
-  # weekDaysShort: "DI,LU,MA,ME,JE,VE,SA" # Frebch
-
+  weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"    # Danish
+  # weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"  # English
+  # weekDaysShort: "Son,Mon,Din,Mid,Don,Fre,Sam"  # German
+  # weekDaysShort: "Dim,Lun,Mar,Mer,Jeu,Ven,Sam"  # French
+  # weekDaysShort: "Dom,Lun,Mar,Mer,Gio,Ven,Sab"  # Italien
   ############ END OF SETTINGS ############## 
 
 #############################################
@@ -47,8 +50,8 @@ ota:
     password: "0af1e9a831997bc6563bcd67408a4e70"
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  ssid: ${ssid}
+  password: ${password}
   ap:
     ssid: "ESPTimeCast Fallback Hotspot"
     password: "12345678"
@@ -187,7 +190,31 @@ globals:
     type: float
     restore_value: False
     initial_value: '0.0'
+  - id: temp_min
+    type: float
+    restore_value: False
+    initial_value: '0.0'
+  - id: temp_max
+    type: float
+    restore_value: False
+    initial_value: '0.0'
   - id: humidity
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: weather_condition
+    type: std::string
+    restore_value: False
+    initial_value: '""'
+  - id: pressure
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: wind_speed
+    type: float
+    restore_value: False
+    initial_value: '0.0'
+  - id: wind_bearing
     type: int
     restore_value: False
     initial_value: '0'
@@ -218,15 +245,38 @@ interval:
       - lambda: |-
           id(page_timer)++;
           if (id(page_timer) >= id(page_duration)) {
-            id(current_page)++;
-            if (id(current_page) > 1) id(current_page) = 0;
-            id(scroll_pos) = 0;
             id(page_timer) = 0;
+            id(scroll_pos) = 0;
             
+            // Find next valid page
+            do {
+              id(current_page)++;
+              if (id(current_page) > 3) id(current_page) = 0;
+              
+              // Skip page 2 if show_condition_screen is off
+              if (id(current_page) == 2 && !id(show_condition_screen).state) {
+                continue;
+              }
+              
+              // Skip page 3 if show_wind_screen is off
+              if (id(current_page) == 3 && !id(show_wind_screen).state) {
+                continue;
+              }
+              
+              // Valid page found, break out of loop
+              break;
+              
+            } while (true);
+            
+            // Set page duration based on current page
             if (id(current_page) == 0) {
               id(page_duration) = id(clock_duration).state;  // Clock page timing
             } else if (id(current_page) == 1) {
               id(page_duration) = id(weather_duration).state;   // Weather page timing
+            } else if (id(current_page) == 2) {
+              id(page_duration) = id(weather_duration).state;   // Weather condition page timing
+            } else if (id(current_page) == 3) {
+              id(page_duration) = id(weather_duration).state;   // Wind page timing
             }
           }
 
@@ -388,10 +438,10 @@ script:
                     if (display_hour == 0) {
                         display_hour = 12;  // Midnight = 12 AM
                     } else if (display_hour == 12) {
-                        am_pm = "PM";       // Noon = 12 PM
+                        am_pm = "am";       // Noon = 12 PM
                     } else if (display_hour > 12) {
                         display_hour -= 12; // Convert to 12-hour format
-                        am_pm = "PM";
+                        am_pm = "pm";
                     }
                 }
 
@@ -404,18 +454,18 @@ script:
                     snprintf(buf, sizeof(buf), "??");
                   }
                   if (id(set_show_12hr_clock)) {
-                    id(main_display).print(2, 0, main_font, buf);
+                    id(main_display).print(0, 0, main_font, buf);
                     snprintf(buf, sizeof(buf), "%d:%02d", display_hour, time.minute);
-                    id(main_display).print(29, 0, main_font, TextAlign::RIGHT, buf);
+                    id(main_display).print(30, 0, main_font, TextAlign::RIGHT, buf);
                     if (strcmp(am_pm, "AM") == 0) {
                         id(main_display).filled_rectangle(display_width - 2, 0, 2, 2);
                     } else {
                         id(main_display).filled_rectangle(display_width - 2, display_height - 2, 2, 2);
                     }
                   } else {
-                    id(main_display).print(1, 0, main_font, buf);                  
+                    id(main_display).print(0, 0, main_font, buf);                  
                     snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
-                    id(main_display).print(31, 0, main_font, TextAlign::RIGHT, buf);
+                    id(main_display).print(32, 0, main_font, TextAlign::RIGHT, buf);
                   }
                 } else {
                   char buf[16];
@@ -439,7 +489,51 @@ script:
               } else {
                 id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, "SETUP...");
               }
-            }      
+            }  else if (id(current_page) == 2) {
+              // Weather condition page
+              char buf[32];
+              if (id(weather_fetched)) {
+                std::string condition = id(weather_condition);
+                if (condition.empty()) {
+                  snprintf(buf, sizeof(buf), "NO DATA");
+                } else {
+                  snprintf(buf, sizeof(buf), "%s", condition.c_str());
+                }
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
+              } else {
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
+              }
+            } else if (id(current_page) == 3) {
+              // Wind speed and bearing page
+              char buf[32];
+              if (id(weather_fetched)) {
+                std::string wind_dir = "";
+                int bearing = id(wind_bearing);
+                
+                // Convert bearing to compass direction
+                if (bearing >= 337.5 || bearing < 22.5) wind_dir = "N";
+                else if (bearing >= 22.5 && bearing < 67.5) wind_dir = "NE";
+                else if (bearing >= 67.5 && bearing < 112.5) wind_dir = "E";
+                else if (bearing >= 112.5 && bearing < 157.5) wind_dir = "SE";
+                else if (bearing >= 157.5 && bearing < 202.5) wind_dir = "S";
+                else if (bearing >= 202.5 && bearing < 247.5) wind_dir = "SW";
+                else if (bearing >= 247.5 && bearing < 292.5) wind_dir = "W";
+                else if (bearing >= 292.5 && bearing < 337.5) wind_dir = "NW";
+                
+                // Format wind speed based on units
+                if (id(weather_units) == "metric") {
+                  snprintf(buf, sizeof(buf), "%.1fm/s %s", id(wind_speed), wind_dir.c_str());
+                } else if (id(weather_units) == "imperial") {
+                  snprintf(buf, sizeof(buf), "%.1fmph %s", id(wind_speed), wind_dir.c_str());
+                } else {
+                  snprintf(buf, sizeof(buf), "%.1fm/s %s", id(wind_speed), wind_dir.c_str());
+                }
+                
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
+              } else {
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
+              }
+            }    
         
   ### FETCH DATA FROM OPENWEATHERMAP ###
   - id: get_openweathermap_data
@@ -486,8 +580,32 @@ script:
 
                               float temp = doc["main"]["temp"];
                               id(temperature) = temp;
+                              float tempmin = doc["main"]["temp_min"];
+                              id(temp_min) = tempmin;
+                              float tempmax = doc["main"]["temp_max"];
+                              id(temp_max) = tempmax;
                               int hum = doc["main"]["humidity"];
                               id(humidity) = hum;
+                              int press = doc["main"]["pressure"];
+                              id(pressure) = press;
+
+                              if (!doc.containsKey("weather") || !doc["weather"][0].containsKey("main")) {
+                                ESP_LOGW("WEATHER", "Invalid data format");
+                                return;
+                              }
+
+                              std::string condition = doc["weather"][0]["main"];
+                              id(weather_condition) = condition;
+
+                              if (!doc.containsKey("wind") || !doc["wind"].containsKey("speed")) {
+                                ESP_LOGW("WEATHER", "Invalid data format");
+                                return;
+                              }
+
+                              float speed = doc["wind"]["speed"];
+                              id(wind_speed) = speed;
+                              int degree = doc["wind"]["deg"];
+                              id(wind_bearing) = degree;
 
                               id(weather_fetched) = true;
                               ESP_LOGI("WEATHER", "Weather data updated: %.1f°C, %d%%", temp, hum);
@@ -664,6 +782,25 @@ switch:
     web_server:
       sorting_group_id: sorting_group_device
       sorting_weight: 1
+
+  - platform: template
+    id: show_condition_screen
+    name: "Show Condition Screen"
+    icon: mdi:weather-cloudy
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 12
+  - platform: template
+    id: show_wind_screen
+    name: "Show Wind Screen"
+    icon: mdi:weather-windy
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 14
 
   - platform: template
     id: night_mode_enabled

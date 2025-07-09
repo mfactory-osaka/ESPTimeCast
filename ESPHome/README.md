@@ -24,15 +24,22 @@ You must have [ESPHome](https://esphome.io/) installed already and I will not he
 * Once you have a new device, edit it, and paste the code from `esp-time-cast.yaml` in to the file, overwriting everything that is in there.
 * Make sure you have the [MatrixLight8X Font File](https://github.com/trip5/Matrix-Fonts/blob/main/8-series/MatrixLight8X.ttf) downloaded and copied to a directory in your ESPHome directory. The default in the YAML file is a directory called `fonts` under the `esphome` directory.
 * In the top of the YAML file you will find the below section in the top of the file:
+
   ```yaml
-    ### CHANGE SETTINGS BELOW BEFORE COMPILE ###
+  ### CHANGE SETTINGS BELOW BEFORE COMPILE ###
   PIN_CLK: "18"                           # Enter GPIO Pin for CLK
   PIN_CS: "5"                             # Enter GPIO Pin for CS (DATA)
   PIN_MOSI: "23"                          # Enter GPIO Pin for MOSI
 
-  font_path: "fonts/MatrixLight8.bdf"     # Enter the path and filename of the font you use. I recommend the file entered.
+  ssid: !secret wifi_ssid                 # The name of the WiFi network. 
+  password: !secret wifi_password         # The password for the WiFi Network
+                                          # When using !secret that means that wifi_ssid, wifi_password needs to be defined in secrets.yaml
+
+  font_path: "fonts/MatrixLight8X.ttf"    # Enter the path and filename of the font you use. I recommend the file entered.
                                           # Change the path if you have not placed it in a fonts directory under esphome
-                                          # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series
+                                          # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series or in 
+                                          # the Github Repository for this project.
+                                          # All the Credit for the font goes to @trip5 (https://github.com/trip5)
 
   default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
   timezone: "Europe/Copenhagen"           # Enter your Timezone
@@ -47,10 +54,14 @@ You must have [ESPHome](https://esphome.io/) installed already and I will not he
 
   The settings here need to be configured before compiling and uploading to the ESP32 as they cannot be set while running.
   * The top 3 are the PIN's used to communicate with the Display. These most reflect how you connected the cables between the display and the ESP32. The default PIN's work well with a Wemos ESP32 D1 Mini.
+  * `ssid` and `password` are the WiFi Network and passord for that network. You can either type it directly here or you can enter it in to the `secrets.yaml` file, so that it is not visible directly in the code.
   * The `font_path` variable is where ESPHome should look for the font file. (See above)
-  * `brightness` is a number between 1 and 15. The higher the number, the brighter the display. Personally I like 3.
+  * `default_brightness` is a number between 0 and 15. The higher the number, the brighter the display. This can be adjusted dynamically. See below.
   * The `timezone` explains itself.
   * I could not find a font that was thin enough to hold a 3 character Day Name without scrolling, so I decided to shorten it to to letters. I then also made it possible to localize the day names, and added a few examples for other languages. Pick the one you want by uncommenting it, and remember to outcomment the ones not used. Or create your own language string.
+
+  ### WiFi Setup
+
 
 * Save the file you just edited, and install the code to the device.
 
@@ -64,20 +75,26 @@ The interface in ESPHome cannot be made as nice as the one @mfactory-osaka made 
 <img src="esp32_timecast_settings.png" alt="Web Interface" width="480">
 
 | Setting | Required | Comment |
-|:-------------:|:-------:|:-------:|
-| **CLOCK SETTINGS** |  |  |
-| **Show Weekday** | No | Flip this on if the clock should show the weekday |
-| **Show Humidity** | No | Flip this on if the Humidity should be shown with the temperature |
-| **Clock Duration** | No | The number of seconds the Clock is displayed |
-| **Weather Duration** | No | The number of seconds the Weather info is shown |
-| **12-Hour Clock** | No | Set to On to show a 12-Hour clock instead of 24-Hour |
-| **Brightness** | No | Set the brightness of the display. A number between 0 and 15, where 0 is low and 15 is high |
-| **WEATHER SETTINGS** |  |  |
-| **OpenWeather API Key** | Yes | Type your personal [OpenWeather API Key](https://openweathermap.org/api). |
-| **City** | Yes | The city to retrieve weather data for  |
-| **Country Code** | Yes | The 2-letter country code where the city is located |
-| **Weather Units** | Yes | Weather Units to display data for. Metric, Imperial or Standard (Kelvin Temperature)   |
-| **DEVICE** |  |  |
-| **Toggle Display** | No | Turn the display on or off |
-| **Restart Device** | No | Reboot the device |
+|:-------------:|:-------:|:-------|
+| **Clock Settings** |  |  |
+| *Show Weekday* | No | Flip this on if the clock should show the weekday |
+| *Show Humidity* | No | Flip this on if the Humidity should be shown with the temperature |
+| *Clock Duration* | No | The number of seconds the Clock is displayed |
+| *Weather Duration* | No | The number of seconds the Weather info is shown |
+| *12-Hour Clock* | No | Set to On to show a 12-Hour clock instead of 24-Hour |
+| *Brightness* | No | Set the brightness of the display. A number between 0 and 15, where 0 is low and 15 is high |
+| **Weather Settings** |  |  |
+| *OpenWeather API Key* | Yes | Type your personal [OpenWeather API Key](https://openweathermap.org/api). |
+| *City* | Yes | The city to retrieve weather data for  |
+| *Country Code* | Yes | The 2-letter country code where the city is located |
+| *Weather Units* | Yes | Weather Units to display data for. Metric, Imperial or Standard (Kelvin Temperature)   |
+| **Night Mode** |  |  |
+| *Toggle Night Mode* | No | If switched on the Clock will go in to Night Mode. If off, the rest of this section will be ignored |
+| *Turn Off Display at Night* | No | Night mode can be either dimming the light or turn off the display completely. If this switch is enabled the *Night Mode Brightness* will be ignored and the screen will turn off  |
+| *Night Mode Brightness* | No | The intensity of the display when Night Mode is active |
+| *Night Mode Start Hour and Minute* | No | The Time of day Night Mode will turn on |
+| *Night Mode End Hour and Minute* | No | The Time of day Night Mode will turn off again |
+| **Device** |  |  |
+| *Toggle Display* | No | Turn the display on or off |
+| *Restart Device* | No | Reboot the device |
 
