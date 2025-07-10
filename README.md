@@ -1,7 +1,7 @@
 ![ESPTimeCast](assets/logo.svg)
 
 **ESPTimeCast** is a WiFi-connected LED matrix clock and weather station based on ESP8266 and MAX7219.  
-It displays the current time, day of the week (with custom symbols), and local weather (temp/humidity) fetched from OpenWeatherMap.  
+It displays the current time, day of the week, and local weather (temp/humidity/weather description) fetched from OpenWeatherMap.  
 Setup and configuration are fully managed via a built-in web interface.  
 
 ![clock - weather](assets/demo.gif) 
@@ -23,10 +23,9 @@ Get the 3D printable case!
 - **LED Matrix Display (8x32)** powered by MAX7219, with custom font support
 - **Simple Web Interface** for all configuration (WiFi, weather, time zone, display durations, and more)
 - **Automatic NTP Sync** with robust status feedback and retries
-- **Day of Week Display** with custom icons/symbols
-- **Weather Fetching** from OpenWeatherMap (every 5 minutes, temp/humidity)
-- **Temperature Unit Selector** (`C`, `F`, or `K` displays in temp mode only)
-- **Fallback AP Mode** for easy first-time setup or WiFi recovery, with `/ap_status` endpoint
+- **Day of Week Display** with custom font
+- **Weather Fetching** from OpenWeatherMap (every 5 minutes, temp/humidity/description)
+- **Fallback AP Mode** for easy first-time setup or configuration
 - **Timezone Selection** from IANA names (DST integrated on backend)
 - **Day of the week display** in multiple languages
 - **Persistent Config** stored in LittleFS, with backup/restore system
@@ -35,7 +34,9 @@ Get the 3D printable case!
   - Custom **Primary/Secondary NTP server** input
   - Display **Day of the Week** toggle (defualt in on)
   - **24/12h clock mode** toggle (24-hour default)
+  - **Imperial Units (°F)** toggle (metric °C defaults)
   - Show **Humidity** toggle (display Humidity besides Temperature)
+  - **Weather description** toggle (display Rainy, Clouds, Thunderstorm etc.)
   - **Flip display** (180 degrees)
   - Adjustable display **brightness**
   - Dimming Hours **Scheduling**
@@ -70,7 +71,7 @@ Note: Thanks to @Wood578Guy for the Wiring diagram and the info on V4
 The built-in web interface provides full configuration for:
 
 - **WiFi settings** (SSID & Password)
-- **Weather settings** (OpenWeatherMap API key, City, Country, Units)
+- **Weather settings** (OpenWeatherMap API key, City, Country, Coordinates)
 - **Time zone** (will auto-populate if TZ is found)
 - **Day of the week** languages
 - **Display durations** for clock and weather (milliseconds)
@@ -87,7 +88,7 @@ The built-in web interface provides full configuration for:
 4. The device shows its local IP adress after boot so you can login again for setting changes
 
 ### UI Example:
-<img src="assets/webui4.png" alt="Web Interface" width="320">
+<img src="assets/webui5.png" alt="Web Interface" width="320">
 
 ---
 
@@ -99,9 +100,11 @@ Click the **cog icon** next to “Advanced Settings” in the web UI to reveal e
 
 - **Primary NTP Server**: Override the default NTP server (e.g. `pool.ntp.org`)
 - **Secondary NTP Server**: Fallback NTP server (e.g. `time.nist.gov`)
-- **Day of the Week**: Display symbol for Day of the Week
+- **Day of the Week**: Display Day of the Week in the disered language
 - **24/12h Clock**: Switch between 24-hour and 12-hour time formats (24-hour default)
+- **Imperial Units (°F)** toggle (metric °C defaults)
 - **Humidity**: Display Humidity besides Temperature
+- **Weather description** toggle (display Rainy, Clouds, Thunderstorm etc. for 3 seconds)
 - **Flip Display**: Invert the display vertically/horizontally
 - **Brightness**: 0 (dim) to 15 (bright)
 - **Dimming Feature**: Start time, end time and desired brightness selection 
@@ -112,11 +115,12 @@ Click the **cog icon** next to “Advanced Settings” in the web UI to reveal e
 
 ## 📝 Configuration Notes
 
-- **OpenWeatherMap API Key:** [Get yours here](https://openweathermap.org/api)
+- **OpenWeatherMap API Key:** [Get yours here]([https://home.openweathermap.org/users/sign_up])
 - **City Name:** e.g. `Tokyo`, `London`, etc.
 - **Country Code:** 2-letter code (e.g., `JP`, `GB`)
+- **ZIP Code:** Enter your ZIP code in the city field and US in the country field (US only)
+- **Latitude and Longitude** You can enter coordinates in the city field (lat.) and country field (long.)
 - **Time Zone:** Select from IANA zones (e.g., `America/New_York`, handles DST automatically)
-- **Units:** `metric` (°C), `imperial` (°F), or `standard` (K)
 
 ---
 
@@ -159,24 +163,27 @@ Install the [LittleFS Uploader](https://randomnerdtutorials.com/arduino-ide-2-in
 
 ## 📺 Display Behavior
 
-**ESPTimeCast** automatically switches between two display modes: Clock and Weather.  
+**ESPTimeCast** automatically switches between two display modes: Clock and Weather.
+If "Show Weather Description" is eneabled a third mode (Description) will display with a duration of 3 seconds, if the description is too long to fit on the display the description will scroll from right to left once.
+
 What you see on the LED matrix depends on whether the device has successfully fetched the current time (via NTP) and weather (via OpenWeatherMap).  
 The following table summarizes what will appear on the display in each scenario:
 
 | Display Mode | 🕒 NTP Time | 🌦️ Weather Data | 📺 Display Output                              |
 |:------------:|:----------:|:--------------:|:--------------------------------------------|
 | **Clock**    | ✅ Yes      | —              | 🗓️ Day Icon + ⏰ Time (e.g. `@ 14:53`)           |
-| **Clock**    | ❌ No       | —              |  `no ntp` (NTP sync failed)               |
+| **Clock**    | ❌ No       | —              |  `! NTP` (NTP sync failed)               |
 | **Weather**  | —          | ✅ Yes         | 🌡️ Temperature (e.g. `23ºC`)                |
 | **Weather**  | ✅ Yes      | ❌ No          | 🗓️ Day Icon + ⏰ Time (e.g. `@ 14:53`)           |
-| **Weather**  | ❌ No       | ❌ No          |  `no temp` (no weather or time data)       |
+| **Weather**  | ❌ No       | ❌ No          |  `! TEMP` (no weather or time data)       |
 
 ### **How it works:**
 
 - The display automatically alternates between **Clock** and **Weather** modes (the duration for each is configurable).
-- In **Clock** mode, if NTP time is available, you’ll see the current time plus a unique day-of-week icon. If NTP is not available, you'll see `no ntp`.
-- In **Weather** mode, if weather is available, you’ll see the temperature (like `23ºC`). If weather is not available but time is, it falls back to showing the clock. If neither is available, you’ll see `no temp`.
-- All status/error messages (`no ntp`, `no temp`) are shown exactly as written.
+- If "Show Weather Description" is eneabled a third mode **Description** will display after the **Weather** display with a duration of 3 seconds.
+- In **Clock** mode, if NTP time is available, you’ll see the current time plus a unique day-of-week icon. If NTP is not available, you'll see `! NTP`.
+- In **Weather** mode, if weather is available, you’ll see the temperature (like `23ºC`). If weather is not available but time is, it falls back to showing the clock. If neither is available, you’ll see `! TEMP`.
+- All status/error messages (`! NTP`, `! TEMP`) are big icons shown on the dsiplay.
 
 **Legend:**
 - 🗓️ **Day Icon**: Custom symbol for day of week (`@`, `=`, etc.)
@@ -185,13 +192,6 @@ The following table summarizes what will appear on the display in each scenario:
 - ✅ **Yes**: Data available
 - ❌ **No**: Data not available
 - — : Value does not affect this mode
-
-
----
-
-## 🤝 Contributing
-
-Pull requests are welcome! For major changes, please open an issue first to discuss.
 
 ---
 
