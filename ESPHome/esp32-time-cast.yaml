@@ -26,13 +26,13 @@ substitutions:
   timezone: "Europe/Copenhagen"           # Enter your Timezone
 
   compass_N: "N"                          # Compass Direction North
-  compass_NE: "NØ"                        # Compass Direction North East
-  compass_E: "Ø"                          # Compass Direction East
-  compass_SE: "SØ"                        # Compass Direction South East
+  compass_NE: "NE"                        # Compass Direction North East
+  compass_E: "E"                          # Compass Direction East
+  compass_SE: "SE"                        # Compass Direction South East
   compass_S: "S"                          # Compass Direction South
-  compass_SW: "SV"                        # Compass Direction South West
-  compass_W: "V"                          # Compass Direction West
-  compass_NW: "NV"                        # Compass Direction North West
+  compass_SW: "SW"                        # Compass Direction South West
+  compass_W: "W"                          # Compass Direction West
+  compass_NW: "NW"                        # Compass Direction North West
 
   # weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"  # Danish
   weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"    # English
