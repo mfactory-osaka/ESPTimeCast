@@ -1,7 +1,7 @@
 {
   "ssid": "",
   "password": "",
-  "openWeatherApiKey": "ADD-YOUR-API-KEY-32-CHARACTERS",
+  "openWeatherApiKey": "",
   "openWeatherCity": "",
   "openWeatherCountry": "",
   "clockDuration": 10000,

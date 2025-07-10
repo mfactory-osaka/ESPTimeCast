@@ -41,7 +41,7 @@
     color: #ffffff; 
   }
   h2{
-    margin-top: 3rem;
+    margin-top: 2rem;
     margin-bottom: 0;
   }
 
@@ -115,7 +115,7 @@ input:-webkit-autofill:hover {
 
 input::placeholder, 
 textarea::placeholder {
-  color: #fff;      /* Example: light blue */
+  color: hwb(0 100% 0% / 0.39);      /* Example: light blue */
   opacity: 1;          /* Make sure it's not semi-transparent */
 }
 
@@ -123,6 +123,7 @@ textarea::placeholder {
     display: flex; 
     flex-direction: column; 
   }
+
   .form-row.two-col { 
     flex-direction: column;
   }
@@ -144,6 +145,7 @@ textarea::placeholder {
   .primary-button:active {
     transform: scale(0.97); 
   }  
+
   .note { 
     font-size: 0.85rem; 
     text-align: center; 
@@ -197,10 +199,19 @@ textarea::placeholder {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-  @media (min-width: 321px) {
+
+      #openWeatherCountry{
+        margin-top: 0.75rem;
+      }
+
+  @media (min-width: 361px) {
     .form-row.two-col { 
       flex-direction: row; 
       gap: 1rem; }
+
+      #openWeatherCountry{
+        margin-top: 0.0;
+      }
   }
 
 
@@ -284,28 +295,19 @@ textarea::placeholder {
   </div>
   <h2>Weather Settings</h2>
   <label for="openWeatherApiKey">OpenWeather API Key</label>
-  <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" />
-  <div class="form-row two-col">
-    <div>
-      <label for="openWeatherCity">City / ZIP or<br>Latitude</label>
-      <input type="text" id="openWeatherCity" name="openWeatherCity"/>
-    </div>
-    <div>
-      <label for="openWeatherCountry">Country Code or<br>Longitude</label>
-      <input type="text" id="openWeatherCountry" name="openWeatherCountry"/>
-    </div>
+  <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" placeholder="ADD-YOUR-API-KEY-32-CHARACTERS"/>    
+  <div class="small">Required to fetch weather data. <a href="https://home.openweathermap.org/users/sign_up" target="_blank">Get your API key here</a>.</div>
+
+  <label>Location</label>
+  <div class="form-row two-col"> 
+    <input type="text" id="openWeatherCity" name="openWeatherCity" placeholder="City / Zip / Lat."/>    
+    <input type="text" id="openWeatherCountry" name="openWeatherCountry" placeholder="Country Code / Long."/>  
   </div>
-  <label for="weatherUnits">Temperature Units</label>
-  <select id="weatherUnits" name="weatherUnits">
-    <option value="metric">Metric (°C)</option>
-    <option value="imperial">Imperial (°F)</option>
-    <option value="standard">Standard (K)</option>
-  </select>
+  
+  </div>
   <div class="small">
-    Enter a city name + country code, ZIP + country code or lat. + long.<br>
-    Format examples: Tokyo + JP, 94040 + US, 35.6895 + 139.6917<br><br>
-    Consult the <a href="https://openweathermap.org/price" target="_blank" rel="noopener">OpenWeatherMap</a>
-    documentation for info about getting your API key, city, and country code.
+    Visit <a href="https://openweathermap.org/find" target="_blank" rel="noopener">OpenWeatherMap</a> to find your location.<br><br>
+    Location format examples: City, Country Code - Osaka, JP | ZIP,Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023    
   </div>
 
   <h2>Clock Settings</h2>
@@ -402,7 +404,7 @@ textarea::placeholder {
     <option value="Etc/UTC">Etc/UTC</option>
   </select>
 
-    <label for="language">Day of teh wekk language</label>
+    <label for="language">Day of the week language</label>
   <select id="language" name="language" onchange="setLanguage(this.value)">
     <option value="" disabled selected>Select language</option>
     <option value="af">Afrikaans</option>
@@ -463,6 +465,7 @@ textarea::placeholder {
       <label>Secondary NTP Server:</label>
       <input type="text" name="ntpServer2" id="ntpServer2" placeholder="Enter NTP address">
       <div class="toggles" style="padding: 0 1rem;">
+
       <!-- Day of the week Toggle (Styled) -->
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Show Day of Week:</span>
@@ -481,11 +484,29 @@ textarea::placeholder {
         </span>
       </label>
 
+      <!-- Imperial Units Toggle (Styled) -->
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Use Imperial Units (°F):</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="weatherUnits" name="weatherUnits" onchange="setWeatherUnits(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
       <!-- Display humidity (Styled) -->
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Show Humidity:</span>
         <span class="toggle-switch">
           <input type="checkbox" id="showHumidity" name="showHumidity" onchange="setShowHumidity(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <!-- Show weather description -->
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Show Weather Description:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="showWeatherDescription" name="showWeatherDescription" onchange="setShowWeatherDescription(this.checked)">
           <span class="toggle-slider"></span>
         </span>
       </label>
@@ -503,7 +524,7 @@ textarea::placeholder {
       <label style="margin-top: 1.75rem;">Brightness: <span id="brightnessValue">10</span></label>
       <input style="width: 100%;" type="range" min="0" max="15" name="brightness" id="brightnessSlider" value="10" 
       oninput="brightnessValue.textContent = brightnessSlider.value; setBrightnessLive(this.value);">
-      <br><br>
+      <br><br><br>
 
         <!-- Dimming Controls -->
       <label style="display: flex; align-items: center; justify-content: space-between;">
@@ -526,10 +547,10 @@ textarea::placeholder {
           </div>
         </div>
 
-                <div style="margin-top: 1rem;">
-          <label for="dimBrightness">Dimming Brightness (0-15):</label>
-          <input type="number" id="dimBrightness" min="0" max="15" value="2" style="width:80px;">
-        </div>
+        <label style="margin-top: 1.75rem;" for="dimBrightness">Dimming Brightness: <span id="dimmingBrightnessValue">2</span></label>
+        <input style="width: 100%;" type="range" min="0" max="15" name="dimming_brightness" id="dimBrightness" value="2"
+        oninput="dimmingBrightnessValue.textContent = dimBrightness.value; ">
+        <br><br>
 
       </div>   
     </div>
@@ -581,7 +602,7 @@ window.onload = function () {
       document.getElementById('openWeatherApiKey').value = data.openWeatherApiKey || '';
       document.getElementById('openWeatherCity').value = data.openWeatherCity || '';
       document.getElementById('openWeatherCountry').value = data.openWeatherCountry || '';
-      document.getElementById('weatherUnits').value = data.weatherUnits || 'metric';
+      document.getElementById('weatherUnits').checked = (data.weatherUnits === "imperial");
       document.getElementById('clockDuration').value = (data.clockDuration || 10000) / 1000;
       document.getElementById('weatherDuration').value = (data.weatherDuration || 5000) / 1000;
       document.getElementById('language').value = data.language || '';
@@ -594,6 +615,10 @@ window.onload = function () {
       document.getElementById('twelveHourToggle').checked = !!data.twelveHourToggle;
       document.getElementById('showDayOfWeek').checked = !!data.showDayOfWeek;
       document.getElementById('showHumidity').checked = !!data.showHumidity;
+      document.getElementById('showWeatherDescription').checked = !!data.showWeatherDescription;
+      document.getElementById('showWeatherDescription').addEventListener('change', function() {
+        setShowWeatherDescription(this.checked);
+      });
 
             // Dimming controls
 const dimmingEnabledEl = document.getElementById('dimmingEnabled');
@@ -618,6 +643,8 @@ document.getElementById('dimEndTime').value =
   (data.dimEndMinute !== undefined ? String(data.dimEndMinute).padStart(2, '0') : "00");
 
       document.getElementById('dimBrightness').value = (data.dimBrightness !== undefined ? data.dimBrightness : 2);
+      // Then update the span's text content with that value
+      document.getElementById('dimmingBrightnessValue').textContent = document.getElementById('dimBrightness').value;
 
       setDimmingFieldsEnabled(!!data.dimmingEnabled);
 
@@ -699,6 +726,9 @@ async function submitConfig(event) {
     formData.set('dimEndMinute', endMin);
   }
   formData.set('dimBrightness', document.getElementById('dimBrightness').value);
+  formData.set('showWeatherDescription', document.getElementById('showWeatherDescription').checked ? 'on' : '');
+  formData.set('weatherUnits', document.getElementById('weatherUnits').checked ? 'imperial' : 'metric');
+
 
   const params = new URLSearchParams();
   for (const pair of formData.entries()) {
@@ -981,6 +1011,22 @@ function setLanguage(val) {
     method: 'POST',
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: "value=" + encodeURIComponent(val)
+  });
+}
+
+function setShowWeatherDescription(val) {
+  fetch('/set_weatherdesc', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setWeatherUnits(val) {
+  fetch('/set_units', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
   });
 }
 
