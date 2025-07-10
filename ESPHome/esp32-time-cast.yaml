@@ -1,3 +1,8 @@
+# This project is a more or less rewrite of the Arduino project **ESPTimeCast**.
+# Alle credits go to @mfactory-osaka and you can find the [original project here](https://github.com/mfactory-osaka/ESPTimeCast/tree/main)
+# If you need an enclosure for the Display, I highly recommend the model created by @mfactory-osaka. It cost a little money, but
+# I know how much effort goes in to creating a model like that.
+#
 substitutions:
   device: "esp32-time-cast"
   name: "ESP32 Time Cast"
@@ -135,8 +140,8 @@ display:
     flip_x: ${flip_display}
     scroll_enable: True
     scroll_mode: CONTINUOUS
-    scroll_delay: 1s
-    scroll_speed: 250ms
+    scroll_delay: 500ms
+    scroll_speed: 200ms
     intensity: ${default_brightness}
     update_interval: 0.2s
     lambda: |-

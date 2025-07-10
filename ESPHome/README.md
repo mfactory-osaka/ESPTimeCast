@@ -31,6 +31,9 @@ You must have [ESPHome](https://esphome.io/) installed already and I will not he
   PIN_CS: "5"                             # Enter GPIO Pin for CS (DATA)
   PIN_MOSI: "23"                          # Enter GPIO Pin for MOSI
 
+  flip_display: "false"                   # Set to true to flip the display 180°
+  default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
+
   ssid: !secret wifi_ssid                 # The name of the WiFi network. When using !secret that means that wifi_ssid needs to be defined in secrets.yaml
   password: !secret wifi_password         # The password for the WiFi Network
 
@@ -39,20 +42,19 @@ You must have [ESPHome](https://esphome.io/) installed already and I will not he
                                           # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series
                                           # The default font can be found in the Github Repository for this project.
 
-  default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
   timezone: "Europe/Copenhagen"           # Enter your Timezone
 
   compass_N: "N"                          # Compass Direction North
-  compass_NE: "NE"                        # Compass Direction North East
-  compass_E: "E"                          # Compass Direction East
-  compass_SE: "SE"                        # Compass Direction South East
+  compass_NE: "NØ"                        # Compass Direction North East
+  compass_E: "Ø"                          # Compass Direction East
+  compass_SE: "SØ"                        # Compass Direction South East
   compass_S: "S"                          # Compass Direction South
-  compass_SW: "SW"                        # Compass Direction South West
-  compass_W: "W"                          # Compass Direction West
-  compass_NW: "NW"                        # Compass Direction North West
+  compass_SW: "SV"                        # Compass Direction South West
+  compass_W: "V"                          # Compass Direction West
+  compass_NW: "NV"                        # Compass Direction North West
 
-  # weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"    # Danish
-  weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"  # English
+  # weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"  # Danish
+  weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"    # English
   # weekDaysShort: "Son,Mon,Din,Mid,Don,Fre,Sam"  # German
   # weekDaysShort: "Dim,Lun,Mar,Mer,Jeu,Ven,Sam"  # French
   # weekDaysShort: "Dom,Lun,Mar,Mer,Gio,Ven,Sab"  # Italien
@@ -61,9 +63,10 @@ You must have [ESPHome](https://esphome.io/) installed already and I will not he
 
   The settings here need to be configured before compiling and uploading to the ESP32 as they cannot be set while running.
   * The top 3 are the PIN's used to communicate with the Display. These must reflect how you connected the cables between the display and the ESP32. The default PIN's work well with a Wemos ESP32 D1 Mini.
+  * `flip_display` Set this to true if you need to rotate the screen 180 degree's
+  * `default_brightness` is a number between 0 and 15. The higher the number, the brighter the display. This can be adjusted dynamically. See below.
   * `ssid` and `password` are the WiFi Network and passord for that network. You can either type it directly here or you can enter it in to the `secrets.yaml` file, so that it is not visible directly in the code.
   * The `font_path` variable is where ESPHome should look for the font file. (See above)
-  * `default_brightness` is a number between 0 and 15. The higher the number, the brighter the display. This can be adjusted dynamically. See below.
   * The `timezone` explains itself.
   * The `compass_X` string are used for displaying the Wind Cardinal on the Wind Screen. Localize the text here to your own language.
   * `weekDaysShort` Is used for displaying the weekday on the screen. You can localize the day names, and I added a few examples for other languages. Pick the one you want by uncommenting it, and remember to outcomment the ones not used. Or create your own language string.
@@ -77,7 +80,7 @@ The Web Interface can be reached on http://esp32-time-cast.local or the IP Addre
 
 The interface in ESPHome cannot be made as nice as the one @mfactory-osaka made for the Arduino version, but it will do the trick of settings the parameters.
 
-<img src="esp32_timecast_web.jpg" alt="Web Interface" width="480">
+<img src="esp32_timecast_web.jpg?v2" alt="Web Interface" width="480">
 
 | Setting | Required | Comment |
 |:-------------:|:-------:|:-------|
@@ -94,6 +97,7 @@ The interface in ESPHome cannot be made as nice as the one @mfactory-osaka made 
 | *OpenWeather API Key* | Yes | Type your personal [OpenWeather API Key](https://openweathermap.org/api). |
 | *City* | Yes | The city to retrieve weather data for  |
 | *Country Code* | Yes | The 2-letter country code where the city is located |
+| *Language* | Yes | Select a language from the list and the Condition screen will be in that language. Default is english |
 | *Weather Units* | Yes | Weather Units to display data for. Metric, Imperial or Standard (Kelvin Temperature)   |
 | **Night Mode** |  |  |
 | *Toggle Night Mode* | No | If switched on the Clock will go in to Night Mode. If off, the rest of this section will be ignored |
