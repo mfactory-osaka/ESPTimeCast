@@ -1,0 +1,786 @@
+# This project originates from the Arduino project **ESPTimeCast**.
+# Alle credits go to @mfactory-osaka and you can find the [original project here](https://github.com/mfactory-osaka/ESPTimeCast/tree/main)
+# If you need an enclosure for the Display, I highly recommend the model created by @mfactory-osaka. It cost a little money, but
+# I know how much effort goes in to creating a model like that.
+#
+# This is a YAML configuration file for ESPHome to set up an ESP32-based clock display with weather information
+# using Home Assistant integration for Time and Sensors, hereby giving you the freedom to use your prefered
+# weather provider.
+# There is a web interface to configure the device, and it supports night mode functionality, but I would recommend
+# using the Home Assistant Interface to set various options like night mode and display control.
+substitutions:
+  device: "esp32-time-cast-ha"
+  name: "ESP32 Time Cast HA"
+
+  ### CHANGE SETTINGS BELOW BEFORE COMPILE ###
+  PIN_CLK: "18"                             # Enter GPIO Pin for CLK
+  PIN_CS: "5"                               # Enter GPIO Pin for CS (DATA)
+  PIN_MOSI: "23"                            # Enter GPIO Pin for MOSI
+
+  flip_display: "false"                     # Set to true to flip the display 180°
+  default_brightness: "7"                   # Enter the default brightness level of the display 0 -15
+
+  ssid_wifi: !secret wifi_iot_ssid          # The name of the WiFi network. When using !secret that means that wifi_ssid needs to be defined in secrets.yaml
+  password_wifi: !secret wifi_iot_password  # The password for the WiFi Network
+
+  font_path: "fonts/MatrixLight8X.ttf"      # Enter the path and filename of the font you use. I recommend the file entered.
+                                            # Change the path if you have not placed it in a fonts directory under esphome
+                                            # Find the font here: https://github.com/trip5/Matrix-Fonts/tree/main/8-series
+                                            # The default font can be found in the Github Repository for this project.
+
+  temp_entity: "sensor.YOUR_TEMPERATURE_SENSOR"         # Home Assistant Entity ID for Temperature Sensor
+  humidity_entity: "sensor.YOUR_HUMIDITY_SENSOR"        # Home Assistant Entity ID for Humidity Sensor 
+  wind_entity: "sensor.YOUR_WINDSPEED_SENSOR"           # Home Assistant Entity ID for Wind Speed Sensor
+  bearing_entity: "sensor.YOUR_WINDBEARING_SENSOR"      # Home Assistant Entity ID for Wind Bearing Sensor
+  condition_entity: "sensor.YOUR_CONDITION_SENSOR"      # Home Assistant Entity ID for Weather Condition Sensor
+
+  compass_N: "N"                            # Compass Direction North
+  compass_NE: "NØ"                          # Compass Direction North East
+  compass_E: "Ø"                            # Compass Direction East
+  compass_SE: "SØ"                          # Compass Direction South East
+  compass_S: "S"                            # Compass Direction South
+  compass_SW: "SV"                          # Compass Direction South West
+  compass_W: "V"                            # Compass Direction West
+  compass_NW: "NV"                          # Compass Direction North West
+
+  weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"    # Danish
+  # weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"  # English
+  # weekDaysShort: "Son,Mon,Din,Mid,Don,Fre,Sam"  # German
+  # weekDaysShort: "Dim,Lun,Mar,Mer,Jeu,Ven,Sam"  # French
+  # weekDaysShort: "Dom,Lun,Mar,Mer,Gio,Ven,Sab"  # Italien
+  ############ END OF SETTINGS ############## 
+
+#############################################
+###            CORE SETTINGS              ###
+#############################################
+esphome:
+  name: "${device}"
+  friendly_name: "${name}"
+  min_version: 2025.5.0 # Need this minimum version due to new http_request format
+  name_add_mac_suffix: False
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+  - platform: esphome
+    password: "2981f89ee959d977e7196b5d58909a0f"
+
+wifi:
+  ssid: ${ssid_wifi}
+  password: ${password_wifi}
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "ESPTimeCast HA"
+    password: "12345678"
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+  sorting_groups:
+    - id: sorting_group_settings
+      name: "Clock Settings"
+      sorting_weight: 10
+    - id: sorting_group_openweather
+      name: "Weather Settings"
+      sorting_weight: 20
+    - id: sorting_group_night_mode
+      name: "Night Mode"
+      sorting_weight: 25
+    - id: sorting_group_device
+      name: "Device"
+      sorting_weight: 30
+
+#############################################
+###          GENERAL SETTINGS             ###
+#############################################
+time:
+  - platform: homeassistant
+    id: device_time
+    on_time:
+      # Every Minute
+      - seconds: 0
+        minutes: '*'
+        then:
+          # Check if Night Mode should run
+          - script.execute: check_night_mode
+
+
+#############################################
+###             HARDWARE                  ###
+#############################################
+spi:
+  clk_pin: ${PIN_CLK}
+  mosi_pin: ${PIN_MOSI}
+
+display:
+  - platform: max7219digit
+    id: main_display
+    cs_pin: ${PIN_CS}
+    num_chips: 4
+    flip_x: ${flip_display}
+    scroll_enable: True
+    scroll_mode: CONTINUOUS
+    scroll_delay: 500ms
+    scroll_speed: 200ms
+    intensity: ${default_brightness}
+    update_interval: 0.2s
+    lambda: |-
+      id(display_text).execute();
+
+#############################################
+###              BUTTONS                  ###
+#############################################
+button:
+  - platform: restart
+    id: btn_restart
+    name: "Restart Device"
+    web_server:
+      sorting_group_id: sorting_group_device
+      sorting_weight: 5
+
+#############################################
+###                FONTS                  ###
+#############################################
+font:
+  - file: ${font_path}
+    id: main_font
+    size: 8
+    glyphs: '!"%()+=,-_.:&°/[]|<>?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ abcdefghijklmnopqrstuvwxyzæøå'
+
+#############################################
+###             GLOBALS                   ###
+#############################################
+globals:
+  - id: current_page
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: scroll_pos
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: set_show_weekday
+    type: bool
+    restore_value: True
+    initial_value: "true"
+  - id: set_show_humidity
+    type: bool
+    restore_value: True
+    initial_value: "false"
+  - id: set_show_12hr_clock
+    type: bool
+    restore_value: True
+    initial_value: "false"
+  - id: page_timer
+    type: int
+    restore_value: False
+    initial_value: '0'
+  - id: page_duration
+    type: int
+    restore_value: False
+    initial_value: '20'
+
+  - id: weather_fetched
+    type: bool
+    restore_value: False
+    initial_value: "false"
+  - id: weather_units
+    type: std::string
+    restore_value: True
+    initial_value: '"metric"'
+  - id: weather_language
+    type: std::string
+    restore_value: True
+    initial_value: '"en"'
+
+#############################################
+###             INTERVAL ACTIONS          ###
+#############################################
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          id(page_timer)++;
+          if (id(page_timer) >= id(page_duration)) {
+            id(page_timer) = 0;
+            id(scroll_pos) = 0;
+            
+            // Find next valid page
+            do {
+              id(current_page)++;
+              if (id(current_page) > 3) id(current_page) = 0;
+              
+              // Skip page 2 if show_condition_screen is off
+              if (id(current_page) == 2 && !id(show_condition_screen).state) {
+                continue;
+              }
+              
+              // Skip page 3 if show_wind_screen is off
+              if (id(current_page) == 3 && !id(show_wind_screen).state) {
+                continue;
+              }
+              
+              // Valid page found, break out of loop
+              break;
+              
+            } while (true);
+            
+            // Set page duration based on current page
+            if (id(current_page) == 0) {
+              id(page_duration) = id(clock_duration).state;  // Clock page timing
+            } else if (id(current_page) == 1) {
+              id(page_duration) = id(weather_duration).state;   // Weather page timing
+            } else if (id(current_page) == 2) {
+              id(page_duration) = id(weather_duration).state;   // Weather condition page timing
+            } else if (id(current_page) == 3) {
+              id(page_duration) = id(weather_duration).state;   // Wind page timing
+            }
+          }
+
+  - interval: 500ms
+    then:
+      - lambda: |-
+          if (id(current_page) == 1) {
+            id(scroll_pos)++;
+          }
+          
+#############################################
+###             NUMBER                    ###
+#############################################
+number:
+  - platform: template
+    id: clock_duration
+    name: "Clock Duration (Sec)"
+    icon: mdi:clock-fast
+    min_value: 5
+    max_value: 60
+    step: 1
+    initial_value: 20
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 15
+  - platform: template
+    id: weather_duration
+    name: "Weather Duration (Sec)"
+    icon: mdi:weather-cloudy-clock
+    min_value: 5
+    max_value: 60
+    step: 1
+    initial_value: 15
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 20
+  - platform: template
+    id: intensity
+    name: "Brightness (0-15)"
+    icon: mdi:brightness-6
+    min_value: 0
+    max_value: 15
+    step: 1
+    initial_value: ${default_brightness}
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 30
+    on_value:
+      then:
+        - lambda: |-
+            id(main_display).intensity(x);
+  - platform: template
+    id: night_mode_intensity
+    name: "Night Mode Brightness"
+    icon: mdi:brightness-6
+    min_value: 0
+    max_value: 15
+    step: 1
+    initial_value: 3
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 7
+  - platform: template
+    id: night_mode_hour_start
+    name: "Night Mode Start Hour"
+    icon: mdi:clock-start
+    min_value: 0
+    max_value: 23
+    step: 1
+    initial_value: 22
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 10
+  - platform: template
+    id: night_mode_minute_start
+    name: "Start Minute"
+    min_value: 0
+    max_value: 55
+    step: 5
+    initial_value: 0
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 15
+  - platform: template
+    id: night_mode_hour_end
+    name: "Night Mode End Hour"
+    icon: mdi:clock-end
+    min_value: 0
+    max_value: 23
+    step: 1
+    initial_value: 6
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 20
+  - platform: template
+    id: night_mode_minute_end
+    name: "End Minute"
+    min_value: 0
+    max_value: 55
+    step: 5
+    initial_value: 0
+    restore_value: True
+    optimistic: True
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 25
+
+#############################################
+###            SCRIPTS                    ###
+#############################################
+script:
+  ### DISPLAY TEXT ON SCREEN ###
+  - id: display_text
+    then:
+      - lambda: |-
+            int s_width = 16;        
+            int s_height = 4;
+            int display_width = s_width * 2; 
+            int display_height = s_height * 2;       
+            if (id(current_page) == 0) {
+            auto time = id(device_time).now();
+            if (!time.is_valid()) {
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "Waiting");
+                return;
+            } else {
+                // Parse weekdays from substitution variable
+                std::string weekdays_str = "${weekDaysShort}";
+                std::vector<std::string> weekdays_vec;
+                
+                size_t start = 0;
+                size_t end = 0;
+                while ((end = weekdays_str.find(',', start)) != std::string::npos) {
+                    weekdays_vec.push_back(weekdays_str.substr(start, end - start));
+                    start = end + 1;
+                }
+                weekdays_vec.push_back(weekdays_str.substr(start)); // Last element
+                
+                char buf[20];
+
+                // Format if using 12-Hour display
+                int display_hour = time.hour;
+                const char* am_pm = "AM";
+
+                if (id(set_show_12hr_clock)) {
+                    if (display_hour == 0) {
+                        display_hour = 12;  // Midnight = 12 AM
+                    } else if (display_hour == 12) {
+                        am_pm = "am";       // Noon = 12 PM
+                    } else if (display_hour > 12) {
+                        display_hour -= 12; // Convert to 12-hour format
+                        am_pm = "pm";
+                    }
+                }
+
+                if (id(set_show_weekday)) {
+                  char buf[16];
+                  // Ensure we have enough weekdays and valid day_of_week
+                  if (weekdays_vec.size() >= 7 && time.day_of_week >= 1 && time.day_of_week <= 7) {
+                    snprintf(buf, sizeof(buf), "%s", weekdays_vec[time.day_of_week - 1].c_str());
+                  } else {
+                    snprintf(buf, sizeof(buf), "??");
+                  }
+                  if (id(set_show_12hr_clock)) {
+                    id(main_display).print(0, 0, main_font, buf);
+                    snprintf(buf, sizeof(buf), "%d:%02d", display_hour, time.minute);
+                    id(main_display).print(30, 0, main_font, TextAlign::RIGHT, buf);
+                    if (strcmp(am_pm, "AM") == 0) {
+                        id(main_display).filled_rectangle(display_width - 2, 0, 2, 2);
+                    } else {
+                        id(main_display).filled_rectangle(display_width - 2, display_height - 2, 2, 2);
+                    }
+                  } else {
+                    id(main_display).print(0, 0, main_font, buf);                  
+                    snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
+                    id(main_display).print(32, 0, main_font, TextAlign::RIGHT, buf);
+                  }
+                } else {
+                  char buf[16];
+                  if (id(set_show_12hr_clock)) {
+                    snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, time.minute, am_pm);
+                  } else {
+                    snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);                  
+                  }
+                  id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
+                }
+            }
+            } else if (id(current_page) == 1) {
+              char buf[16];
+              if (id(weather_fetched)) {
+                if (id(set_show_humidity)) {
+                  snprintf(buf, sizeof(buf), "%.1f° %.0f%%", id(temp_sensor).state, id(hum_sensor).state);              
+                } else {
+                  snprintf(buf, sizeof(buf), "%.1f°", id(temp_sensor).state);
+                }
+                id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, buf);
+              } else {
+                id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, "SETUP...");
+              }
+            }  else if (id(current_page) == 2) {
+              // Weather condition page
+              char buf[32];
+              if (id(weather_fetched)) {
+                std::string condition = id(condition_sensor).state;
+                if (condition.empty()) {
+                  snprintf(buf, sizeof(buf), "NO DATA");
+                } else {
+                  snprintf(buf, sizeof(buf), "  %s", condition.c_str());
+                }
+                id(main_display).print(0, 0, main_font, TextAlign::LEFT, buf);
+              } else {
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
+              }
+            } else if (id(current_page) == 3) {
+              // Wind speed and bearing page
+              char buf[32];
+              if (id(weather_fetched)) {
+                std::string wind_dir = "";
+                int bearing = id(wind_bearing_sensor).state;
+                
+                // Convert bearing to compass direction
+                if (bearing >= 337.5 || bearing < 22.5) wind_dir = "${compass_N}";
+                else if (bearing >= 22.5 && bearing < 67.5) wind_dir = "${compass_NE}";
+                else if (bearing >= 67.5 && bearing < 112.5) wind_dir = "${compass_E}";
+                else if (bearing >= 112.5 && bearing < 157.5) wind_dir = "${compass_SE}";
+                else if (bearing >= 157.5 && bearing < 202.5) wind_dir = "${compass_S}";
+                else if (bearing >= 202.5 && bearing < 247.5) wind_dir = "${compass_SW}";
+                else if (bearing >= 247.5 && bearing < 292.5) wind_dir = "${compass_W}";
+                else if (bearing >= 292.5 && bearing < 337.5) wind_dir = "${compass_NW}";
+                
+                // Format wind speed based on units
+                if (id(weather_units) == "metric") {
+                  snprintf(buf, sizeof(buf), "  %.1fm/s %s", id(wind_speed_sensor).state, wind_dir.c_str());
+                } else if (id(weather_units) == "imperial") {
+                  snprintf(buf, sizeof(buf), "  %.1fmph %s", id(wind_speed_sensor).state, wind_dir.c_str());
+                } else {
+                  snprintf(buf, sizeof(buf), "  %.1fm/s %s", id(wind_speed_sensor).state, wind_dir.c_str());
+                }
+                
+                id(main_display).print(0, 0, main_font, TextAlign::LEFT, buf);
+              } else {
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
+              }
+            }    
+  
+  ### NIGHT MODE AUTO TOGGLE ###
+  - id: check_night_mode
+    then:
+      - lambda: |-
+          if (!id(night_mode_enabled)) {
+            return; // Night mode is disabled, do nothing
+          }
+          
+          auto time = id(device_time).now();
+          if (!time.is_valid()) {
+            return; // No valid time, skip
+          }
+          
+          int current_hour = time.hour;
+          int current_minute = time.minute;
+          int current_time_minutes = current_hour * 60 + current_minute;
+          
+          int start_hour = (int)id(night_mode_hour_start).state;
+          int start_minute = (int)id(night_mode_minute_start).state;
+          int start_time_minutes = start_hour * 60 + start_minute;
+          
+          int end_hour = (int)id(night_mode_hour_end).state;
+          int end_minute = (int)id(night_mode_minute_end).state;
+          int end_time_minutes = end_hour * 60 + end_minute;
+          
+          bool should_be_night_mode = false;
+          
+          // Handle night mode timing (can span across midnight)
+          if (start_time_minutes <= end_time_minutes) {
+            // Night mode doesn't cross midnight (e.g., 22:00 to 23:30)
+            should_be_night_mode = (current_time_minutes >= start_time_minutes && current_time_minutes < end_time_minutes);
+          } else {
+            // Night mode crosses midnight (e.g., 22:00 to 06:00)
+            should_be_night_mode = (current_time_minutes >= start_time_minutes || current_time_minutes < end_time_minutes);
+          }
+          
+          if (should_be_night_mode) {
+            // Activate night mode
+            if (id(night_mode_turn_off).state) {
+              // Turn display completely off
+              id(main_display).turn_on_off(false);
+              ESP_LOGI("NIGHT_MODE", "Night mode activated - display turned OFF");
+            } else {
+              // Just dim to night mode brightness
+              int night_brightness = (int)id(night_mode_intensity).state;
+              id(main_display).intensity(night_brightness);
+              ESP_LOGI("NIGHT_MODE", "Night mode activated - brightness set to %d", night_brightness);
+            }
+          } else {
+            // Deactivate night mode
+            if (id(night_mode_turn_off).state) {
+              // Turn display back on at normal brightness
+              id(main_display).turn_on_off(true);
+              int normal_brightness = (int)id(intensity).state;
+              id(main_display).intensity(normal_brightness);
+              ESP_LOGI("NIGHT_MODE", "Night mode deactivated - display turned ON at brightness %d", normal_brightness);
+            } else {
+              // Just restore normal brightness
+              int normal_brightness = (int)id(intensity).state;
+              id(main_display).intensity(normal_brightness);
+              ESP_LOGI("NIGHT_MODE", "Night mode deactivated - brightness set to %d", normal_brightness);
+            }
+          }
+
+#############################################
+###                 SENSORS               ###
+#############################################
+sensor:
+  - platform: homeassistant
+    entity_id: ${temp_entity}
+    id: temp_sensor
+    internal: False
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    on_value:
+      - lambda: id(weather_fetched) = true;
+      - logger.log: 
+          format: "Temp: %.1f"
+          args: ['id(temp_sensor).state']
+  - platform: homeassistant
+    entity_id: ${humidity_entity}
+    id: hum_sensor
+    internal: False
+    unit_of_measurement: "%"
+    device_class: humidity
+    accuracy_decimals: 0
+    on_value:
+      - lambda: id(weather_fetched) = true;
+      - logger.log: 
+          format: "Hum: %.0f"
+          args: ['id(hum_sensor).state']
+  - platform: homeassistant
+    entity_id: ${wind_entity}
+    id: wind_speed_sensor
+    internal: False
+    device_class: wind_speed
+    accuracy_decimals: 1
+    on_value:
+      - lambda: id(weather_fetched) = true;
+      - logger.log: 
+          format: "Wind Speed: %.1f"
+          args: ['id(wind_speed_sensor).state']
+  - platform: homeassistant
+    entity_id: ${bearing_entity}
+    id: wind_bearing_sensor
+    internal: False
+    device_class: wind_direction
+    accuracy_decimals: 0
+    on_value:
+      - lambda: id(weather_fetched) = true;
+      - logger.log: 
+          format: "Wind Bearing: %.0f"
+          args: ['x']
+
+#############################################
+###                 SELECT                ###
+#############################################
+select:
+  - platform: template
+    id: weather_units_select
+    name: "Temperature Units"
+    icon: mdi:thermometer-lines
+    optimistic: true
+    options:
+      - "metric"
+      - "imperial"
+      - "standard"
+    initial_option: 'metric'
+    restore_value: True
+    set_action: 
+      then:
+        - globals.set:
+            id: weather_units
+            value: !lambda 'return x;'
+        - logger.log:
+            format: "Unit system changed to: %s"
+            args: ['x.c_str()']        
+    web_server:
+      sorting_group_id: sorting_group_openweather
+      sorting_weight: 20
+
+#############################################
+###                SWITCHES               ###
+#############################################
+switch:
+  - platform: template
+    id: switch_show_weekday
+    name: "Show Weekday"
+    icon: mdi:calendar-week
+    optimistic: false
+    restore_mode: DISABLED
+    lambda: |-
+      return id(set_show_weekday);
+    turn_on_action: 
+      - lambda: |-
+          id(set_show_weekday) = true;
+    turn_off_action: 
+      - lambda: |-
+          id(set_show_weekday) = false;
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 5
+  - platform: template
+    id: switch_show_humidity
+    name: "Show Humidity"
+    icon: mdi:water-percent
+    optimistic: false
+    restore_mode: DISABLED
+    lambda: |-
+      return id(set_show_humidity);
+    turn_on_action: 
+      - lambda: |-
+          id(set_show_humidity) = true;
+    turn_off_action: 
+      - lambda: |-
+          id(set_show_humidity) = false;
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 10
+  - platform: template
+    id: switch_show_12hr_clock
+    name: "Display 12-Hour Clock"
+    icon: mdi:clock-digital
+    optimistic: false
+    restore_mode: DISABLED
+    lambda: |-
+      return id(set_show_12hr_clock);
+    turn_on_action: 
+      - lambda: |-
+          id(set_show_12hr_clock) = true;
+    turn_off_action: 
+      - lambda: |-
+          id(set_show_12hr_clock) = false;
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 25
+  - platform: template
+    id: switch_on_off
+    name: "Toggle Display"
+    icon: mdi:lightbulb-on
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    device_class: switch
+    turn_on_action: 
+      - lambda: |-
+          id(main_display).turn_on_off(true);
+    turn_off_action: 
+      - lambda: |-
+          id(main_display).turn_on_off(false);
+    web_server:
+      sorting_group_id: sorting_group_device
+      sorting_weight: 1
+
+  - platform: template
+    id: show_condition_screen
+    name: "Show Condition Screen"
+    icon: mdi:weather-cloudy
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 12
+  - platform: template
+    id: show_wind_screen
+    name: "Show Wind Screen"
+    icon: mdi:weather-windy
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 14
+
+  - platform: template
+    id: night_mode_enabled
+    name: "Toggle Night Mode"
+    icon: mdi:lightbulb-night
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 5
+  - platform: template
+    id: night_mode_turn_off
+    name: "Turn Off Display at Night"
+    icon: mdi:lightbulb-off
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_night_mode
+      sorting_weight: 6
+
+#############################################
+###             TEXT SENSOR               ###
+#############################################
+text_sensor:
+  - platform: wifi_info
+    mac_address:
+      name: "MAC Address"
+      id: mac_address
+      internal: False
+      icon: mdi:information-slab-circle-outline
+      web_server:
+        sorting_group_id: sorting_group_device
+        sorting_weight: 20
+    ip_address:
+      name: "IP Address"
+      id: ip_address
+      internal: False
+      icon: mdi:ip-network
+      web_server:
+        sorting_group_id: sorting_group_device
+        sorting_weight: 10
+  - platform: homeassistant
+    entity_id: ${condition_entity}
+    id: condition_sensor
+    on_value:
+      - logger.log:
+          format: "Condition: %s"
+          args: ['x.c_str()']
