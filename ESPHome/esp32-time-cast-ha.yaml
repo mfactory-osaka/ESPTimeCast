@@ -8,6 +8,8 @@
 # weather provider.
 # There is a web interface to configure the device, and it supports night mode functionality, but I would recommend
 # using the Home Assistant Interface to set various options like night mode and display control.
+# All Weather Sensor values are expected to be in the right unit system, and no conversion is done.
+
 substitutions:
   device: "esp32-time-cast-ha"
   name: "ESP32 Time Cast HA"
