@@ -33,15 +33,24 @@ substitutions:
   wind_entity: "sensor.YOUR_WINDSPEED_SENSOR"           # Home Assistant Entity ID for Wind Speed Sensor
   bearing_entity: "sensor.YOUR_WINDBEARING_SENSOR"      # Home Assistant Entity ID for Wind Bearing Sensor
   condition_entity: "sensor.YOUR_CONDITION_SENSOR"      # Home Assistant Entity ID for Weather Condition Sensor
+  rain_entity: "sensor.YOUR_RAIN_SENSOR"                # Home Assistant Entity ID for Rain Today Sensor
 
   compass_N: "N"                            # Compass Direction North
-  compass_NE: "NØ"                          # Compass Direction North East
-  compass_E: "Ø"                            # Compass Direction East
-  compass_SE: "SØ"                          # Compass Direction South East
+  compass_NNE: "NNE"                        # Compass Direction North North East
+  compass_NE: "NE"                          # Compass Direction North East
+  compass_ENE: "ENE"                        # Compass Direction Eath North East
+  compass_E: "E"                            # Compass Direction East
+  compass_ESE: "ESE"                        # Compass Direction East South East
+  compass_SE: "SE"                          # Compass Direction South East
+  compass_SSE: "SSE"                        # Compass Direction South South East
   compass_S: "S"                            # Compass Direction South
-  compass_SW: "SV"                          # Compass Direction South West
-  compass_W: "V"                            # Compass Direction West
-  compass_NW: "NV"                          # Compass Direction North West
+  compass_SSW: "SSW"                        # Compass Direction South South West
+  compass_SW: "SW"                          # Compass Direction South West
+  compass_WSW: "WSW"                        # Compass Direction West South West
+  compass_W: "W"                            # Compass Direction West
+  compass_WNW: "WNW"                        # Compass Direction West North West
+  compass_NW: "NW"                          # Compass Direction North West
+  compass_NNW: "NNW"                        # Compass Direction North North West
 
   weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"    # Danish
   # weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"  # English
@@ -80,7 +89,7 @@ wifi:
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "ESPTimeCast HA"
+    ssid: "ESPTimeCastHA"
     password: "12345678"
 
 captive_portal:
@@ -199,7 +208,7 @@ globals:
   - id: weather_units
     type: std::string
     restore_value: True
-    initial_value: '"metric"'
+    initial_value: '"Metric"'
   - id: weather_language
     type: std::string
     restore_value: True
@@ -220,7 +229,7 @@ interval:
             // Find next valid page
             do {
               id(current_page)++;
-              if (id(current_page) > 3) id(current_page) = 0;
+              if (id(current_page) > 4) id(current_page) = 0;
               
               // Skip page 2 if show_condition_screen is off
               if (id(current_page) == 2 && !id(show_condition_screen).state) {
@@ -229,6 +238,11 @@ interval:
               
               // Skip page 3 if show_wind_screen is off
               if (id(current_page) == 3 && !id(show_wind_screen).state) {
+                continue;
+              }
+              
+              // Skip page 4 if show_rain_screen is off
+              if (id(current_page) == 4 && !id(show_rain_screen).state) {
                 continue;
               }
               
@@ -246,6 +260,8 @@ interval:
               id(page_duration) = id(weather_duration).state;   // Weather condition page timing
             } else if (id(current_page) == 3) {
               id(page_duration) = id(weather_duration).state;   // Wind page timing
+            } else if (id(current_page) == 4) {
+              id(page_duration) = id(weather_duration).state;   // Rain page timing
             }
           }
 
@@ -380,129 +396,176 @@ script:
             int display_width = s_width * 2; 
             int display_height = s_height * 2;       
             if (id(current_page) == 0) {
-            auto time = id(device_time).now();
-            if (!time.is_valid()) {
-                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "Waiting");
-                return;
-            } else {
-                // Parse weekdays from substitution variable
-                std::string weekdays_str = "${weekDaysShort}";
-                std::vector<std::string> weekdays_vec;
-                
-                size_t start = 0;
-                size_t end = 0;
-                while ((end = weekdays_str.find(',', start)) != std::string::npos) {
-                    weekdays_vec.push_back(weekdays_str.substr(start, end - start));
-                    start = end + 1;
-                }
-                weekdays_vec.push_back(weekdays_str.substr(start)); // Last element
-                
-                char buf[20];
-
-                // Format if using 12-Hour display
-                int display_hour = time.hour;
-                const char* am_pm = "AM";
-
-                if (id(set_show_12hr_clock)) {
-                    if (display_hour == 0) {
-                        display_hour = 12;  // Midnight = 12 AM
-                    } else if (display_hour == 12) {
-                        am_pm = "am";       // Noon = 12 PM
-                    } else if (display_hour > 12) {
-                        display_hour -= 12; // Convert to 12-hour format
-                        am_pm = "pm";
+                auto time = id(device_time).now();
+                if (!time.is_valid()) {
+                    id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "Waiting");
+                    return;
+                } else {
+                    // Parse weekdays from substitution variable
+                    std::string weekdays_str = "${weekDaysShort}";
+                    std::vector<std::string> weekdays_vec;
+                    
+                    size_t start = 0;
+                    size_t end = 0;
+                    while ((end = weekdays_str.find(',', start)) != std::string::npos) {
+                        weekdays_vec.push_back(weekdays_str.substr(start, end - start));
+                        start = end + 1;
                     }
-                }
+                    weekdays_vec.push_back(weekdays_str.substr(start)); // Last element
+                    
+                    char buf[20];
 
-                if (id(set_show_weekday)) {
-                  char buf[16];
-                  // Ensure we have enough weekdays and valid day_of_week
-                  if (weekdays_vec.size() >= 7 && time.day_of_week >= 1 && time.day_of_week <= 7) {
-                    snprintf(buf, sizeof(buf), "%s", weekdays_vec[time.day_of_week - 1].c_str());
-                  } else {
-                    snprintf(buf, sizeof(buf), "??");
-                  }
-                  if (id(set_show_12hr_clock)) {
-                    id(main_display).print(0, 0, main_font, buf);
-                    snprintf(buf, sizeof(buf), "%d:%02d", display_hour, time.minute);
-                    id(main_display).print(30, 0, main_font, TextAlign::RIGHT, buf);
-                    if (strcmp(am_pm, "AM") == 0) {
-                        id(main_display).filled_rectangle(display_width - 2, 0, 2, 2);
+                    // Format if using 12-Hour display
+                    int display_hour = time.hour;
+                    const char* am_pm = "AM";
+
+                    if (id(set_show_12hr_clock)) {
+                        if (display_hour == 0) {
+                            display_hour = 12;  // Midnight = 12 AM
+                        } else if (display_hour == 12) {
+                            am_pm = "am";       // Noon = 12 PM
+                        } else if (display_hour > 12) {
+                            display_hour -= 12; // Convert to 12-hour format
+                            am_pm = "pm";
+                        }
+                    }
+
+                    if (id(set_show_weekday)) {
+                        char buf[16];
+                        // Ensure we have enough weekdays and valid day_of_week
+                        if (weekdays_vec.size() >= 7 && time.day_of_week >= 1 && time.day_of_week <= 7) {
+                            snprintf(buf, sizeof(buf), "%s", weekdays_vec[time.day_of_week - 1].c_str());
+                        } else {
+                            snprintf(buf, sizeof(buf), "??");
+                        }
+                        if (id(set_show_12hr_clock)) {
+                            id(main_display).print(0, 0, main_font, buf);
+                            snprintf(buf, sizeof(buf), "%d:%02d", display_hour, time.minute);
+                            id(main_display).print(30, 0, main_font, TextAlign::RIGHT, buf);
+                            if (strcmp(am_pm, "AM") == 0) {
+                                id(main_display).filled_rectangle(display_width - 2, 0, 2, 2);
+                            } else {
+                                id(main_display).filled_rectangle(display_width - 2, display_height - 2, 2, 2);
+                            }
+                        } else {
+                            id(main_display).print(0, 0, main_font, buf);                  
+                            snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
+                            id(main_display).print(32, 0, main_font, TextAlign::RIGHT, buf);
+                        }
                     } else {
-                        id(main_display).filled_rectangle(display_width - 2, display_height - 2, 2, 2);
+                        char buf[16];
+                        if (id(set_show_12hr_clock)) {
+                            snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, time.minute, am_pm);
+                        } else {
+                            snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);                  
+                        }
+                        id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
                     }
-                  } else {
-                    id(main_display).print(0, 0, main_font, buf);                  
-                    snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
-                    id(main_display).print(32, 0, main_font, TextAlign::RIGHT, buf);
-                  }
-                } else {
-                  char buf[16];
-                  if (id(set_show_12hr_clock)) {
-                    snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, time.minute, am_pm);
-                  } else {
-                    snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);                  
-                  }
-                  id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
                 }
-            }
             } else if (id(current_page) == 1) {
-              char buf[16];
-              if (id(weather_fetched)) {
-                if (id(set_show_humidity)) {
-                  snprintf(buf, sizeof(buf), "%.1f° %.0f%%", id(temp_sensor).state, id(hum_sensor).state);              
+                char buf[16];
+                if (id(weather_fetched)) {
+                    if (id(set_show_humidity)) {
+                        snprintf(buf, sizeof(buf), "%.1f° %.0f%%", id(temp_sensor).state, id(hum_sensor).state);              
+                    } else {
+                        snprintf(buf, sizeof(buf), "%.1f°", id(temp_sensor).state);
+                    }
+                    id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, buf);
                 } else {
-                  snprintf(buf, sizeof(buf), "%.1f°", id(temp_sensor).state);
+                    id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, "SETUP...");
                 }
-                id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, buf);
-              } else {
-                id(main_display).print(s_width, s_height, main_font ,TextAlign::CENTER, "SETUP...");
-              }
-            }  else if (id(current_page) == 2) {
-              // Weather condition page
-              char buf[32];
-              if (id(weather_fetched)) {
-                std::string condition = id(condition_sensor).state;
-                if (condition.empty()) {
-                  snprintf(buf, sizeof(buf), "NO DATA");
+            } else if (id(current_page) == 2) {
+                // Weather condition page
+                char buf[32];
+                if (id(weather_fetched)) {
+                    std::string condition = id(condition_sensor).state;
+                    if (condition.empty()) {
+                        snprintf(buf, sizeof(buf), "NO DATA");
+                    } else {
+                        snprintf(buf, sizeof(buf), "  %s", condition.c_str());
+                    }
+                    id(main_display).print(0, 0, main_font, TextAlign::LEFT, buf);
                 } else {
-                  snprintf(buf, sizeof(buf), "  %s", condition.c_str());
+                    id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
                 }
-                id(main_display).print(0, 0, main_font, TextAlign::LEFT, buf);
-              } else {
-                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
-              }
             } else if (id(current_page) == 3) {
-              // Wind speed and bearing page
-              char buf[32];
-              if (id(weather_fetched)) {
-                std::string wind_dir = "";
-                int bearing = id(wind_bearing_sensor).state;
-                
-                // Convert bearing to compass direction
-                if (bearing >= 337.5 || bearing < 22.5) wind_dir = "${compass_N}";
-                else if (bearing >= 22.5 && bearing < 67.5) wind_dir = "${compass_NE}";
-                else if (bearing >= 67.5 && bearing < 112.5) wind_dir = "${compass_E}";
-                else if (bearing >= 112.5 && bearing < 157.5) wind_dir = "${compass_SE}";
-                else if (bearing >= 157.5 && bearing < 202.5) wind_dir = "${compass_S}";
-                else if (bearing >= 202.5 && bearing < 247.5) wind_dir = "${compass_SW}";
-                else if (bearing >= 247.5 && bearing < 292.5) wind_dir = "${compass_W}";
-                else if (bearing >= 292.5 && bearing < 337.5) wind_dir = "${compass_NW}";
-                
-                // Format wind speed based on units
-                if (id(weather_units) == "metric") {
-                  snprintf(buf, sizeof(buf), "  %.1fm/s %s", id(wind_speed_sensor).state, wind_dir.c_str());
-                } else if (id(weather_units) == "imperial") {
-                  snprintf(buf, sizeof(buf), "  %.1fmph %s", id(wind_speed_sensor).state, wind_dir.c_str());
+                // Wind speed and bearing page
+                char buf[32];
+                if (id(weather_fetched)) {
+                    std::string wind_dir = "";
+                    int bearing = id(wind_bearing_sensor).state;
+                    
+                    // Convert bearing to compass direction
+                    if (bearing >= 348.75 || bearing < 11.25) wind_dir = "${compass_N}";
+                    else if (bearing >= 11.25 && bearing < 33.75) wind_dir = "${compass_NNE}";
+                    else if (bearing >= 33.75 && bearing < 56.25) wind_dir = "${compass_NE}";
+                    else if (bearing >= 56.25 && bearing < 78.75) wind_dir = "${compass_ENE}";
+                    else if (bearing >= 78.75 && bearing < 101.25) wind_dir = "${compass_E}";
+                    else if (bearing >= 101.25 && bearing < 123.75) wind_dir = "${compass_ESE}";
+                    else if (bearing >= 123.75 && bearing < 146.25) wind_dir = "${compass_SE}";
+                    else if (bearing >= 146.25 && bearing < 168.75) wind_dir = "${compass_SSE}";
+                    else if (bearing >= 168.75 && bearing < 191.25) wind_dir = "${compass_S}";
+                    else if (bearing >= 191.25 && bearing < 213.75) wind_dir = "${compass_SSW}";
+                    else if (bearing >= 213.75 && bearing < 236.25) wind_dir = "${compass_SW}";
+                    else if (bearing >= 236.25 && bearing < 258.75) wind_dir = "${compass_WSW}";
+                    else if (bearing >= 258.75 && bearing < 281.25) wind_dir = "${compass_W}";
+                    else if (bearing >= 281.25 && bearing < 303.75) wind_dir = "${compass_WNW}";
+                    else if (bearing >= 303.75 && bearing < 326.25) wind_dir = "${compass_NW}";
+                    else if (bearing >= 326.25 && bearing < 348.75) wind_dir = "${compass_NNW}";
+                    
+                    // Format wind speed based on units
+                    std::string wind_text;
+                    if (id(weather_units) == "Metric") {
+                        char temp_buf[64];
+                        snprintf(temp_buf, sizeof(temp_buf), "%.0fm/s %s", id(wind_speed_sensor).state, wind_dir.c_str());
+                        wind_text = temp_buf;
+                    } else {
+                        char temp_buf[64];
+                        snprintf(temp_buf, sizeof(temp_buf), "%.0fmph %s", id(wind_speed_sensor).state, wind_dir.c_str());
+                        wind_text = temp_buf;
+                    }
+
+                    // Check if text will fit and add prepend if needed
+                    int text_length = wind_text.length();
+                    int char_width = 4;  // Max width for your font
+                    int display_width = id(main_display).get_width();
+
+                    std::string prepend = "";
+                    if (text_length * char_width > display_width) {
+                        prepend = "  ";  // Add leading spaces for scrolling
+                    }
+
+                    // Final formatting with prepend
+                    snprintf(buf, sizeof(buf), "%s%s", prepend.c_str(), wind_text.c_str());
+                    if (prepend == "  ") {
+                        id(main_display).print(0, 0, main_font, TextAlign::LEFT, buf);
+                    } else {
+                        id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
+                    }
                 } else {
-                  snprintf(buf, sizeof(buf), "  %.1fm/s %s", id(wind_speed_sensor).state, wind_dir.c_str());
+                    id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "WAIT...");
                 }
-                
-                id(main_display).print(0, 0, main_font, TextAlign::LEFT, buf);
-              } else {
-                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
-              }
-            }    
+            } else if (id(current_page) == 4) {
+                char buf[32];
+                if (id(weather_fetched)) {
+                  std::string rain_text;
+                  if (id(weather_units) == "Metric") {
+                      char temp_buf[64];
+                      snprintf(temp_buf, sizeof(temp_buf), "%.1fmm", id(rain_sensor).state);
+                      rain_text = temp_buf;
+                  } else {
+                      char temp_buf[64];
+                      snprintf(temp_buf, sizeof(temp_buf), "%.1fin", id(rain_sensor).state);
+                      rain_text = temp_buf;
+                  }
+                  snprintf(buf, sizeof(buf), "%s", rain_text.c_str());
+                  id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, buf);
+                } else {
+                  id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "SETUP...");
+                }
+            } else {
+                id(main_display).print(s_width, s_height, main_font, TextAlign::CENTER, "WAIT...");
+            }
   
   ### NIGHT MODE AUTO TOGGLE ###
   - id: check_night_mode
@@ -618,6 +681,17 @@ sensor:
       - logger.log: 
           format: "Wind Bearing: %.0f"
           args: ['x']
+  - platform: homeassistant
+    entity_id: ${rain_entity}
+    id: rain_sensor
+    internal: False
+    device_class: precipitation
+    accuracy_decimals: 1
+    on_value:
+      - lambda: id(weather_fetched) = true;
+      - logger.log: 
+          format: "Rain Today: %.1f"
+          args: ['id(rain_sensor).state']
 
 #############################################
 ###                 SELECT                ###
@@ -625,14 +699,13 @@ sensor:
 select:
   - platform: template
     id: weather_units_select
-    name: "Temperature Units"
+    name: "Weather Units"
     icon: mdi:thermometer-lines
     optimistic: true
     options:
-      - "metric"
-      - "imperial"
-      - "standard"
-    initial_option: 'metric'
+      - "Metric"
+      - "Imperial"
+    initial_option: 'Metric'
     restore_value: True
     set_action: 
       then:
@@ -731,6 +804,15 @@ switch:
     id: show_wind_screen
     name: "Show Wind Screen"
     icon: mdi:weather-windy
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    web_server:
+      sorting_group_id: sorting_group_settings
+      sorting_weight: 13
+  - platform: template
+    id: show_rain_screen
+    name: "Show Rain Screen"
+    icon: mdi:weather-rainy
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     web_server:
