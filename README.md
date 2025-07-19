@@ -1,6 +1,6 @@
 ![ESPTimeCast](assets/logo.svg)
 
-**ESPTimeCast** is a WiFi-connected LED matrix clock and weather station based on ESP8266 and MAX7219.  
+**ESPTimeCast** is a WiFi-connected LED matrix clock and weather station based on ESP8266 or ESP32 and MAX7219.  
 It displays the current time, day of the week, and local weather (temp/humidity/weather description) fetched from OpenWeatherMap.  
 Setup and configuration are fully managed via a built-in web interface.  
 
@@ -26,13 +26,13 @@ Get the 3D printable case!
 - **Weather Fetching** from OpenWeatherMap (every 5 minutes, temp/humidity/description)
 - **Fallback AP Mode** for easy first-time setup or configuration
 - **Timezone Selection** from IANA names (DST integrated on backend)
-- **Get My Location** button to get yoy aproximate Lat/Long.
+- **Get My Location** button to get your aproximate Lat/Long.
 - **Week Day and Weather Description display** in multiple languages
 - **Persistent Config** stored in LittleFS, with backup/restore system
 - **Status Animations** for WiFi conection, AP mode, time syncing.
 - **Advanced Settings** panel with:
   - Custom **Primary/Secondary NTP server** input
-  - Display **Day of the Week** toggle (defualt in on)
+  - Display **Day of the Week** toggle (default is on)
   - **24/12h clock mode** toggle (24-hour default)
   - **Imperial Units (°F)** toggle (metric °C defaults)
   - Show **Humidity** toggle (display Humidity besides Temperature)
@@ -45,19 +45,17 @@ Get the 3D printable case!
 
 ## 🪛 Wiring
 
-
-
  Note: although the pins are labeled differently in the V4, the positions are the same as the V3.x
 
-**Wemos D1 Mini (ESP8266) → MAX7219**
+**Wemos D1 Mini (ESP8266)/ESP32 DevKit - DOIT → MAX7219**
 
-| Wemos D1 Mini (v3.x) | Wemos D1 Mini (v4.0) | MAX7219 |
-|:-------------:|:-------:|:-------:|
-| GND           | GND     | GND     |
-| D6            | 12      | CLK     |
-| D7            | 13      | CS      |
-| D8            | 15     | DIN     |
-| 3V3           | 3V3     | VCC     |
+| Wemos D1 Mini (v3.x) | Wemos D1 Mini (v4.0) | ESP32 DevKit - DOIT | MAX7219 |
+|:--------------------:|:--------------------:|:-------------------:|:-------:|
+| GND                  | GND                  | GND                 | GND     |
+| D6                   | 12                   | GPIO18              | CLK     |
+| D7                   | 13                   | GPIO5               | CS      |
+| D8                   | 15                   | GPIO23              | DIN     |
+| 3V3                  | 3V3                  | 3V3                 | VCC     |
 
 
 <img src="assets/wiring.png" alt="Wiring" width="800" />
@@ -103,7 +101,7 @@ Click the **cog icon** next to “Advanced Settings” in the web UI to reveal e
 
 - **Primary NTP Server**: Override the default NTP server (e.g. `pool.ntp.org`)
 - **Secondary NTP Server**: Fallback NTP server (e.g. `time.nist.gov`)
-- **Day of the Week**: Display Day of the Week in the disered language
+- **Day of the Week**: Display Day of the Week in the desired language
 - **24/12h Clock**: Switch between 24-hour and 12-hour time formats (24-hour default)
 - **Imperial Units (°F)** toggle (metric °C defaults)
 - **Humidity**: Display Humidity besides Temperature
@@ -113,13 +111,13 @@ Click the **cog icon** next to “Advanced Settings” in the web UI to reveal e
 - **Dimming Feature**: Start time, end time and desired brightness selection 
 
 *Non-English characters converted to their closest English alphabet.  
-Tip: Dont't forget to press the save button to keep your settings
+Tip: Don't forget to press the save button to keep your settings
 
 ---
 
 ## 📝 Configuration Notes
 
-- **OpenWeatherMap API Key:** [Get yours here]([https://home.openweathermap.org/users/sign_up])
+- **OpenWeatherMap API Key:** [Get yours here](https://home.openweathermap.org/users/sign_up)
 - **City Name:** e.g. `Tokyo`, `London`, etc.
 - **Country Code:** 2-letter code (e.g., `JP`, `GB`)
 - **ZIP Code:** Enter your ZIP code in the city field and US in the country field (US only)
@@ -131,15 +129,25 @@ Tip: Dont't forget to press the save button to keep your settings
 ## 🔧 Installation
 
 1. **Clone this repo**
-2. **Flash the ESP8266** using Arduino IDE or PlatformIO (Flash size "4MB FS:2MB OTA:~1019KB")
-4. **Upload `/data` folder** with LittleFS uploader (see below)
+2. **Flash the ESP8266 or ESP32** using Arduino IDE or PlatformIO  
+  - For ESP8266: Flash size "4MB FS:2MB OTA:~1019KB"
+  - For ESP32: Flash size "4MB (32Mb)" or higher, Partition Scheme "Default 4MB with spiffs (1.2MB APP/1.5MB SPIFFS)" or similar
+3. **Upload `/data` folder** with LittleFS uploader (see below)
 
 ### Board Setup
 
+#### For ESP8266:
 - Install ESP8266 board package:  
   `http://arduino.esp8266.com/stable/package_esp8266com_index.json`
 - Select **Wemos D1 Mini** (or your ESP8266 variant) in Tools → Board
 - Select Flash Size "4MB FS:2MB OTA:~1019KB" under Tools
+
+#### For ESP32:
+- Install ESP32 board package:  
+  `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
+- Select **ESP32 Dev Module** (or your ESP32 variant) in Tools → Board
+- Select Flash Size "4MB (32Mb)" or higher under Tools
+- Set Partition Scheme to "Default 4MB with spiffs (1.2MB APP/1.5MB SPIFFS)" or similar
 
 ### Dependencies
 
@@ -147,8 +155,11 @@ Install these libraries (Library Manager / PlatformIO):
 
 - `ArduinoJson` by Benoit Blanchon
 - `MD_Parola / MD_MAX72xx` all dependencies by majicDesigns
-- `ESPAsyncTCP` by ESP32Async
 - `ESPAsyncWebServer` by ESP32Async
+- For **ESP8266**:
+  - `ESPAsyncTCP` by ESP32Async
+- For **ESP32**:
+  - `AsyncTCP` by ESP32Async
 
 ### LittleFS Upload
 
@@ -159,7 +170,7 @@ Install the [LittleFS Uploader](https://randomnerdtutorials.com/arduino-ide-2-in
 1. Open Command Palette:
    - Windows: `Ctrl+Shift+P`
    - macOS: `Cmd+Shift+P`
-2. Run: `Upload LittleFS to ESP8266`
+2. Run: `Upload LittleFS to ESP8266/ESP32`
 
 **Important:** Serial Monitor **must be closed** before uploading!
 
@@ -168,7 +179,7 @@ Install the [LittleFS Uploader](https://randomnerdtutorials.com/arduino-ide-2-in
 ## 📺 Display Behavior
 
 **ESPTimeCast** automatically switches between two display modes: Clock and Weather.
-If "Show Weather Description" is eneabled a third mode (Description) will display with a duration of 3 seconds, if the description is too long to fit on the display the description will scroll from right to left once.
+If "Show Weather Description" is enabled a third mode (Description) will display with a duration of 3 seconds, if the description is too long to fit on the display the description will scroll from right to left once.
 
 What you see on the LED matrix depends on whether the device has successfully fetched the current time (via NTP) and weather (via OpenWeatherMap).  
 The following table summarizes what will appear on the display in each scenario:
@@ -184,7 +195,7 @@ The following table summarizes what will appear on the display in each scenario:
 ### **How it works:**
 
 - The display automatically alternates between **Clock** and **Weather** modes (the duration for each is configurable).
-- If "Show Weather Description" is eneabled a third mode **Description** will display after the **Weather** display with a duration of 3 seconds.
+- If "Show Weather Description" is enabled a third mode **Description** will display after the **Weather** display with a duration of 3 seconds.
 - In **Clock** mode, if NTP time is available, you’ll see the current time plus a unique day-of-week icon. If NTP is not available, you'll see `! NTP`.
 - In **Weather** mode, if weather is available, you’ll see the temperature (like `23ºC`). If weather is not available but time is, it falls back to showing the clock. If neither is available, you’ll see `! TEMP`.
 - All status/error messages (`! NTP`, `! TEMP`) are big icons shown on the dsiplay.

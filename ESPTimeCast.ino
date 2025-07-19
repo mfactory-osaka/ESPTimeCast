@@ -1,11 +1,25 @@
 #include <Arduino.h>
+
+#if defined(ESP8266)
 #include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
+#include <sntp.h>
+#define SNTP_STOP() sntp_stop()
+#elif defined(ESP32)
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <esp_sntp.h>
+#define F(str) (str)
+#define SNTP_STOP() esp_sntp_stop()
+#else
+#error "Unsupported board. Please use ESP8266 or ESP32."
+#endif
+
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <MD_Parola.h>
 #include <MD_MAX72xx.h>
 #include <SPI.h>
-#include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <DNSServer.h>
 #include <sntp.h>
@@ -17,9 +31,16 @@
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
+
+#if defined(ESP8266)
 #define CLK_PIN 12
 #define DATA_PIN 15
 #define CS_PIN 13
+#elif defined(ESP32)
+#define CLK_PIN 18
+#define DATA_PIN 23
+#define CS_PIN 5
+#endif
 
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 AsyncWebServer server(80);
@@ -299,7 +320,7 @@ void connectWiFi() {
 // Time / NTP Functions
 // -----------------------------------------------------------------------------
 void setupTime() {
-  sntp_stop();
+  SNTP_STOP();
   if (!isAPMode) {
     Serial.println(F("[TIME] Starting NTP sync..."));
   }
@@ -450,9 +471,13 @@ void setupWebServer() {
     serializeJson(doc, Serial);
     Serial.println();
 
+#if defined(ESP8266)
     FSInfo fs_info;
     LittleFS.info(fs_info);
     Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", fs_info.totalBytes, fs_info.usedBytes);
+#elif defined(ESP32)
+      Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", LittleFS.totalBytes(), LittleFS.usedBytes());
+#endif
 
     if (LittleFS.exists("/config.json")) {
       Serial.println(F("[SAVE] Renaming /config.json to /config.bak"));
