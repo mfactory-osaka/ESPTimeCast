@@ -28,7 +28,7 @@ AsyncWebServer server(80);
 
 // --- Global Scroll Speed Settings ---
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
-const int IP_SCROLL_SPEED = 115;      // Default: Adjust this for the IP Address display (slower for readability)
+const int IP_SCROLL_SPEED = 50;      // Default: Adjust this for the IP Address display (slower for readability)
 
 // WiFi and configuration globals
 char ssid[32] = "";
@@ -38,6 +38,7 @@ char openWeatherCity[64] = "";
 char openWeatherCountry[64] = "";
 char weatherUnits[12] = "metric";
 char timeZone[64] = "";
+char timeZoneAbbr[8];
 char language[8] = "en";
 String mainDesc = "";
 String detailedDesc = "";
@@ -1455,7 +1456,7 @@ void loop() {
       ipDisplayCount++;
       if (ipDisplayCount < ipDisplayMax) {
         textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-        P.displayScroll(pendingIpToShow.c_str(), PA_CENTER, actualScrollDirection, 120);
+        P.displayScroll(pendingIpToShow.c_str(), PA_CENTER, actualScrollDirection, IP_SCROLL_SPEED);
       } else {
         showingIp = false;
         P.displayClear();
