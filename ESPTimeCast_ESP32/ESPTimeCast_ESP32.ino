@@ -53,6 +53,7 @@ bool showHumidity = false;
 bool colonBlinkEnabled = true;
 char ntpServer1[64] = "pool.ntp.org";
 char ntpServer2[256] = "time.nist.gov";
+bool showTimeZone = true;
 
 // Dimming
 bool dimmingEnabled = false;
@@ -130,6 +131,23 @@ bool descScrolling = false;
 const unsigned long descriptionDuration = 3000;    // 3s for short text
 static unsigned long descScrollEndTime = 0;        // for post-scroll delay (re-used for scroll timing)
 const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
+
+// Used to format the timezone correctly for display
+void expandWithAmpersands(char *abbr)
+{
+  char temp[8];
+  strncpy(temp, abbr, sizeof(temp));
+  temp[sizeof(temp) - 1] = '\0'; // ensure null-terminated
+
+  // write back into abbr
+  char *dst = abbr;
+  for (size_t i = 0; temp[i] != '\0'; i++)
+  {
+    *dst++ = tolower((unsigned char)temp[i]);
+    *dst++ = '&';
+  }
+  *(dst - 1) = '\0'; // replace last '&' with null terminator
+}
 
 // Scroll flipped
 textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isFlipped) {
@@ -1399,6 +1417,10 @@ void loop() {
   int endTotal = dimEndHour * 60 + dimEndMinute;
   bool isDimmingActive = false;
 
+  // Capture the timezone and format it correctly
+  strftime(timeZoneAbbr, sizeof(timeZoneAbbr), "%Z", &timeinfo);
+  expandWithAmpersands(timeZoneAbbr);
+
   if (dimmingEnabled) {
     if (startTotal < endTotal) {
       isDimmingActive = (curTotal >= startTotal && curTotal < endTotal);
@@ -1548,6 +1570,8 @@ void loop() {
   String formattedTime;
   if (showDayOfWeek) {
     formattedTime = String(daySymbol) + " " + String(timeSpacedStr);
+  } else if (showTimeZone) {
+    formattedTime = String(timeZoneAbbr) + " " + String(timeSpacedStr);
   } else {
     formattedTime = String(timeSpacedStr);
   }
