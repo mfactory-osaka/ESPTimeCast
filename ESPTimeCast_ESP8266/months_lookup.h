@@ -17,6 +17,7 @@ const MonthsMapping months_mappings[] = {
     { "et", { "j&a&n", "v&e&b", "m&a&r", "a&p&r", "m&a&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&t" } }, // Estonian
     { "fi", { "t&a&m", "h&e&l", "m&a&a", "h&u&h", "t&o&u", "k&e&s", "h&e&i", "e&l&o", "s&y&y", "l&o&k", "m&a&r", "j&o&u" } }, // Finnish
     { "fr", { "j&a&n", "f&e&v", "m&a&r", "a&v&r", "m&a&i", "j&u&n", "j&u&l", "a&o&u", "s&e&p", "o&c&t", "n&o&v", "d&e&c" } }, // French
+    { "ga", { "e&a&n", "f&e&b", "m&a&r", "a&i&b", "b&e&a", "m&e&i", "i&u&l", "l&u&n", "m&f&o", "d&f&o", "s&a&m", "n&o&l" } }, // Irish
     { "hr", { "s&i&j", "v&e&l", "o&z&u", "t&r&a", "s&v&i", "l&i&p", "s&r&p", "k&o&l", "r&u&j", "l&i&s", "s&t&u", "p&r&o" } }, // Croatian
     { "hu", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&u&g", "s&z&e", "o&k&t", "n&o&v", "d&e&c" } }, // Hungarian
     { "it", { "g&e&n", "f&e&b", "m&a&r", "a&p&r", "m&a&g", "g&i&u", "l&u&g", "a&g&o", "s&e&t", "o&t&t", "n&o&v", "d&i&c" } }, // Italian
