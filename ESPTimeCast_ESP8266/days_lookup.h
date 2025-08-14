@@ -17,6 +17,7 @@ const DaysOfWeekMapping days_mappings[] = {
     { "et", { "p&a",   "e&s",   "t&e",   "k&o",   "n&e",   "r&e",   "l&a" } },
     { "fi", { "s&u&n", "m&a&a", "t&i&s", "k&e&s", "t&o&r", "p&e&r", "l&a&u" } },
     { "fr", { "d&i&m", "l&u&n", "m&a&r", "m&e&r", "j&e&u", "v&e&n", "s&a&m" } },
+    { "ga", { "d&o&m", "l&u&a", "m&a&i", "c&e&a", "d&e&a", "a&o&i", "s&a&t" } },
     { "hr", { "n&e&d", "p&o&n", "u&t&o", "s&r&i", "c&e&t", "p&e&t", "s&u&b" } },
     { "hu", { "v&a&s", "h&e&t", "k&e&d", "s&z&e", "c&s&u", "p&e&t", "s&z&o" } },
     { "it", { "d&o&m", "l&u&n", "m&a&r", "m&e&r", "g&i&o", "v&e&n", "s&a&b" } },
