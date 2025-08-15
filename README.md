@@ -4,7 +4,7 @@
 ![GitHub forks](https://img.shields.io/github/forks/mfactory-osaka/ESPTimeCast?style=social)
 ![Last Commit](https://img.shields.io/github/last-commit/mfactory-osaka/ESPTimeCast)
 
-**ESPTimeCast** is a WiFi-connected LED matrix clock and weather station based on ESP8266 and MAX7219.  
+**ESPTimeCast** is a WiFi-connected LED matrix clock and weather station based on ESP8266/ESP32 and MAX7219.  
 It displays the current time, day of the week, and local weather (temp/humidity/weather description) fetched from OpenWeatherMap.  
 Setup and configuration are fully managed via a built-in web interface.  
 
@@ -17,8 +17,8 @@ Want to give your ESPTimeCast a home? You can 3D print a custom case for it!
 
 <img src="assets/image01.png" alt="3D Printable Case" width="320" />
 
-[![Printables Downloads](https://img.shields.io/badge/Printables-100%20Downloads-orange?logo=prusa)](https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display)
-[![Cults3D Downloads](https://img.shields.io/badge/Cults3D-53%20Downloads-blue?logo=cults3d)](https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219)
+[![Printables Downloads](https://img.shields.io/badge/Printables-106%20Downloads-orange?logo=prusa)](https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display)
+[![Cults3D Downloads](https://img.shields.io/badge/Cults3D-54%20Downloads-blue?logo=cults3d)](https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219)
 
 ---
 
@@ -38,6 +38,7 @@ Want to give your ESPTimeCast a home? You can 3D print a custom case for it!
   - Custom **Primary/Secondary NTP server** input
   - Display **Day of the Week** toggle (default is on)
   - Display **Blinking Colon** toggle (default is on)
+  - Show **Date** toggle (default is off)
   - **24/12h clock mode** toggle (24-hour default)
   - **Imperial Units (°F)** toggle (metric °C defaults)
   - Show **Humidity** toggle (display Humidity besides Temperature)
@@ -45,7 +46,7 @@ Want to give your ESPTimeCast a home? You can 3D print a custom case for it!
   - **Flip display** (180 degrees)
   - Adjustable display **brightness**
   - Dimming Hours **Scheduling**
-  - Dramatic **Countdown** function
+  - **Countdown** function (Scroll / Dramatic)
   - Optional **glucose + trend** display (Nightscout-compatible, set via ntpserver2)
     
 ---
@@ -135,6 +136,7 @@ Click the **cog icon** next to “Advanced Settings” in the web UI to reveal e
 - **Secondary NTP Server**: Fallback NTP server (e.g. `time.nist.gov`)
 - **Day of the Week**: Display Day of the Week in the desired language
 - **Blinking Colon** toggle (default is on)
+- **Show Date** (default is off, duration is the same as weather duration)
 - **24/12h Clock**: Switch between 24-hour and 12-hour time formats (24-hour default)
 - **Imperial Units (°F)** toggle (metric °C defaults)
 - **Humidity**: Display Humidity besides Temperature
@@ -142,7 +144,7 @@ Click the **cog icon** next to “Advanced Settings” in the web UI to reveal e
 - **Flip Display**: Invert the display vertically/horizontally
 - **Brightness**: 0 (dim) to 15 (bright)
 - **Dimming Feature**: Start time, end time and desired brightness selection
-- **Dramatic Countdown** function, set a countdown to your favorit/next event! 
+- **Countdown** function, set a countdown to your favorit/next event, 2 modes: Scroll/Dramatic! 
 
 *Non-English characters converted to their closest English alphabet.  
 Tip: Don't forget to press the save button to keep your settings
@@ -268,6 +270,12 @@ If you enjoy this project, please consider supporting my work:
 
 [![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg?logo=paypal)](https://www.paypal.me/officialuphoto)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-fafbfc?logo=github&logoColor=ea4aaa)](https://github.com/sponsors/mfactory-osaka) 
+
+
+
+
+
+
 
 
 

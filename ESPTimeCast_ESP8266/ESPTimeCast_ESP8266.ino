@@ -13,9 +13,10 @@
 #include <time.h>
 #include <WiFiClientSecure.h>
 
-#include "mfactoryfont.h"  // Custom font
-#include "tz_lookup.h"     // Timezone lookup, do not duplicate mapping here!
-#include "days_lookup.h"   // Languages for the Days of the Week
+#include "mfactoryfont.h"   // Custom font
+#include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
+#include "days_lookup.h"    // Languages for the Days of the Week
+#include "months_lookup.h"  // Languages for the Months of the Year
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
@@ -49,6 +50,7 @@ int brightness = 7;
 bool flipDisplay = false;
 bool twelveHourToggle = false;
 bool showDayOfWeek = true;
+bool showDate = false;
 bool showHumidity = false;
 bool colonBlinkEnabled = true;
 char ntpServer1[64] = "pool.ntp.org";
@@ -66,6 +68,7 @@ int dimBrightness = 2;  // Dimming level (0-15)
 bool countdownEnabled = false;
 time_t countdownTargetTimestamp = 0;  // Unix timestamp
 char countdownLabel[64] = "";         // Label for the countdown
+bool isDramaticCountdown = true;     // Default to the dramatic countdown mode
 
 // State management
 bool weatherCycleStarted = false;
@@ -168,6 +171,7 @@ void loadConfig() {
     doc[F("flipDisplay")] = flipDisplay;
     doc[F("twelveHourToggle")] = twelveHourToggle;
     doc[F("showDayOfWeek")] = showDayOfWeek;
+    doc[F("showDate")] = false;
     doc[F("showHumidity")] = showHumidity;
     doc[F("colonBlinkEnabled")] = colonBlinkEnabled;
     doc[F("ntpServer1")] = ntpServer1;
@@ -185,6 +189,7 @@ void loadConfig() {
     countdownObj["enabled"] = false;
     countdownObj["targetTimestamp"] = 0;
     countdownObj["label"] = "";
+    countdownObj["isDramaticCountdown"] = true;
 
     File f = LittleFS.open("/config.json", "w");
     if (f) {
@@ -233,8 +238,10 @@ void loadConfig() {
   flipDisplay = doc["flipDisplay"] | false;
   twelveHourToggle = doc["twelveHourToggle"] | false;
   showDayOfWeek = doc["showDayOfWeek"] | true;
+  showDate = doc["showDate"] | false;
   showHumidity = doc["showHumidity"] | false;
   colonBlinkEnabled = doc.containsKey("colonBlinkEnabled") ? doc["colonBlinkEnabled"].as<bool>() : true;
+  showWeatherDescription = doc["showWeatherDescription"] | false;
 
   String de = doc["dimmingEnabled"].as<String>();
   dimmingEnabled = (de == "true" || de == "on" || de == "1");
@@ -253,10 +260,6 @@ void loadConfig() {
   else
     tempSymbol = '[';
 
-  if (doc.containsKey("showWeatherDescription"))
-    showWeatherDescription = doc["showWeatherDescription"];
-  else
-    showWeatherDescription = false;
 
   // --- COUNTDOWN CONFIG LOADING ---
   if (doc.containsKey("countdown")) {
@@ -264,6 +267,8 @@ void loadConfig() {
 
     countdownEnabled = countdownObj["enabled"] | false;
     countdownTargetTimestamp = countdownObj["targetTimestamp"] | 0;
+    isDramaticCountdown = countdownObj["isDramaticCountdown"] | true; 
+    
 
     JsonVariant labelVariant = countdownObj["label"];
     if (labelVariant.isNull() || !labelVariant.is<const char *>()) {
@@ -281,6 +286,7 @@ void loadConfig() {
     countdownEnabled = false;
     countdownTargetTimestamp = 0;
     strcpy(countdownLabel, "");
+    isDramaticCountdown = true; 
     Serial.println(F("[CONFIG] Countdown object not found, defaulting to disabled."));
     countdownFinished = false;
   }
@@ -412,13 +418,33 @@ void setupTime() {
   if (!isAPMode) {
     Serial.println(F("[TIME] Starting NTP sync"));
   }
-  configTime(0, 0, ntpServer1, ntpServer2);
-  setenv("TZ", ianaToPosix(timeZone), 1);
-  tzset();
-  ntpState = NTP_SYNCING;
-  ntpStartTime = millis();
-  ntpRetryCount = 0;
-  ntpSyncSuccessful = false;
+
+  bool serverOk = false;
+  IPAddress resolvedIP;
+
+  // Try first server if it's not empty
+  if (strlen(ntpServer1) > 0 && WiFi.hostByName(ntpServer1, resolvedIP) == 1) {
+    serverOk = true;
+  }
+  // Try second server if first failed
+  else if (strlen(ntpServer2) > 0 && WiFi.hostByName(ntpServer2, resolvedIP) == 1) {
+    serverOk = true;
+  }
+
+  if (serverOk) {
+    configTime(0, 0, ntpServer1, ntpServer2);  // safe to call now
+    setenv("TZ", ianaToPosix(timeZone), 1);
+    tzset();
+    ntpState = NTP_SYNCING;
+    ntpStartTime = millis();
+    ntpRetryCount = 0;
+    ntpSyncSuccessful = false;
+  } else {
+    Serial.println(F("[TIME] NTP server lookup failed — skipping sync"));
+    ntpSyncSuccessful = false;
+    ntpState = NTP_IDLE;  // or custom NTP_ERROR state
+    // Trigger your error display here if desired
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -454,6 +480,8 @@ void printConfigToSerial() {
   Serial.println(twelveHourToggle ? "Yes" : "No");
   Serial.print(F("Show Day of the Week: "));
   Serial.println(showDayOfWeek ? "Yes" : "No");
+  Serial.print(F("Show Date: "));
+  Serial.println(showDate ? "Yes" : "No");
   Serial.print(F("Show Weather Description: "));
   Serial.println(showWeatherDescription ? "Yes" : "No");
   Serial.print(F("Show Humidity: "));
@@ -482,6 +510,8 @@ void printConfigToSerial() {
   Serial.println(countdownTargetTimestamp);
   Serial.print(F("Countdown Label: "));
   Serial.println(countdownLabel);
+  Serial.print(F("Dramatic Countdown Display: "));
+  Serial.println(isDramaticCountdown ? "Yes" : "No");
   Serial.println(F("========================================"));
   Serial.println();
 }
@@ -550,6 +580,7 @@ void setupWebServer() {
       else if (n == "flipDisplay") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "twelveHourToggle") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showDayOfWeek") doc[n] = (v == "true" || v == "on" || v == "1");
+      else if (n == "showDate") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showHumidity") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "colonBlinkEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "dimStartHour") doc[n] = v.toInt();
@@ -569,6 +600,7 @@ void setupWebServer() {
     String countdownDateStr = request->hasParam("countdownDate", true) ? request->getParam("countdownDate", true)->value() : "";
     String countdownTimeStr = request->hasParam("countdownTime", true) ? request->getParam("countdownTime", true)->value() : "";
     String countdownLabelStr = request->hasParam("countdownLabel", true) ? request->getParam("countdownLabel", true)->value() : "";
+    bool newIsDramaticCountdown = (request->hasParam("isDramaticCountdown", true) && (request->getParam("isDramaticCountdown", true)->value() == "true" || request->getParam("isDramaticCountdown", true)->value() == "on" || request->getParam("isDramaticCountdown", true)->value() == "1"));
 
     time_t newTargetTimestamp = 0;
     if (newCountdownEnabled && countdownDateStr.length() > 0 && countdownTimeStr.length() > 0) {
@@ -600,6 +632,7 @@ void setupWebServer() {
     countdownObj["enabled"] = newCountdownEnabled;
     countdownObj["targetTimestamp"] = newTargetTimestamp;
     countdownObj["label"] = countdownLabelStr;
+    countdownObj["isDramaticCountdown"] = newIsDramaticCountdown;
 
     FSInfo fs_info;
     LittleFS.info(fs_info);
@@ -779,6 +812,17 @@ void setupWebServer() {
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
+  server.on("/set_showdate", HTTP_POST, [](AsyncWebServerRequest *request) {
+    bool showDateVal = false;
+    if (request->hasParam("value", true)) {
+      String v = request->getParam("value", true)->value();
+      showDateVal = (v == "1" || v == "true" || v == "on");
+    }
+    showDate = showDateVal;
+    Serial.printf("[WEBSERVER] Set showDate to %d\n", showDate);
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
   server.on("/set_humidity", HTTP_POST, [](AsyncWebServerRequest *request) {
     bool showHumidityNow = false;
     if (request->hasParam("value", true)) {
@@ -884,6 +928,30 @@ void setupWebServer() {
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
+server.on("/set_dramatic_countdown", HTTP_POST, [](AsyncWebServerRequest *request) {
+  bool enableDramaticNow = false;
+  if (request->hasParam("value", true)) {
+    String v = request->getParam("value", true)->value();
+    enableDramaticNow = (v == "1" || v == "true" || v == "on");
+  }
+
+  // Check if the state has changed
+  if (isDramaticCountdown == enableDramaticNow) {
+    Serial.println(F("[WEBSERVER] Dramatic Countdown state unchanged, ignoring."));
+    request->send(200, "application/json", "{\"ok\":true}");
+    return;
+  }
+
+  // Update the global variable
+  isDramaticCountdown = enableDramaticNow;
+  
+  // Call saveCountdownConfig with only the existing parameters.
+  // It will read the updated global variable 'isDramaticCountdown'.
+  saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
+
+  Serial.printf("[WEBSERVER] Set Dramatic Countdown to %d\n", isDramaticCountdown);
+  request->send(200, "application/json", "{\"ok\":true}");
+});
 
 
   server.begin();
@@ -1188,7 +1256,8 @@ DisplayMode key:
   0: Clock
   1: Weather
   2: Weather Description
-  3: Countdown (NEW)
+  3: Countdown
+  4: Nightscout
 */
 
 void setup() {
@@ -1239,15 +1308,16 @@ void setup() {
   lastColonBlink = millis();
 }
 
-
-
 void advanceDisplayMode() {
   int oldMode = displayMode;
   String ntpField = String(ntpServer2);
   bool nightscoutConfigured = ntpField.startsWith("https://");
 
   if (displayMode == 0) {  // Clock -> ...
-    if (weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) {
+    if (showDate) {
+      displayMode = 5;  // Date mode right after Clock
+      Serial.println(F("[DISPLAY] Switching to display mode: DATE (from Clock)"));
+    } else if (weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) {
       displayMode = 1;
       Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Clock)"));
     } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful) {
@@ -1259,6 +1329,20 @@ void advanceDisplayMode() {
     } else {
       displayMode = 0;
       Serial.println(F("[DISPLAY] Staying in CLOCK (from Clock)"));
+    }
+  } else if (displayMode == 5) {  // Date mode
+    if (weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) {
+      displayMode = 1;
+      Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Date)"));
+    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful) {
+      displayMode = 3;
+      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Date, weather skipped)"));
+    } else if (nightscoutConfigured) {
+      displayMode = 4;
+      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Date, weather & countdown skipped)"));
+    } else {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Date)"));
     }
   } else if (displayMode == 1) {  // Weather -> ...
     if (showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
@@ -1321,6 +1405,7 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
   countdownObj["enabled"] = enabled;
   countdownObj["targetTimestamp"] = targetTimestamp;
   countdownObj["label"] = label;
+  countdownObj["isDramaticCountdown"] = isDramaticCountdown;
   doc.remove("countdownEnabled");
   doc.remove("countdownDate");
   doc.remove("countdownTime");
@@ -1712,9 +1797,8 @@ void loop() {
     long timeRemaining = countdownTargetTimestamp - now_time;
 
     // --- Countdown Finished Logic ---
-    // This 'if' block now handles the entire "finished" sequence (hourglass + flashing).
+    // This part of the code remains unchanged.
     if (timeRemaining <= 0 || countdownShowFinishedMessage) {
-
       // NEW: Only show "TIMES UP" if countdown target timestamp is valid and expired
       time_t now = time(nullptr);
       if (countdownTargetTimestamp == 0 || countdownTargetTimestamp > now) {
@@ -1801,240 +1885,360 @@ void loop() {
       }
     }  // END of 'if (timeRemaining <= 0 || countdownShowFinishedMessage)'
 
-    // --- Normal Countdown Segments (Only if not in finished state) ---
+
+    // --- NORMAL COUNTDOWN LOGIC ---
     // This 'else' block will only run if `timeRemaining > 0` and `!countdownShowFinishedMessage`
     else {
-      long days = timeRemaining / (24 * 3600);
-      long hours = (timeRemaining % (24 * 3600)) / 3600;
-      long minutes = (timeRemaining % 3600) / 60;
-      long seconds = timeRemaining % 60;
 
-      String currentSegmentText = "";
+      // The new variable `isDramaticCountdown` toggles between the two modes
+      if (isDramaticCountdown) {
+        // --- EXISTING DRAMATIC COUNTDOWN LOGIC ---
+        long days = timeRemaining / (24 * 3600);
+        long hours = (timeRemaining % (24 * 3600)) / 3600;
+        long minutes = (timeRemaining % 3600) / 60;
+        long seconds = timeRemaining % 60;
+        String currentSegmentText = "";
 
-      if (segmentStartTime == 0 || (millis() - segmentStartTime > SEGMENT_DISPLAY_DURATION)) {
-        segmentStartTime = millis();
-        P.displayClear();
+        if (segmentStartTime == 0 || (millis() - segmentStartTime > SEGMENT_DISPLAY_DURATION)) {
+          segmentStartTime = millis();
+          P.displayClear();
 
-        switch (countdownSegment) {
-          case 0:  // Days
-            if (days > 0) {
-              currentSegmentText = String(days) + " " + (days == 1 ? "DAY" : "DAYS");
-              Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
-              countdownSegment++;
-            } else {
-              // Skip days if zero
-              countdownSegment++;
-              segmentStartTime = 0;
-            }
-            break;
-
-          case 1:
-            {  // Hours
-              char buf[10];
-              sprintf(buf, "%02ld HRS", hours);  // pad hours with 0
-              currentSegmentText = String(buf);
-              Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
-              countdownSegment++;
-              break;
-            }
-
-          case 2:
-            {  // Minutes
-              char buf[10];
-              sprintf(buf, "%02ld MINS", minutes);  // pad minutes with 0
-              currentSegmentText = String(buf);
-              Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
-              countdownSegment++;
-              break;
-            }
-
-          case 3:
-            {
-
-              // --- Otherwise, run countdown segments like before ---
-
-              time_t segmentStartTime = time(nullptr);      // Get fixed start time
-              unsigned long segmentStartMillis = millis();  // Capture start millis for delta
-
-              long nowRemaining = countdownTargetTimestamp - segmentStartTime;
-              long currentSecond = nowRemaining % 60;
-
-              char secondsBuf[10];
-              sprintf(secondsBuf, "%02ld %s", currentSecond, currentSecond == 1 ? "SEC" : "SECS");
-              String secondsText = String(secondsBuf);
-              Serial.printf("[COUNTDOWN-STATIC] Displaying segment 3: %s\n", secondsText.c_str());
-
-              P.displayClear();
-              P.setTextAlignment(PA_CENTER);
-              P.setCharSpacing(1);
-              P.print(secondsText.c_str());
-
-              delay(SEGMENT_DISPLAY_DURATION - 400);  // Show the first seconds value slightly shorter
-
-              unsigned long elapsed = millis() - segmentStartMillis;
-              long adjustedSecond = (countdownTargetTimestamp - segmentStartTime - (elapsed / 1000)) % 60;
-
-              sprintf(secondsBuf, "%02ld %s", adjustedSecond, adjustedSecond == 1 ? "SEC" : "SECS");
-              secondsText = String(secondsBuf);
-
-              P.displayClear();
-              P.setTextAlignment(PA_CENTER);
-              P.setCharSpacing(1);
-              P.print(secondsText.c_str());
-
-              delay(400);  // Short burst to show the updated second clearly
-
-              String label;
-              if (strlen(countdownLabel) > 0) {
-                label = String(countdownLabel);
-                label.trim();
-                if (!label.startsWith("TO:") && !label.startsWith("to:")) {
-                  label = "TO: " + label;
-                }
-                label.replace('.', ',');
+          switch (countdownSegment) {
+            case 0:  // Days
+              if (days > 0) {
+                currentSegmentText = String(days) + " " + (days == 1 ? "DAY" : "DAYS");
+                Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
+                countdownSegment++;
               } else {
-                static const char *fallbackLabels[] = {
-                  "TO: PARTY TIME!",
-                  "TO: SHOWTIME!",
-                  "TO: CLOCKOUT!",
-                  "TO: BLASTOFF!",
-                  "TO: GO TIME!",
-                  "TO: LIFTOFF!",
-                  "TO: THE BIG REVEAL!",
-                  "TO: ZERO HOUR!",
-                  "TO: THE FINAL COUNT!",
-                  "TO: MISSION COMPLETE"
-                };
-                int randomIndex = random(0, 10);
-                label = fallbackLabels[randomIndex];
+                // Skip days if zero
+                countdownSegment++;
+                segmentStartTime = 0;
               }
-
-              P.setTextAlignment(PA_LEFT);
-              P.setCharSpacing(1);
-              textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-              P.displayScroll(label.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
-
-              // --- THIS IS THE BLOCKING LOOP THAT REMAINS PER YOUR REQUEST ---
-              while (!P.displayAnimate()) {
-                yield();
-              }
-
-              countdownSegment++;
-              segmentStartTime = millis();
               break;
-            }
+            case 1:
+              {  // Hours
+                char buf[10];
+                sprintf(buf, "%02ld HRS", hours);  // pad hours with 0
+                currentSegmentText = String(buf);
+                Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
+                countdownSegment++;
+                break;
+              }
+            case 2:
+              {  // Minutes
+                char buf[10];
+                sprintf(buf, "%02ld MINS", minutes);  // pad minutes with 0
+                currentSegmentText = String(buf);
+                Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
+                countdownSegment++;
+                break;
+              }
+            case 3:
+              {  // Seconds & Label Scroll
+                time_t segmentStartTime = time(nullptr);
+                unsigned long segmentStartMillis = millis();
 
-          case 4:  // Exit countdown
-            Serial.println("[COUNTDOWN-STATIC] All countdown segments and label displayed. Advancing to Clock.");
-            countdownSegment = 0;
-            segmentStartTime = 0;
+                long nowRemaining = countdownTargetTimestamp - segmentStartTime;
+                long currentSecond = nowRemaining % 60;
+                char secondsBuf[10];
+                sprintf(secondsBuf, "%02ld %s", currentSecond, currentSecond == 1 ? "SEC" : "SECS");
+                String secondsText = String(secondsBuf);
+                Serial.printf("[COUNTDOWN-STATIC] Displaying segment 3: %s\n", secondsText.c_str());
+                P.displayClear();
+                P.setTextAlignment(PA_CENTER);
+                P.setCharSpacing(1);
+                P.print(secondsText.c_str());
+                delay(SEGMENT_DISPLAY_DURATION - 400);
 
+                unsigned long elapsed = millis() - segmentStartMillis;
+                long adjustedSecond = (countdownTargetTimestamp - segmentStartTime - (elapsed / 1000)) % 60;
+                sprintf(secondsBuf, "%02ld %s", adjustedSecond, adjustedSecond == 1 ? "SEC" : "SECS");
+                secondsText = String(secondsBuf);
+                P.displayClear();
+                P.setTextAlignment(PA_CENTER);
+                P.setCharSpacing(1);
+                P.print(secondsText.c_str());
+                delay(400);
+
+                String label;
+                if (strlen(countdownLabel) > 0) {
+                  label = String(countdownLabel);
+                  label.trim();
+                  if (!label.startsWith("TO:") && !label.startsWith("to:")) {
+                    label = "TO: " + label;
+                  }
+                  label.replace('.', ',');
+                } else {
+                  static const char *fallbackLabels[] = {
+                    "TO: PARTY TIME!", "TO: SHOWTIME!", "TO: CLOCKOUT!", "TO: BLASTOFF!",
+                    "TO: GO TIME!", "TO: LIFTOFF!", "TO: THE BIG REVEAL!",
+                    "TO: ZERO HOUR!", "TO: THE FINAL COUNT!", "TO: MISSION COMPLETE"
+                  };
+                  int randomIndex = random(0, 10);
+                  label = fallbackLabels[randomIndex];
+                }
+
+                P.setTextAlignment(PA_LEFT);
+                P.setCharSpacing(1);
+                textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+                P.displayScroll(label.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
+
+                while (!P.displayAnimate()) {
+                  yield();
+                }
+                countdownSegment++;
+                segmentStartTime = millis();
+                break;
+              }
+            case 4:  // Exit countdown
+              Serial.println("[COUNTDOWN-STATIC] All segments and label displayed. Advancing to Clock.");
+              countdownSegment = 0;
+              segmentStartTime = 0;
+              P.setTextAlignment(PA_CENTER);
+              P.setCharSpacing(1);
+              advanceDisplayMode();
+              yield();
+              return;
+
+            default:
+              Serial.println("[COUNTDOWN-ERROR] Invalid countdownSegment, resetting.");
+              countdownSegment = 0;
+              segmentStartTime = 0;
+              break;
+          }
+
+          if (currentSegmentText.length() > 0) {
             P.setTextAlignment(PA_CENTER);
             P.setCharSpacing(1);
-            advanceDisplayMode();
-            yield();
-            return;
-
-          default:
-            Serial.println("[COUNTDOWN-ERROR] Invalid countdownSegment, resetting.");
-            countdownSegment = 0;
-            segmentStartTime = 0;
-            break;
+            P.print(currentSegmentText.c_str());
+          }
         }
-
-        if (currentSegmentText.length() > 0) {
-          P.setTextAlignment(PA_CENTER);
-          P.setCharSpacing(1);
-          P.print(currentSegmentText.c_str());
-        }
+        P.displayAnimate();
       }
 
-      P.displayAnimate();  // This handles regular segment display updates
-    }                      // End of 'else' (Normal Countdown Segments)
+ // --- NEW: SINGLE-LINE COUNTDOWN LOGIC ---
+      else {
+        long days = timeRemaining / (24 * 3600);
+        long hours = (timeRemaining % (24 * 3600)) / 3600;
+        long minutes = (timeRemaining % 3600) / 60;
+        long seconds = timeRemaining % 60;
 
-    // Keep alignment reset just in case
+        String label;
+        // Check if countdownLabel is empty and grab a random one if needed
+        if (strlen(countdownLabel) > 0) {
+          label = String(countdownLabel);
+          label.trim();
+        } else {
+          static const char *fallbackLabels[] = {
+            "PARTY TIME", "SHOWTIME", "CLOCKOUT", "BLASTOFF",
+            "GO TIME", "LIFTOFF", "THE BIG REVEAL",
+            "ZERO HOUR", "THE FINAL COUNT", "MISSION COMPLETE"
+          };
+          int randomIndex = random(0, 10);
+          label = fallbackLabels[randomIndex];
+        }
+
+        // Format the full string
+        char buf[50];
+        // Only show days if there are any, otherwise start with hours
+        if (days > 0) {
+          sprintf(buf, "%s IN: %ldD %02ldH %02ldM %02ldS", label.c_str(), days, hours, minutes, seconds);
+        } else {
+          sprintf(buf, "%s IN: %02ldH %02ldM %02ldS", label.c_str(), hours, minutes, seconds);
+        }
+        
+        String fullString = String(buf);
+        
+        // Display the full string and scroll it
+        P.displayClear();
+        P.setTextAlignment(PA_LEFT);
+        P.setCharSpacing(1);
+        textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+        P.displayScroll(fullString.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
+
+        // Blocking loop to ensure the full message scrolls
+        while (!P.displayAnimate()) {
+          yield();
+        }
+
+        // After scrolling is complete, we're done with this display mode
+        // Move to the next mode and exit the function.
+        P.setTextAlignment(PA_CENTER);
+        advanceDisplayMode();
+        yield();
+        return;
+      }
+  }
+
+  // Keep alignment reset just in case
+  P.setTextAlignment(PA_CENTER);
+  P.setCharSpacing(1);
+  yield();
+  return;
+}  // End of if (displayMode == 3 && ...)
+
+
+// --- NIGHTSCOUT Display Mode ---
+if (displayMode == 4) {
+  String ntpField = String(ntpServer2);
+
+  // These static variables will retain their values between calls to this block
+  static unsigned long lastNightscoutFetchTime = 0;
+  const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
+  static int currentGlucose = -1;
+  static String currentDirection = "?";
+
+  // Check if it's time to fetch new data or if we have no data yet
+  if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient https;
+    https.begin(client, ntpField);
+
+    https.setTimeout(5000);  // This sets both the connection and response timeout.
+
+    Serial.print("[HTTPS] Nightscout fetch initiated...\n");
+    int httpCode = https.GET();
+
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = https.getString();
+      StaticJsonDocument<1024> doc;
+      DeserializationError error = deserializeJson(doc, payload);
+
+      if (!error && doc.is<JsonArray>() && doc.size() > 0) {
+        JsonObject firstReading = doc[0].as<JsonObject>();
+        currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
+        currentDirection = firstReading["direction"] | "?";
+
+        Serial.printf("Nightscout data fetched: mg/dL %d %s\n", currentGlucose, currentDirection.c_str());
+      } else {
+        Serial.println("Failed to parse Nightscout JSON");
+      }
+    } else {
+      Serial.printf("[HTTPS] GET failed, error: %s\n", https.errorToString(httpCode).c_str());
+    }
+
+    https.end();
+    lastNightscoutFetchTime = millis();  // Update the timestamp
+  }
+
+  // Display the data we have, which is now stored in static variables
+  if (currentGlucose != -1) {
+    char arrow;
+    if (currentDirection == "Flat") arrow = 139;
+    else if (currentDirection == "SingleUp") arrow = 134;
+    else if (currentDirection == "DoubleUp") arrow = 135;
+    else if (currentDirection == "SingleDown") arrow = 136;
+    else if (currentDirection == "DoubleDown") arrow = 137;
+    else if (currentDirection == "FortyFiveUp") arrow = 138;
+    else if (currentDirection == "FortyFiveDown") arrow = 140;
+    else arrow = '?';
+
+    String displayText = String(currentGlucose) + String(arrow);
+
     P.setTextAlignment(PA_CENTER);
     P.setCharSpacing(1);
-    yield();
+    P.print(displayText.c_str());
+
+    delay(weatherDuration);
+    advanceDisplayMode();
     return;
-  }  // End of if (displayMode == 3 && ...)
+  } else {
+    // If no data is available after the first fetch attempt, show an error and advance
+    P.setTextAlignment(PA_CENTER);
+    P.setCharSpacing(0);
+    P.print(F("?)"));
+    delay(2000);  // Wait 2 seconds before advancing
+    advanceDisplayMode();
+    return;
+  }
+}
 
+//DATE Display Mode
+else if (displayMode == 5 && showDate) {
 
+  // --- VALID DATE CHECK ---
+  if (timeinfo.tm_year < 120 || timeinfo.tm_mday <= 0 || timeinfo.tm_mon < 0 || timeinfo.tm_mon > 11) {
+    advanceDisplayMode();
+    return;  // skip drawing
+  }
+  // -------------------------
+  String dateString;
 
-  // --- NIGHTSCOUT Display Mode ---
-  if (displayMode == 4) {
-    String ntpField = String(ntpServer2);
+  // Get localized month names
+  const char *const *months = getMonthsOfYear(language);
+  String monthAbbr = String(months[timeinfo.tm_mon]).substring(0, 5);
+  monthAbbr.toLowerCase();
 
-    // These static variables will retain their values between calls to this block
-    static unsigned long lastNightscoutFetchTime = 0;
-    const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
-    static int currentGlucose = -1;
-    static String currentDirection = "?";
+  // Add spaces between day digits
+  String dayString = String(timeinfo.tm_mday);
+  String spacedDay = "";
+  for (size_t i = 0; i < dayString.length(); i++) {
+    spacedDay += dayString[i];
+    if (i < dayString.length() - 1) spacedDay += " ";
+  }
 
-    // Check if it's time to fetch new data or if we have no data yet
-    if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
-      WiFiClientSecure client;
-      client.setInsecure();
-      HTTPClient https;
-      https.begin(client, ntpField);
-
-      https.setTimeout(5000);  // This sets both the connection and response timeout.
-
-      Serial.print("[HTTPS] Nightscout fetch initiated...\n");
-      int httpCode = https.GET();
-
-      if (httpCode == HTTP_CODE_OK) {
-        String payload = https.getString();
-        StaticJsonDocument<1024> doc;
-        DeserializationError error = deserializeJson(doc, payload);
-
-        if (!error && doc.is<JsonArray>() && doc.size() > 0) {
-          JsonObject firstReading = doc[0].as<JsonObject>();
-          currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
-          currentDirection = firstReading["direction"] | "?";
-
-          Serial.printf("Nightscout data fetched: mg/dL %d %s\n", currentGlucose, currentDirection.c_str());
-        } else {
-          Serial.println("Failed to parse Nightscout JSON");
-        }
-      } else {
-        Serial.printf("[HTTPS] GET failed, error: %s\n", https.errorToString(httpCode).c_str());
+  // Function to check if day should come first for given language
+  auto isDayFirst = [](const String &lang) {
+    // Languages with DD-MM order
+    const char *dayFirstLangs[] = {
+      "af",  // Afrikaans
+      "cs",  // Czech
+      "da",  // Danish
+      "de",  // German
+      "eo",  // Esperanto
+      "es",  // Spanish
+      "et",  // Estonian
+      "fi",  // Finnish
+      "fr",  // French
+      "hr",  // Croatian
+      "hu",  // Hungarian
+      "it",  // Italian
+      "lt",  // Lithuanian
+      "lv",  // Latvian
+      "nl",  // Dutch
+      "no",  // Norwegian
+      "pl",  // Polish
+      "pt",  // Portuguese
+      "ro",  // Romanian
+      "sk",  // Slovak
+      "sl",  // Slovenian
+      "sr",  // Serbian
+      "sv",  // Swedish
+      "sw",  // Swahili
+      "tr"   // Turkish
+    };
+    for (auto lf : dayFirstLangs) {
+      if (lang.equalsIgnoreCase(lf)) {
+        return true;
       }
-
-      https.end();
-      lastNightscoutFetchTime = millis();  // Update the timestamp
     }
+    return false;
+  };
 
-    // Display the data we have, which is now stored in static variables
-    if (currentGlucose != -1) {
-      char arrow;
-      if (currentDirection == "Flat") arrow = 139;
-      else if (currentDirection == "SingleUp") arrow = 134;
-      else if (currentDirection == "DoubleUp") arrow = 135;
-      else if (currentDirection == "SingleDown") arrow = 136;
-      else if (currentDirection == "DoubleDown") arrow = 137;
-      else if (currentDirection == "FortyFiveUp") arrow = 138;
-      else if (currentDirection == "FortyFiveDown") arrow = 140;
-      else arrow = '?';
+  String langForDate = String(language);
 
-      String displayText = String(currentGlucose) + String(arrow);
+  if (langForDate == "ja") {
+    // Japanese: month number (spaced digits) + day + symbol
+    String spacedMonth = "";
+    String monthNum = String(timeinfo.tm_mon + 1);
+    dateString = monthAbbr + "  " + spacedDay + " ±";
 
-      P.setTextAlignment(PA_CENTER);
-      P.setCharSpacing(1);
-      P.print(displayText.c_str());
-
-      delay(weatherDuration);
-      advanceDisplayMode();
-      return;
+  } else {
+    if (isDayFirst(language)) {
+      dateString = spacedDay + "   " + monthAbbr;
     } else {
-      // If no data is available after the first fetch attempt, show an error and advance
-      P.setTextAlignment(PA_CENTER);
-      P.setCharSpacing(0);
-      P.print(F("?)"));
-      delay(2000);  // Wait 2 seconds before advancing
-      advanceDisplayMode();
-      return;
+      dateString = monthAbbr + "   " + spacedDay;
     }
   }
-  yield();
+
+  P.setTextAlignment(PA_CENTER);
+  P.setCharSpacing(0);
+  P.print(dateString);
+
+  if (millis() - lastSwitch > weatherDuration) {
+    advanceDisplayMode();
+  }
+}
+yield();
 }
