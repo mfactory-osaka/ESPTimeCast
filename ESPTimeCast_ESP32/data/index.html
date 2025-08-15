@@ -88,7 +88,7 @@
   input[type="time"]:disabled ,
   input[type="text"]:disabled ,
   input[type="number"]:disabled ,
-  input[type="date"]:disabled {
+  input[type="date"]:disabled{
     color: rgba(255, 255, 255, 0.250);
   }
 
@@ -105,6 +105,19 @@
 input[type="time"]::-webkit-calendar-picker-indicator, input[type="date"]::-webkit-calendar-picker-indicator{
   filter: invert(100%);
 }
+
+
+/* Enabled & checked toggle */
+.toggle-switch input[type="checkbox"]:checked + .toggle-slider {
+  background-color: var(--accent-color);
+}
+
+/* Disabled toggle (regardless of checked state) */
+.toggle-switch input[type="checkbox"]:disabled + .toggle-slider { background-color: transparent !important; border: solid 1px #cccccc2e; cursor: not-allowed; }
+.toggle-switch input[type="checkbox"]:disabled + .toggle-slider::before {
+  background-color: rgba(204, 204, 204, 0.5);
+}
+
 
   input:-webkit-autofill,
 input:-webkit-autofill:focus,
@@ -322,7 +335,7 @@ textarea::placeholder {
   <button type="button" class="primary-button" id="geo-button" onclick="getLocation()" style="margin-top: 1rem;">Get My Location</button>
 
   <div class="small">    
-    <strong>Location format examples:</strong> City, Country Code - Osaka, JP | ZIP,Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023
+    <strong>Location format examples:</strong> City, Country Code - Osaka, JP | ZIP, Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023
   </div>
   <div class="geo-note" style="display: none;">
     <br>
@@ -496,6 +509,14 @@ textarea::placeholder {
         </label>
 
         <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+          <span style="margin-right: 0.5em;">Show Date:</span>
+          <span class="toggle-switch">
+            <input type="checkbox" id="showDate" name="showDate" onchange="setShowDate(this.checked)">
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
+
+        <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
           <span style="margin-right: 0.5em;">Display 12-hour Clock:</span>
           <span class="toggle-switch">
             <input type="checkbox" id="twelveHourToggle" name="twelveHourToggle" onchange="setTwelveHour(this.checked)">
@@ -572,6 +593,15 @@ textarea::placeholder {
                     <span class="toggle-slider"></span>
                 </span>
             </label>
+        </div>
+        <div class="form-group">
+          <label style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="margin-right: 0.5em;">Dramatic Countdown:</span>
+            <span class="toggle-switch">
+                <input type="checkbox" id="isDramaticCountdown" name="isDramaticCountdown">
+                <span class="toggle-slider"></span>
+            </span>
+          </label>
         </div>
         <div class="form-row two-col">
           <div class="form-group">
@@ -655,6 +685,7 @@ window.onload = function () {
       document.getElementById('ntpServer2').value = data.ntpServer2 || "";
       document.getElementById('twelveHourToggle').checked = !!data.twelveHourToggle;
       document.getElementById('showDayOfWeek').checked = !!data.showDayOfWeek;
+      document.getElementById('showDate').checked = !!data.showDate;
       document.getElementById('showHumidity').checked = !!data.showHumidity;
       document.getElementById('colonBlinkEnabled').checked = !!data.colonBlinkEnabled;
       document.getElementById('showWeatherDescription').checked = !!data.showWeatherDescription;
@@ -687,6 +718,7 @@ document.getElementById('dimEndTime').value =
       setDimmingFieldsEnabled(!!data.dimmingEnabled);
 
       // --- NEW: Populate Countdown Fields ---
+      document.getElementById('isDramaticCountdown').checked = !!(data.countdown && data.countdown.isDramaticCountdown);
       const countdownEnabledEl = document.getElementById('countdownEnabled'); // Get reference
       countdownEnabledEl.checked = !!(data.countdown && data.countdown.enabled);
 
@@ -733,6 +765,12 @@ document.getElementById('dimEndTime').value =
           setCountdownEnabled(this.checked);       // Sends command to ESP
           setCountdownFieldsEnabled(this.checked); // Enables/disables local fields
       });
+
+const dramaticCountdownEl = document.getElementById('isDramaticCountdown');
+dramaticCountdownEl.addEventListener('change', function () {
+    setIsDramaticCountdown(this.checked);
+});
+
       // Set initial state of fields when page loads
       setCountdownFieldsEnabled(countdownEnabledEl.checked);
       // --- END NEW ---
@@ -796,6 +834,7 @@ async function submitConfig(event) {
   formData.set('flipDisplay', document.getElementById('flipDisplay').checked ? 'on' : '');
   formData.set('twelveHourToggle', document.getElementById('twelveHourToggle').checked ? 'on' : '');
   formData.set('showDayOfWeek', document.getElementById('showDayOfWeek').checked ? 'on' : '');
+  formData.set('showDate', document.getElementById('showDate').checked ? 'on' : '');
   formData.set('showHumidity', document.getElementById('showHumidity').checked ? 'on' : '');
   formData.set('colonBlinkEnabled', document.getElementById('colonBlinkEnabled').checked ? 'on' : '');
 
@@ -821,6 +860,7 @@ async function submitConfig(event) {
 
   // --- NEW: Countdown Form Data ---
   formData.set('countdownEnabled', document.getElementById('countdownEnabled').checked ? 'true' : 'false');
+  formData.set('isDramaticCountdown', document.getElementById('isDramaticCountdown').checked ? 'true' : 'false');
   // Date and Time inputs are already handled by formData if they have a 'name' attribute
   // 'countdownDate' and 'countdownTime' are collected automatically
   // Also apply the same validation for the label when submitting
@@ -1098,6 +1138,14 @@ function setShowDayOfWeek(val) {
   });
 }
 
+function setShowDate(val) {
+  fetch('/set_showdate', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
 function setColonBlink(val) {
   fetch('/set_colon_blink', {
     method: 'POST',
@@ -1144,6 +1192,7 @@ function setCountdownFieldsEnabled(enabled) {
   document.getElementById('countdownLabel').disabled = !enabled;
   document.getElementById('countdownDate').disabled = !enabled;
   document.getElementById('countdownTime').disabled = !enabled;
+  document.getElementById('isDramaticCountdown').disabled = !enabled;
 }
 
 // Existing function to send countdown enable/disable command to ESP
@@ -1154,6 +1203,15 @@ function setCountdownEnabled(val) {
         body: "value=" + (val ? 1 : 0) // Send 1 for true, 0 for false
     });
 }
+
+function setIsDramaticCountdown(val) {
+    fetch('/set_dramatic_countdown', {
+        method: 'POST',
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "value=" + (val ? 1 : 0) // Send 1 for true, 0 for false
+    });
+}
+
 // --- END Countdown Controls Logic ---
 
 

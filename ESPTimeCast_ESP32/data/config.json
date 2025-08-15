@@ -14,6 +14,7 @@
   "ntpServer2": "time.nist.gov",
   "twelveHourToggle": false,
   "showDayOfWeek": true,
+  "showDate": false,
   "showHumidity": false,
   "colonBlinkEnabled": true,
   "language": "en",
@@ -27,6 +28,7 @@
   "countdown": {
     "enabled": false,
     "targetTimestamp": 0,
-    "label": ""
+    "label": "",
+    "isDramaticCountdown": true
   }
 }
