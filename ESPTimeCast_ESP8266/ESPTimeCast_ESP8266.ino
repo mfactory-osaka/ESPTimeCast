@@ -999,7 +999,7 @@ String normalizeWeatherDescription(String str) {
 
   // Latin diacritics → ASCII
   str.replace("å", "a");
-  str.replace("ä", "a");
+  str.replace("ä", "ae");
   str.replace("à", "a");
   str.replace("á", "a");
   str.replace("â", "a");
@@ -1050,7 +1050,7 @@ String normalizeWeatherDescription(String str) {
   str.replace("ó", "o");
   str.replace("ò", "o");
   str.replace("ô", "o");
-  str.replace("ö", "o");
+  str.replace("ö", "oe");
   str.replace("õ", "o");
   str.replace("ø", "o");
   str.replace("ō", "o");
@@ -1073,7 +1073,7 @@ String normalizeWeatherDescription(String str) {
   str.replace("ú", "u");
   str.replace("ù", "u");
   str.replace("û", "u");
-  str.replace("ü", "u");
+  str.replace("ü", "ue");
   str.replace("ū", "u");
   str.replace("ů", "u");
   str.replace("ű", "u");
