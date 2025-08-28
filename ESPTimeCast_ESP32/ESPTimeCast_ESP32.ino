@@ -56,7 +56,11 @@ bool showHumidity = false;
 bool colonBlinkEnabled = true;
 char ntpServer1[64] = "pool.ntp.org";
 char ntpServer2[256] = "time.nist.gov";
+
+// Custom settings not in UI
 bool showTimeZone = true;
+bool showHeatIndex = true;
+bool showExtendedWeatherDesc = true;
 
 // Dimming
 bool dimmingEnabled = false;
@@ -92,6 +96,8 @@ unsigned long lastSwitch = 0;
 unsigned long lastColonBlink = 0;
 int displayMode = 0;  // 0: Clock, 1: Weather, 2: Weather Description, 3: Countdown
 int currentHumidity = -1;
+String currentHeatIndex = "";
+int currentPressure = -1;
 bool ntpSyncSuccessful = false;
 
 // NTP Synchronization State Machine
@@ -134,7 +140,7 @@ unsigned long descStartTime = 0;  // For static description
 bool descScrolling = false;
 const unsigned long descriptionDuration = 3000;    // 3s for short text
 static unsigned long descScrollEndTime = 0;        // for post-scroll delay (re-used for scroll timing)
-const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
+const unsigned long descriptionScrollPause = 1200;  // 300ms pause after scroll
 
 // Used to format the timezone correctly for display
 void expandWithAmpersands(char *abbr)
@@ -1243,6 +1249,21 @@ void fetchWeather() {
       currentHumidity = -1;
     }
 
+    if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("feels_like"))) {
+      float temp = doc[F("main")][F("feels_like")];
+      currentHeatIndex = String((int)round(temp)) + "º";
+      Serial.printf("[WEATHER] Heat Index: %s\n", currentHeatIndex);
+    } else {
+      currentHeatIndex = "";
+    }
+
+    if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("pressure"))) {
+      currentPressure = doc[F("main")][F("pressure")];
+      Serial.printf("[WEATHER] Atmospheric Pressure: %d mb\n", currentPressure);
+    } else {
+      currentPressure = -1;
+    }
+
     if (doc.containsKey(F("weather")) && doc[F("weather")].is<JsonArray>()) {
       JsonObject weatherObj = doc[F("weather")][0];
       if (weatherObj.containsKey(F("main"))) {
@@ -1746,6 +1767,8 @@ void loop() {
       if (showHumidity && currentHumidity != -1) {
         int cappedHumidity = (currentHumidity > 99) ? 99 : currentHumidity;
         weatherDisplay = currentTemp + " " + String(cappedHumidity) + "%";
+      } else if (showHeatIndex) {
+        weatherDisplay = currentTemp + " " + currentHeatIndex;
       } else {
         weatherDisplay = currentTemp + tempSymbol;
       }
@@ -1775,14 +1798,23 @@ void loop() {
 
   // --- WEATHER DESCRIPTION Display Mode ---
   if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
-    String desc = weatherDescription;
-    desc.toUpperCase();
+    String desc = "";
+    if (showExtendedWeatherDesc) {
+      int cappedHumidity = (currentHumidity > 99) ? 99 : currentHumidity;
+      desc = String(cappedHumidity) + "% " + String(currentPressure) + String("mb");
+      desc.toUpperCase();
+    } else {
+      desc = weatherDescription;
+      desc.toUpperCase();
+    }
+
+    Serial.printf("[WEATHER] Extended Weather Desc: %s\n", desc);
 
     if (desc.length() > 8) {
       if (!descScrolling) {
         P.displayClear();
         textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-        P.displayScroll(desc.c_str(), PA_CENTER, actualScrollDirection, GENERAL_SCROLL_SPEED);
+        P.displayText(desc.c_str(), PA_CENTER, GENERAL_SCROLL_SPEED, 0, actualScrollDirection, PA_NO_EFFECT);
         descScrolling = true;
         descScrollEndTime = 0;  // reset end time at start
       }
