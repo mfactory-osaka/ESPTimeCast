@@ -20,6 +20,7 @@ const MonthsMapping months_mappings[] = {
     { "hr", { "s&i&j", "v&e&l", "o&z&u", "t&r&a", "s&v&i", "l&i&p", "s&r&p", "k&o&l", "r&u&j", "l&i&s", "s&t&u", "p&r&o" } }, // Croatian
     { "hu", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&u&g", "s&z&e", "o&k&t", "n&o&v", "d&e&c" } }, // Hungarian
     { "it", { "g&e&n", "f&e&b", "m&a&r", "a&p&r", "m&a&g", "g&i&u", "l&u&g", "a&g&o", "s&e&t", "o&t&t", "n&o&v", "d&i&c" } }, // Italian
+    { "ga", { "e&a&n", "f&e&a", "m&a&r", "a&i&b", "b&e&a", "m&e&i", "i&u&i", "l&u&n", "m&e&a", "d&e&i", "s&a&m", "n&o&l" } }, // Irish
     { "ja", { "1 ²", "2 ²", "3 ²", "4 ²", "5 ²", "6 ²", "7 ²", "8 ²", "9 ²", "10 ²", "11 ²", "12 ²" } }, // Japanese
     { "lt", { "s&a&u", "v&a&s", "k&o&v", "b&a&l", "g&e&g", "b&i&r", "l&i&e", "r&u&g", "s&w&e", "s&p&a", "l&a&p", "g&r&u" } }, // Lithuanian
     { "lv", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Latvian

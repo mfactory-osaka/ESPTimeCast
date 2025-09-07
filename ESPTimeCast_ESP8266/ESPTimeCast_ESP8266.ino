@@ -68,7 +68,7 @@ int dimBrightness = 2;  // Dimming level (0-15)
 bool countdownEnabled = false;
 time_t countdownTargetTimestamp = 0;  // Unix timestamp
 char countdownLabel[64] = "";         // Label for the countdown
-bool isDramaticCountdown = true;     // Default to the dramatic countdown mode
+bool isDramaticCountdown = true;      // Default to the dramatic countdown mode
 
 // State management
 bool weatherCycleStarted = false;
@@ -267,8 +267,8 @@ void loadConfig() {
 
     countdownEnabled = countdownObj["enabled"] | false;
     countdownTargetTimestamp = countdownObj["targetTimestamp"] | 0;
-    isDramaticCountdown = countdownObj["isDramaticCountdown"] | true; 
-    
+    isDramaticCountdown = countdownObj["isDramaticCountdown"] | true;
+
 
     JsonVariant labelVariant = countdownObj["label"];
     if (labelVariant.isNull() || !labelVariant.is<const char *>()) {
@@ -286,7 +286,7 @@ void loadConfig() {
     countdownEnabled = false;
     countdownTargetTimestamp = 0;
     strcpy(countdownLabel, "");
-    isDramaticCountdown = true; 
+    isDramaticCountdown = true;
     Serial.println(F("[CONFIG] Countdown object not found, defaulting to disabled."));
     countdownFinished = false;
   }
@@ -440,10 +440,10 @@ void setupTime() {
     ntpRetryCount = 0;
     ntpSyncSuccessful = false;
   } else {
-    Serial.println(F("[TIME] NTP server lookup failed — skipping sync"));
+    Serial.println(F("[TIME] NTP server lookup failed — retry sync in 30 seconds"));
     ntpSyncSuccessful = false;
-    ntpState = NTP_IDLE;  // or custom NTP_ERROR state
-    // Trigger your error display here if desired
+    ntpState = NTP_SYNCING;   // instead of NTP_IDLE
+    ntpStartTime = millis();  // start the failed timer (so retry delay counts from now)
   }
 }
 
@@ -928,30 +928,30 @@ void setupWebServer() {
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
-server.on("/set_dramatic_countdown", HTTP_POST, [](AsyncWebServerRequest *request) {
-  bool enableDramaticNow = false;
-  if (request->hasParam("value", true)) {
-    String v = request->getParam("value", true)->value();
-    enableDramaticNow = (v == "1" || v == "true" || v == "on");
-  }
+  server.on("/set_dramatic_countdown", HTTP_POST, [](AsyncWebServerRequest *request) {
+    bool enableDramaticNow = false;
+    if (request->hasParam("value", true)) {
+      String v = request->getParam("value", true)->value();
+      enableDramaticNow = (v == "1" || v == "true" || v == "on");
+    }
 
-  // Check if the state has changed
-  if (isDramaticCountdown == enableDramaticNow) {
-    Serial.println(F("[WEBSERVER] Dramatic Countdown state unchanged, ignoring."));
+    // Check if the state has changed
+    if (isDramaticCountdown == enableDramaticNow) {
+      Serial.println(F("[WEBSERVER] Dramatic Countdown state unchanged, ignoring."));
+      request->send(200, "application/json", "{\"ok\":true}");
+      return;
+    }
+
+    // Update the global variable
+    isDramaticCountdown = enableDramaticNow;
+
+    // Call saveCountdownConfig with only the existing parameters.
+    // It will read the updated global variable 'isDramaticCountdown'.
+    saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
+
+    Serial.printf("[WEBSERVER] Set Dramatic Countdown to %d\n", isDramaticCountdown);
     request->send(200, "application/json", "{\"ok\":true}");
-    return;
-  }
-
-  // Update the global variable
-  isDramaticCountdown = enableDramaticNow;
-  
-  // Call saveCountdownConfig with only the existing parameters.
-  // It will read the updated global variable 'isDramaticCountdown'.
-  saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
-
-  Serial.printf("[WEBSERVER] Set Dramatic Countdown to %d\n", isDramaticCountdown);
-  request->send(200, "application/json", "{\"ok\":true}");
-});
+  });
 
 
   server.begin();
@@ -1142,7 +1142,7 @@ String buildWeatherURL() {
 
   String langForAPI = String(language);
 
-  if (langForAPI == "eo" || langForAPI == "sw" || langForAPI == "ja") {
+  if (langForAPI == "eo" || langForAPI == "ga" || langForAPI == "sw" || langForAPI == "ja") {
     langForAPI = "en";
   }
   base += "&lang=" + langForAPI;
@@ -1568,9 +1568,29 @@ void loop() {
       ntpAnimTimer = 0;
       ntpAnimFrame = 0;
       break;
+
     case NTP_FAILED:
       ntpAnimTimer = 0;
       ntpAnimFrame = 0;
+
+      static unsigned long lastNtpRetryAttempt = 0;
+      static bool firstRetry = true;
+
+      if (lastNtpRetryAttempt == 0) {
+        lastNtpRetryAttempt = millis();  // set baseline on first fail
+      }
+
+      unsigned long ntpRetryInterval = firstRetry ? 30000UL : 300000UL; // first retry after 30s, after that every 5 minutes
+
+      if (millis() - lastNtpRetryAttempt > ntpRetryInterval) {
+        lastNtpRetryAttempt = millis();
+        ntpRetryCount = 0;
+        ntpStartTime = millis();
+        ntpState = NTP_SYNCING;
+        Serial.println(F("[TIME] Retrying NTP sync..."));
+
+        firstRetry = false;
+      }
       break;
   }
 
@@ -1604,32 +1624,45 @@ void loop() {
     weatherFetchInitiated = false;
     shouldFetchWeatherNow = false;
   }
-
   const char *const *daysOfTheWeek = getDaysOfWeek(language);
   const char *daySymbol = daysOfTheWeek[timeinfo.tm_wday];
 
-  char timeStr[9];
+  // build base HH:MM first ---
+  char baseTime[9];
   if (twelveHourToggle) {
     int hour12 = timeinfo.tm_hour % 12;
     if (hour12 == 0) hour12 = 12;
-    sprintf(timeStr, " %d:%02d", hour12, timeinfo.tm_min);
+    sprintf(baseTime, "%d:%02d", hour12, timeinfo.tm_min);
   } else {
-    sprintf(timeStr, " %02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+    sprintf(baseTime, "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
   }
 
-  char timeSpacedStr[20];
+  // add seconds only if colon blink enabled AND weekday hidden ---
+  char timeWithSeconds[12];
+  if (!showDayOfWeek && colonBlinkEnabled) {
+    // Remove any leading space from baseTime
+    const char *trimmedBase = baseTime;
+    if (baseTime[0] == ' ') trimmedBase++;  // skip leading space
+    sprintf(timeWithSeconds, "%s:%02d", trimmedBase, timeinfo.tm_sec);
+  } else {
+    strcpy(timeWithSeconds, baseTime);  // no seconds
+  }
+
+  // keep spacing logic the same ---
+  char timeSpacedStr[24];
   int j = 0;
-  for (int i = 0; timeStr[i] != '\0'; i++) {
-    timeSpacedStr[j++] = timeStr[i];
-    if (timeStr[i + 1] != '\0') {
+  for (int i = 0; timeWithSeconds[i] != '\0'; i++) {
+    timeSpacedStr[j++] = timeWithSeconds[i];
+    if (timeWithSeconds[i + 1] != '\0') {
       timeSpacedStr[j++] = ' ';
     }
   }
   timeSpacedStr[j] = '\0';
 
+  // build final string ---
   String formattedTime;
   if (showDayOfWeek) {
-    formattedTime = String(daySymbol) + " " + String(timeSpacedStr);
+    formattedTime = String(daySymbol) + "   " + String(timeSpacedStr);
   } else {
     formattedTime = String(timeSpacedStr);
   }
@@ -1647,65 +1680,88 @@ void loop() {
     advanceDisplayMode();
   }
 
-
+  // Persistent variables (declare near top of file or loop)
+  static int prevDisplayMode = -1;
+  static bool clockScrollDone = false;
 
   // --- CLOCK Display Mode ---
   if (displayMode == 0) {
     P.setCharSpacing(0);
 
+    // --- NTP SYNC ---
     if (ntpState == NTP_SYNCING) {
       if (ntpSyncSuccessful || ntpRetryCount >= maxNtpRetries || millis() - ntpStartTime > ntpTimeout) {
-        // Avoid being stuck here if something went wrong in state management
         ntpState = NTP_FAILED;
-      } else {
-        if (millis() - ntpAnimTimer > 750) {
-          ntpAnimTimer = millis();
-          switch (ntpAnimFrame % 3) {
-            case 0: P.print(F("S Y N C ®")); break;
-            case 1: P.print(F("S Y N C ¯")); break;
-            case 2: P.print(F("S Y N C °")); break;
-          }
-          ntpAnimFrame++;
+      } else if (millis() - ntpAnimTimer > 750) {
+        ntpAnimTimer = millis();
+        switch (ntpAnimFrame % 3) {
+          case 0: P.print(F("S Y N C ®")); break;
+          case 1: P.print(F("S Y N C ¯")); break;
+          case 2: P.print(F("S Y N C °")); break;
         }
+        ntpAnimFrame++;
       }
-    } else if (!ntpSyncSuccessful) {
+    }
+    // --- NTP / WEATHER ERROR ---
+    else if (!ntpSyncSuccessful) {
       P.setTextAlignment(PA_CENTER);
-
       static unsigned long errorAltTimer = 0;
       static bool showNtpError = true;
 
-      // Toggle every 2 seconds if both are unavailable
       if (!ntpSyncSuccessful && !weatherAvailable) {
         if (millis() - errorAltTimer > 2000) {
           errorAltTimer = millis();
           showNtpError = !showNtpError;
         }
-
-        if (showNtpError) {
-          P.print(F("?/"));  // NTP error glyph
-        } else {
-          P.print(F("?*"));  // Weather error glyph
-        }
-
+        P.print(showNtpError ? F("?/") : F("?*"));
       } else if (!ntpSyncSuccessful) {
-        P.print(F("?/"));  // NTP only
+        P.print(F("?/"));
       } else if (!weatherAvailable) {
-        P.print(F("?*"));  // Weather only
+        P.print(F("?*"));
       }
-
-    } else {
-      // NTP and weather are OK — show time
+    }
+    // --- DISPLAY CLOCK ---
+    else {
       String timeString = formattedTime;
-      if (colonBlinkEnabled && !colonVisible) {
+      if (showDayOfWeek && colonBlinkEnabled && !colonVisible) {
         timeString.replace(":", " ");
       }
-      P.print(timeString);
+
+      bool shouldScrollIn = false;
+      if (prevDisplayMode == -1 || prevDisplayMode == 3 || prevDisplayMode == 4) {
+        shouldScrollIn = true;  // first boot or other special modes
+      } else if (prevDisplayMode == 2 && weatherDescription.length() > 8) {
+        shouldScrollIn = true;  // only scroll in if weather was scrolling
+      }
+
+      if (shouldScrollIn && !clockScrollDone) {
+        textEffect_t inDir = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+
+        P.displayText(
+          timeString.c_str(),
+          PA_CENTER,
+          GENERAL_SCROLL_SPEED,
+          0,
+          inDir,
+          PA_NO_EFFECT);
+        while (!P.displayAnimate()) yield();
+        clockScrollDone = true;  // mark scroll done
+      } else {
+        P.setTextAlignment(PA_CENTER);
+        P.print(timeString);
+      }
     }
 
     yield();
-    return;
+  } else {
+    // --- leaving clock mode ---
+    if (prevDisplayMode == 0) {
+      clockScrollDone = false;  // reset for next time we enter clock
+    }
   }
 
+  // --- update prevDisplayMode ---
+  prevDisplayMode = displayMode;
 
 
   // --- WEATHER Display Mode ---
@@ -1743,16 +1799,18 @@ void loop() {
   }
 
 
-
   // --- WEATHER DESCRIPTION Display Mode ---
   if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
     String desc = weatherDescription;
 
+    // prepare safe buffer
+    static char descBuffer[128];  // large enough for OWM translations
+    desc.toCharArray(descBuffer, sizeof(descBuffer));
+
     if (desc.length() > 8) {
       if (!descScrolling) {
-        P.displayClear();
         textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-        P.displayScroll(desc.c_str(), PA_CENTER, actualScrollDirection, GENERAL_SCROLL_SPEED);
+        P.displayScroll(descBuffer, PA_CENTER, actualScrollDirection, GENERAL_SCROLL_SPEED);
         descScrolling = true;
         descScrollEndTime = 0;  // reset end time at start
       }
@@ -1775,7 +1833,7 @@ void loop() {
       if (descStartTime == 0) {
         P.setTextAlignment(PA_CENTER);
         P.setCharSpacing(1);
-        P.print(desc.c_str());
+        P.print(descBuffer);
         descStartTime = millis();
       }
       if (millis() - descStartTime > descriptionDuration) {
@@ -2016,7 +2074,7 @@ void loop() {
         P.displayAnimate();
       }
 
- // --- NEW: SINGLE-LINE COUNTDOWN LOGIC ---
+      // --- NEW: SINGLE-LINE COUNTDOWN LOGIC ---
       else {
         long days = timeRemaining / (24 * 3600);
         long hours = (timeRemaining % (24 * 3600)) / 3600;
@@ -2046,11 +2104,10 @@ void loop() {
         } else {
           sprintf(buf, "%s IN: %02ldH %02ldM %02ldS", label.c_str(), hours, minutes, seconds);
         }
-        
+
         String fullString = String(buf);
-        
+
         // Display the full string and scroll it
-        P.displayClear();
         P.setTextAlignment(PA_LEFT);
         P.setCharSpacing(1);
         textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
@@ -2068,177 +2125,178 @@ void loop() {
         yield();
         return;
       }
-  }
-
-  // Keep alignment reset just in case
-  P.setTextAlignment(PA_CENTER);
-  P.setCharSpacing(1);
-  yield();
-  return;
-}  // End of if (displayMode == 3 && ...)
-
-
-// --- NIGHTSCOUT Display Mode ---
-if (displayMode == 4) {
-  String ntpField = String(ntpServer2);
-
-  // These static variables will retain their values between calls to this block
-  static unsigned long lastNightscoutFetchTime = 0;
-  const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
-  static int currentGlucose = -1;
-  static String currentDirection = "?";
-
-  // Check if it's time to fetch new data or if we have no data yet
-  if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient https;
-    https.begin(client, ntpField);
-
-    https.setTimeout(5000);  // This sets both the connection and response timeout.
-
-    Serial.print("[HTTPS] Nightscout fetch initiated...\n");
-    int httpCode = https.GET();
-
-    if (httpCode == HTTP_CODE_OK) {
-      String payload = https.getString();
-      StaticJsonDocument<1024> doc;
-      DeserializationError error = deserializeJson(doc, payload);
-
-      if (!error && doc.is<JsonArray>() && doc.size() > 0) {
-        JsonObject firstReading = doc[0].as<JsonObject>();
-        currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
-        currentDirection = firstReading["direction"] | "?";
-
-        Serial.printf("Nightscout data fetched: mg/dL %d %s\n", currentGlucose, currentDirection.c_str());
-      } else {
-        Serial.println("Failed to parse Nightscout JSON");
-      }
-    } else {
-      Serial.printf("[HTTPS] GET failed, error: %s\n", https.errorToString(httpCode).c_str());
     }
 
-    https.end();
-    lastNightscoutFetchTime = millis();  // Update the timestamp
-  }
-
-  // Display the data we have, which is now stored in static variables
-  if (currentGlucose != -1) {
-    char arrow;
-    if (currentDirection == "Flat") arrow = 139;
-    else if (currentDirection == "SingleUp") arrow = 134;
-    else if (currentDirection == "DoubleUp") arrow = 135;
-    else if (currentDirection == "SingleDown") arrow = 136;
-    else if (currentDirection == "DoubleDown") arrow = 137;
-    else if (currentDirection == "FortyFiveUp") arrow = 138;
-    else if (currentDirection == "FortyFiveDown") arrow = 140;
-    else arrow = '?';
-
-    String displayText = String(currentGlucose) + String(arrow);
-
+    // Keep alignment reset just in case
     P.setTextAlignment(PA_CENTER);
     P.setCharSpacing(1);
-    P.print(displayText.c_str());
-
-    delay(weatherDuration);
-    advanceDisplayMode();
+    yield();
     return;
-  } else {
-    // If no data is available after the first fetch attempt, show an error and advance
-    P.setTextAlignment(PA_CENTER);
-    P.setCharSpacing(0);
-    P.print(F("?)"));
-    delay(2000);  // Wait 2 seconds before advancing
-    advanceDisplayMode();
-    return;
+  }  // End of if (displayMode == 3 && ...)
+
+
+  // --- NIGHTSCOUT Display Mode ---
+  if (displayMode == 4) {
+    String ntpField = String(ntpServer2);
+
+    // These static variables will retain their values between calls to this block
+    static unsigned long lastNightscoutFetchTime = 0;
+    const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
+    static int currentGlucose = -1;
+    static String currentDirection = "?";
+
+    // Check if it's time to fetch new data or if we have no data yet
+    if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
+      WiFiClientSecure client;
+      client.setInsecure();
+      HTTPClient https;
+      https.begin(client, ntpField);
+
+      https.setTimeout(5000);  // This sets both the connection and response timeout.
+
+      Serial.print("[HTTPS] Nightscout fetch initiated...\n");
+      int httpCode = https.GET();
+
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = https.getString();
+        StaticJsonDocument<1024> doc;
+        DeserializationError error = deserializeJson(doc, payload);
+
+        if (!error && doc.is<JsonArray>() && doc.size() > 0) {
+          JsonObject firstReading = doc[0].as<JsonObject>();
+          currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
+          currentDirection = firstReading["direction"] | "?";
+
+          Serial.printf("Nightscout data fetched: mg/dL %d %s\n", currentGlucose, currentDirection.c_str());
+        } else {
+          Serial.println("Failed to parse Nightscout JSON");
+        }
+      } else {
+        Serial.printf("[HTTPS] GET failed, error: %s\n", https.errorToString(httpCode).c_str());
+      }
+
+      https.end();
+      lastNightscoutFetchTime = millis();  // Update the timestamp
+    }
+
+    // Display the data we have, which is now stored in static variables
+    if (currentGlucose != -1) {
+      char arrow;
+      if (currentDirection == "Flat") arrow = 139;
+      else if (currentDirection == "SingleUp") arrow = 134;
+      else if (currentDirection == "DoubleUp") arrow = 135;
+      else if (currentDirection == "SingleDown") arrow = 136;
+      else if (currentDirection == "DoubleDown") arrow = 137;
+      else if (currentDirection == "FortyFiveUp") arrow = 138;
+      else if (currentDirection == "FortyFiveDown") arrow = 140;
+      else arrow = '?';
+
+      String displayText = String(currentGlucose) + String(arrow);
+
+      P.setTextAlignment(PA_CENTER);
+      P.setCharSpacing(1);
+      P.print(displayText.c_str());
+
+      delay(weatherDuration);
+      advanceDisplayMode();
+      return;
+    } else {
+      // If no data is available after the first fetch attempt, show an error and advance
+      P.setTextAlignment(PA_CENTER);
+      P.setCharSpacing(0);
+      P.print(F("?)"));
+      delay(2000);  // Wait 2 seconds before advancing
+      advanceDisplayMode();
+      return;
+    }
   }
-}
 
-//DATE Display Mode
-else if (displayMode == 5 && showDate) {
+  //DATE Display Mode
+  else if (displayMode == 5 && showDate) {
 
-  // --- VALID DATE CHECK ---
-  if (timeinfo.tm_year < 120 || timeinfo.tm_mday <= 0 || timeinfo.tm_mon < 0 || timeinfo.tm_mon > 11) {
-    advanceDisplayMode();
-    return;  // skip drawing
-  }
-  // -------------------------
-  String dateString;
+    // --- VALID DATE CHECK ---
+    if (timeinfo.tm_year < 120 || timeinfo.tm_mday <= 0 || timeinfo.tm_mon < 0 || timeinfo.tm_mon > 11) {
+      advanceDisplayMode();
+      return;  // skip drawing
+    }
+    // -------------------------
+    String dateString;
 
-  // Get localized month names
-  const char *const *months = getMonthsOfYear(language);
-  String monthAbbr = String(months[timeinfo.tm_mon]).substring(0, 5);
-  monthAbbr.toLowerCase();
+    // Get localized month names
+    const char *const *months = getMonthsOfYear(language);
+    String monthAbbr = String(months[timeinfo.tm_mon]).substring(0, 5);
+    monthAbbr.toLowerCase();
 
-  // Add spaces between day digits
-  String dayString = String(timeinfo.tm_mday);
-  String spacedDay = "";
-  for (size_t i = 0; i < dayString.length(); i++) {
-    spacedDay += dayString[i];
-    if (i < dayString.length() - 1) spacedDay += " ";
-  }
+    // Add spaces between day digits
+    String dayString = String(timeinfo.tm_mday);
+    String spacedDay = "";
+    for (size_t i = 0; i < dayString.length(); i++) {
+      spacedDay += dayString[i];
+      if (i < dayString.length() - 1) spacedDay += " ";
+    }
 
-  // Function to check if day should come first for given language
-  auto isDayFirst = [](const String &lang) {
-    // Languages with DD-MM order
-    const char *dayFirstLangs[] = {
-      "af",  // Afrikaans
-      "cs",  // Czech
-      "da",  // Danish
-      "de",  // German
-      "eo",  // Esperanto
-      "es",  // Spanish
-      "et",  // Estonian
-      "fi",  // Finnish
-      "fr",  // French
-      "hr",  // Croatian
-      "hu",  // Hungarian
-      "it",  // Italian
-      "lt",  // Lithuanian
-      "lv",  // Latvian
-      "nl",  // Dutch
-      "no",  // Norwegian
-      "pl",  // Polish
-      "pt",  // Portuguese
-      "ro",  // Romanian
-      "sk",  // Slovak
-      "sl",  // Slovenian
-      "sr",  // Serbian
-      "sv",  // Swedish
-      "sw",  // Swahili
-      "tr"   // Turkish
+    // Function to check if day should come first for given language
+    auto isDayFirst = [](const String &lang) {
+      // Languages with DD-MM order
+      const char *dayFirstLangs[] = {
+        "af",  // Afrikaans
+        "cs",  // Czech
+        "da",  // Danish
+        "de",  // German
+        "eo",  // Esperanto
+        "es",  // Spanish
+        "et",  // Estonian
+        "fi",  // Finnish
+        "fr",  // French
+        "ga",  // Irish
+        "hr",  // Croatian
+        "hu",  // Hungarian
+        "it",  // Italian
+        "lt",  // Lithuanian
+        "lv",  // Latvian
+        "nl",  // Dutch
+        "no",  // Norwegian
+        "pl",  // Polish
+        "pt",  // Portuguese
+        "ro",  // Romanian
+        "sk",  // Slovak
+        "sl",  // Slovenian
+        "sr",  // Serbian
+        "sv",  // Swedish
+        "sw",  // Swahili
+        "tr"   // Turkish
+      };
+      for (auto lf : dayFirstLangs) {
+        if (lang.equalsIgnoreCase(lf)) {
+          return true;
+        }
+      }
+      return false;
     };
-    for (auto lf : dayFirstLangs) {
-      if (lang.equalsIgnoreCase(lf)) {
-        return true;
+
+    String langForDate = String(language);
+
+    if (langForDate == "ja") {
+      // Japanese: month number (spaced digits) + day + symbol
+      String spacedMonth = "";
+      String monthNum = String(timeinfo.tm_mon + 1);
+      dateString = monthAbbr + "  " + spacedDay + " ±";
+
+    } else {
+      if (isDayFirst(language)) {
+        dateString = spacedDay + "   " + monthAbbr;
+      } else {
+        dateString = monthAbbr + "   " + spacedDay;
       }
     }
-    return false;
-  };
 
-  String langForDate = String(language);
+    P.setTextAlignment(PA_CENTER);
+    P.setCharSpacing(0);
+    P.print(dateString);
 
-  if (langForDate == "ja") {
-    // Japanese: month number (spaced digits) + day + symbol
-    String spacedMonth = "";
-    String monthNum = String(timeinfo.tm_mon + 1);
-    dateString = monthAbbr + "  " + spacedDay + " ±";
-
-  } else {
-    if (isDayFirst(language)) {
-      dateString = spacedDay + "   " + monthAbbr;
-    } else {
-      dateString = monthAbbr + "   " + spacedDay;
+    if (millis() - lastSwitch > weatherDuration) {
+      advanceDisplayMode();
     }
   }
-
-  P.setTextAlignment(PA_CENTER);
-  P.setCharSpacing(0);
-  P.print(dateString);
-
-  if (millis() - lastSwitch > weatherDuration) {
-    advanceDisplayMode();
-  }
-}
-yield();
+  yield();
 }

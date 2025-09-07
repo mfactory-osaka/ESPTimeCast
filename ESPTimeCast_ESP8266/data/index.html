@@ -447,6 +447,7 @@ textarea::placeholder {
     <option value="de">German</option>
     <option value="hu">Hungarian</option>
     <option value="it">Italian</option>
+    <option value="ga">Irish</option>
     <option value="ja">Japanese</option>
     <option value="lv">Latvian</option>
     <option value="lt">Lithuanian</option>
@@ -501,7 +502,7 @@ textarea::placeholder {
         </label>
 
         <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
-          <span style="margin-right: 0.5em;">Blinking Colon:</span>
+          <span style="margin-right: 0.5em;">Animated Seconds:</span>
           <span class="toggle-switch">
             <input type="checkbox" id="colonBlinkEnabled" name="colonBlinkEnabled" onchange="setColonBlink(this.checked)">
             <span class="toggle-slider"></span>
@@ -628,7 +629,6 @@ textarea::placeholder {
 
 <div class="footer">
   Project by: <a href="https://www.instagram.com/mfactory.osaka" target="_blank" rel="noopener noreferrer">M-Factory</a><br>
-  Location data by: <a href="https://www.geoplugin.com/" target="_blank">GeoPlugin</a>
 </div>
 
 <div id="savingMessage"></div>
@@ -1223,35 +1223,38 @@ function setDimmingFieldsEnabled(enabled) {
 }
 
 function getLocation() {
-  fetch('http://www.geoplugin.net/json.gp')
+  fetch('http://ip-api.com/json/')
     .then(response => response.json())
     .then(data => {
-      document.getElementById('openWeatherCity').value = data.geoplugin_latitude;
-      document.getElementById('openWeatherCountry').value = data.geoplugin_longitude;
+      // Update your latitude/longitude fields
+      document.getElementById('openWeatherCity').value = data.lat;
+      document.getElementById('openWeatherCountry').value = data.lon;
 
+      // Determine the label to show on the button
       const button = document.getElementById('geo-button');
-      let label = data.geoplugin_city;
-      if (!label) label = data.geoplugin_region;
-      if (!label) label = data.geoplugin_countryName;
+      let label = data.city;
+      if (!label) label = data.regionName;
+      if (!label) label = data.country;
       if (!label) label = "Location Found";
 
       button.textContent = "Location: " + label;
       button.disabled = true;
       button.classList.add('geo-disabled');
 
-      console.log("Location fetched via GeoPlugin. Consider crediting them: https://www.geoplugin.com/");
+      console.log("Location fetched via ip-api.com. Free service: http://ip-api.com/");
     })
     .catch(error => {
       alert(
         "Failed to guess your location.\n\n" +
         "This may happen if:\n" +
-        "- You are using an AdBlocker (GeoPlugin might be blocked)\n" +
+        "- You are using an AdBlocker\n" +
         "- There is a network issue\n" +
-        "- The website might be temporarily down.\n\n" +
-        "You can visit  https://openweathermap.org/find  to manually search for your city and get latitude/longitude."
+        "- The service might be temporarily down.\n\n" +
+        "You can visit https://openweathermap.org/find to manually search for your city and get latitude/longitude."
       );
     });
 }
+
 </script>
 </body>
 </html>
