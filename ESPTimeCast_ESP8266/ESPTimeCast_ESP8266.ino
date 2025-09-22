@@ -33,7 +33,7 @@ const int IP_SCROLL_SPEED = 115;      // Default: Adjust this for the IP Address
 
 // WiFi and configuration globals
 char ssid[32] = "";
-char password[32] = "";
+char password[63] = "";
 char openWeatherApiKey[64] = "";
 char openWeatherCity[64] = "";
 char openWeatherCountry[64] = "";
@@ -2340,4 +2340,5 @@ void loop() {
     }
   }
   yield();
+
 }
