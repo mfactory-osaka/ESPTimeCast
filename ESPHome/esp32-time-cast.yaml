@@ -15,8 +15,8 @@ substitutions:
   flip_display: "false"                   # Set to true to flip the display 180°
   default_brightness: "7"                 # Enter the default brightness level of the display 0 -15
 
-  ssid: !secret wifi_ssid                 # The name of the WiFi network. When using !secret that means that wifi_ssid needs to be defined in secrets.yaml
-  password: !secret wifi_password         # The password for the WiFi Network
+  ssid: !secret wifi_iot_ssid             # The name of the WiFi network. When using !secret that means that wifi_ssid needs to be defined in secrets.yaml
+  password: !secret wifi_iot_password     # The password for the WiFi Network
 
   font_path: "fonts/MatrixLight8X.ttf"    # Enter the path and filename of the font you use. I recommend the file entered.
                                           # Change the path if you have not placed it in a fonts directory under esphome
@@ -26,16 +26,16 @@ substitutions:
   timezone: "Europe/Copenhagen"           # Enter your Timezone
 
   compass_N: "N"                          # Compass Direction North
-  compass_NE: "NE"                        # Compass Direction North East
-  compass_E: "E"                          # Compass Direction East
-  compass_SE: "SE"                        # Compass Direction South East
+  compass_NE: "NØ"                        # Compass Direction North East
+  compass_E: "Ø"                          # Compass Direction East
+  compass_SE: "SØ"                        # Compass Direction South East
   compass_S: "S"                          # Compass Direction South
-  compass_SW: "SW"                        # Compass Direction South West
-  compass_W: "W"                          # Compass Direction West
-  compass_NW: "NW"                        # Compass Direction North West
+  compass_SW: "SV"                        # Compass Direction South West
+  compass_W: "V"                          # Compass Direction West
+  compass_NW: "NV"                        # Compass Direction North West
 
-  # weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"  # Danish
-  weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"    # English
+  # weekDaysShort: "Søn,Man,Tir,Ons,Tor,Fre,Lør"    # Danish
+  weekDaysShort: "Sun,Mon,Tue,Wed,Thu,Fri,Sat"  # English
   # weekDaysShort: "Son,Mon,Din,Mid,Don,Fre,Sam"  # German
   # weekDaysShort: "Dim,Lun,Mar,Mer,Jeu,Ven,Sam"  # French
   # weekDaysShort: "Dom,Lun,Mar,Mer,Gio,Ven,Sab"  # Italien
@@ -47,7 +47,7 @@ substitutions:
 esphome:
   name: "${device}"
   friendly_name: "${name}"
-  min_version: 2025.5.0 # Need this minimum version due to new http_request format
+  min_version: 2025.7.0 # Need this minimum version due to new http_request format and ArduinoJson 7.2
   name_add_mac_suffix: False
 
 esp32:
@@ -63,7 +63,7 @@ logger:
 
 ota:
   - platform: esphome
-    password: "0af1e9a831997bc6563bcd67408a4e70"
+    password: "SomeRandomCode1234"
 
 wifi:
   ssid: ${ssid}
@@ -572,11 +572,11 @@ script:
                   std::string city = id(open_weather_city);
                   std::string country = id(open_weather_country);
                   std::string api_key = id(open_weather_api_key);
-                  return esphome::to_string("https://api.openweathermap.org/data/2.5/weather?q=" + city + "," + country + "&appid=" + api_key + "&units=" + id(weather_units) + "&lang=" + id(weather_language));
+                  return "https://api.openweathermap.org/data/2.5/weather?q=" + city + "," + country + "&appid=" + api_key + "&units=" + id(weather_units) + "&lang=" + id(weather_language);
                 capture_response: True
                 request_headers:
                   Content-Type: application/json
-                max_response_buffer_size: 4096  # REDUCED from 8192
+                max_response_buffer_size: 4096
                 on_response:
                   then:
                     - lambda: |-
@@ -588,14 +588,14 @@ script:
                           - lambda: |-
                               using namespace esphome;
 
-                              DynamicJsonDocument doc(4096);  // REDUCED from 40000 to 4096
+                              JsonDocument doc;
                               DeserializationError error = deserializeJson(doc, body);
                               if (error) {
                                 ESP_LOGE("json", "Parse error: %s", error.c_str());
                                 return;
                               }
 
-                              if (!doc.containsKey("main") || !doc["main"].containsKey("temp")) {
+                              if (!doc["main"].is<JsonObject>() || !doc["main"]["temp"].is<float>()) {
                                 ESP_LOGW("WEATHER", "Invalid data format");
                                 return;
                               }
@@ -611,7 +611,7 @@ script:
                               int press = doc["main"]["pressure"];
                               id(pressure) = press;
 
-                              if (!doc.containsKey("weather") || !doc["weather"][0].containsKey("description")) {
+                              if (!doc["weather"].is<JsonArray>() || !doc["weather"][0]["description"].is<const char*>()) {
                                 ESP_LOGW("WEATHER", "Invalid data format");
                                 return;
                               }
@@ -622,7 +622,7 @@ script:
                               }
                               id(weather_condition) = condition;
 
-                              if (!doc.containsKey("wind") || !doc["wind"].containsKey("speed")) {
+                              if (!doc["wind"].is<JsonObject>() || !doc["wind"]["speed"].is<float>()) {
                                 ESP_LOGW("WEATHER", "Invalid data format");
                                 return;
                               }
