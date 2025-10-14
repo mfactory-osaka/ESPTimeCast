@@ -8,6 +8,7 @@
   "weatherDuration": 5000,
   "timeZone": "",
   "weatherUnits": "metric",
+  "hostname": "ESPTimeCast",
   "brightness": 10,
   "flipDisplay": false,
   "ntpServer1": "pool.ntp.org",

@@ -34,6 +34,7 @@ const int IP_SCROLL_SPEED = 115;      // Default: Adjust this for the IP Address
 // WiFi and configuration globals
 char ssid[32] = "";
 char password[64] = "";
+char hostname[64] = "ESPTimeCast";
 char openWeatherApiKey[64] = "";
 char openWeatherCity[64] = "";
 char openWeatherCountry[64] = "";
@@ -193,6 +194,7 @@ void loadConfig() {
     doc[F("ntpServer1")] = ntpServer1;
     doc[F("ntpServer2")] = ntpServer2;
     doc[F("dimmingEnabled")] = dimmingEnabled;
+    doc[F("hostname")] = hostname;
     doc[F("dimStartHour")] = dimStartHour;
     doc[F("dimStartMinute")] = dimStartMinute;
     doc[F("dimEndHour")] = dimEndHour;
@@ -239,6 +241,7 @@ void loadConfig() {
   strlcpy(openWeatherApiKey, doc["openWeatherApiKey"] | "", sizeof(openWeatherApiKey));  // Corrected typo here
   strlcpy(openWeatherCity, doc["openWeatherCity"] | "", sizeof(openWeatherCity));
   strlcpy(openWeatherCountry, doc["openWeatherCountry"] | "", sizeof(openWeatherCountry));
+  strlcpy(hostname, doc["hostname"] | "ESPTimeCast", sizeof(hostname));
   strlcpy(weatherUnits, doc["weatherUnits"] | "metric", sizeof(weatherUnits));
   clockDuration = doc["clockDuration"] | 10000;
   weatherDuration = doc["weatherDuration"] | 5000;
@@ -357,6 +360,13 @@ void connectWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true);
   delay(100);
+  // Apply configured hostname before attempting to connect
+  if (strlen(hostname) > 0) {
+    // ESP32: set hostname via WiFi.setHostname
+    WiFi.setHostname(hostname);
+    Serial.print(F("[WIFI] Set hostname to: "));
+    Serial.println(hostname);
+  }
 
   WiFi.begin(ssid, password);
   unsigned long startAttemptTime = millis();
@@ -540,6 +550,8 @@ void printConfigToSerial() {
   Serial.println(ntpServer1);
   Serial.print(F("NTP Server 2: "));
   Serial.println(ntpServer2);
+  Serial.print(F("Hostname: "));
+  Serial.println(hostname);
   Serial.print(F("Dimming Enabled: "));
   Serial.println(dimmingEnabled);
   Serial.print(F("Dimming Start Hour: "));

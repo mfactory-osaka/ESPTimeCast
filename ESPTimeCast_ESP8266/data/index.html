@@ -492,6 +492,8 @@ textarea::placeholder {
 
       <label>Secondary NTP Server:</label>
       <input type="text" name="ntpServer2" id="ntpServer2" placeholder="Enter NTP address">
+      <label>Device Hostname:</label>
+      <input type="text" name="hostname" id="hostname" placeholder="ESPTimeCast">
       <div class="toggles" style="padding: 0 1rem;">
 
         <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
@@ -703,6 +705,7 @@ window.onload = function () {
       document.getElementById('flipDisplay').checked = !!data.flipDisplay;
       document.getElementById('ntpServer1').value = data.ntpServer1 || "";
       document.getElementById('ntpServer2').value = data.ntpServer2 || "";
+      document.getElementById('hostname').value = data.hostname || 'ESPTimeCast';
       document.getElementById('twelveHourToggle').checked = !!data.twelveHourToggle;
       document.getElementById('showDayOfWeek').checked = !!data.showDayOfWeek;
       document.getElementById('showDate').checked = !!data.showDate;
