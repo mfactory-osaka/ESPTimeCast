@@ -25,7 +25,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-268%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-269%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -65,7 +65,8 @@ ESPTimeCast has been featured on:
   - **Weather description** toggle (displays: heavy rain, scattered clouds, thunderstorm etc.)
   - **Flip display** (180 degrees)
   - Adjustable display **brightness**
-  - **Scheduled** Dimming Hours
+  - **Automatic Dimming** based on Sunrise/Sunset from weather API
+  - **Custom Dimming** select custom dimming hours
   - **Countdown** function (Scroll / Dramatic)
   - **Optional:** ESPTimeCast supports displaying glucose data from **Nightscout** servers every 5 minutes, alternating with weather information
   - **Optional:** Export and Upload settings via `device-ip/export` and `device-ip/upload` endpoints
@@ -175,7 +176,8 @@ Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal e
 - **Weather description** toggle (display weather description in the selected language for 3 seconds or scrolls once if description is too long)
 - **Flip Display**: Invert the display vertically/horizontally
 - **Brightness**: Off - 0 (dim) to 15 (bright)
-- **Dimming Feature**: Start time, end time and desired brightness selection
+- **Automatic Dimming Feature** base on Sunrise/Sunset from weather API
+- **Custom Dimming Feature**: Start time, end time and desired brightness selection
 - **Countdown** function, set a countdown to your favorite/next event, 2 modes: Scroll/Dramatic! 
 
 >Non-English characters converted to their closest English alphabet.   
@@ -459,6 +461,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
