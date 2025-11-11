@@ -586,29 +586,47 @@ textarea::placeholder {
       oninput="brightnessValue.textContent = (this.value == -1 ? 'Off' : this.value); setBrightnessLive(this.value);">
       <br><br><br>
 
-        <label style="display: flex; align-items: center; justify-content: space-between;">
-        <span style="margin-right: 0.5em;">Enable Dimming:</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="dimmingEnabled" name="dimmingEnabled">
-        <span class="toggle-slider"></span>
-        </span>
-      </label>
 
-      <div class="form-row two-col">   
-        <div>         
-          <label for="dimStartTime">Dimming Start Time:</label>
-          <input type="time" id="dimStartTime" value="18:00">
-        </div>
+<label style="display: flex; align-items: center; justify-content: space-between; margin-top: 1rem;">
+  <span style="margin-right: 0.5em;">Automatic Dimming:</span>
+  <span class="toggle-switch">
+    <input type="checkbox" id="autoDimmingEnabled" name="autoDimmingEnabled">
+    <span class="toggle-slider"></span>
+  </span>
+</label>
+<div id="autoDimmingNote" class="small">
+  Requires a valid OpenWeather API key.
+</div>
 
-        <div>
-          <label for="dimEndTime">Dimming End Time:</label>
-          <input type="time" id="dimEndTime" value="08:00">
-        </div>
-      </div>
 
-      <label style="margin-top: 1.75rem;" for="dimBrightness">Dimming Brightness: <span id="dimmingBrightnessValue">2</span></label>
-      <input style="width: 100%;" type="range" min="-1" max="15" name="dimming_brightness" id="dimBrightness" value="2"
-      oninput="dimmingBrightnessValue.textContent = (this.value == -1 ? 'Off' : this.value);">
+<label style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.75rem;">
+  <span style="margin-right: 0.5em;">Custom Dimming:</span>
+  <span class="toggle-switch">
+    <input type="checkbox" id="dimmingEnabled" name="dimmingEnabled">
+    <span class="toggle-slider"></span>
+  </span>
+</label>
+
+
+<div class="form-row two-col">   
+  <div>         
+    <label for="dimStartTime">Start Time:</label>
+    <input type="time" id="dimStartTime" value="18:00">
+  </div>
+
+  <div>
+    <label for="dimEndTime">End Time:</label>
+    <input type="time" id="dimEndTime" value="08:00">
+  </div>
+</div>
+
+<label style="margin-top: 1.75rem;" for="dimBrightness">
+  Dimming Brightness: <span id="dimmingBrightnessValue">2</span>
+</label>
+<input style="width: 100%;" type="range" min="-1" max="15"
+  name="dimming_brightness" id="dimBrightness" value="2"
+  oninput="dimmingBrightnessValue.textContent = (this.value == -1 ? 'Off' : this.value);">
+
       <br><br><br>
       <div class="form-group">
           <label style="display: flex; align-items: center; justify-content: space-between;">
@@ -630,11 +648,11 @@ textarea::placeholder {
       </div>
       <div class="form-row two-col">
         <div class="form-group">
-            <label for="countdownDate">Countdown Date:</label>
+            <label for="countdownDate">Date:</label>
             <input type="date" id="countdownDate" name="countdownDate" class="form-control">
         </div>
         <div class="form-group">
-            <label for="countdownTime">Countdown Time:</label>
+            <label for="countdownTime">Time:</label>
             <input type="time" id="countdownTime" name="countdownTime" class="form-control">
         </div>
       </div>
@@ -735,11 +753,12 @@ window.onload = function () {
     const apiInput = document.getElementById('openWeatherApiKey');
     if (data.openWeatherApiKey && data.openWeatherApiKey.trim() !== '') {
       apiInput.value = MASK;
-      hasSavedKey = true;  // mark it as having a saved key
+      hasSavedKey = true;
     } else {
       apiInput.value = '';
       hasSavedKey = false;
     }
+
     document.getElementById('openWeatherCity').value = data.openWeatherCity || '';
     document.getElementById('openWeatherCountry').value = data.openWeatherCountry || '';
     document.getElementById('weatherUnits').checked = (data.weatherUnits === "imperial");
@@ -760,86 +779,95 @@ window.onload = function () {
     document.getElementById('colonBlinkEnabled').checked = !!data.colonBlinkEnabled;
     document.getElementById('showWeatherDescription').checked = !!data.showWeatherDescription;
 
-    // Dimming controls
+    // --- Dimming Controls ---
+    const autoDimmingEl = document.getElementById('autoDimmingEnabled');
     const dimmingEnabledEl = document.getElementById('dimmingEnabled');
-    const isDimming = (data.dimmingEnabled === true || data.dimmingEnabled === "true" || data.dimmingEnabled === 1);
-    dimmingEnabledEl.checked = isDimming;
-    // Defer field enabling until checkbox state is rendered
-    setTimeout(() => {
-      setDimmingFieldsEnabled(dimmingEnabledEl.checked);
-    }, 0);
-    dimmingEnabledEl.addEventListener('change', function () {
-      setDimmingFieldsEnabled(this.checked);
+    const apiInputEl = document.getElementById('openWeatherApiKey');
+
+    // Evaluate flags from config.json
+    const isAutoDimming = (data.autoDimmingEnabled === true || data.autoDimmingEnabled === "true" || data.autoDimmingEnabled === 1);
+    const isCustomDimming = (data.dimmingEnabled === true || data.dimmingEnabled === "true" || data.dimmingEnabled === 1);
+
+    // Set toggle states
+    autoDimmingEl.checked = isAutoDimming;
+    dimmingEnabledEl.checked = isCustomDimming;
+
+    // Apply initial dimming state
+    setDimmingFieldsEnabled();
+
+    // Attach listeners (mutually exclusive + API dependency)
+    if (apiInputEl) apiInputEl.addEventListener('input', setDimmingFieldsEnabled);
+    autoDimmingEl.addEventListener('change', () => {
+      if (autoDimmingEl.checked) dimmingEnabledEl.checked = false;
+      setDimmingFieldsEnabled();
     });
+    dimmingEnabledEl.addEventListener('change', () => {
+      if (dimmingEnabledEl.checked) autoDimmingEl.checked = false;
+      setDimmingFieldsEnabled();
+    });
+
+    // Set field values from config
     document.getElementById('dimStartTime').value =
-    (data.dimStartHour !== undefined ? String(data.dimStartHour).padStart(2, '0') : "18") + ":" +
-    (data.dimStartMinute !== undefined ? String(data.dimStartMinute).padStart(2, '0') : "00");
+      (data.dimStartHour !== undefined ? String(data.dimStartHour).padStart(2, '0') : "18") + ":" +
+      (data.dimStartMinute !== undefined ? String(data.dimStartMinute).padStart(2, '0') : "00");
+
     document.getElementById('dimEndTime').value =
-    (data.dimEndHour !== undefined ? String(data.dimEndHour).padStart(2, '0') : "08") + ":" +
-    (data.dimEndMinute !== undefined ? String(data.dimEndMinute).padStart(2, '0') : "00");
+      (data.dimEndHour !== undefined ? String(data.dimEndHour).padStart(2, '0') : "08") + ":" +
+      (data.dimEndMinute !== undefined ? String(data.dimEndMinute).padStart(2, '0') : "00");
+
     document.getElementById('dimBrightness').value = (data.dimBrightness !== undefined ? data.dimBrightness : 2);
-    // Then update the span's text content with that value
-    document.getElementById('dimmingBrightnessValue').textContent = (document.getElementById('dimBrightness').value == -1 ? 'Off' : document.getElementById('dimBrightness').value);
-    setDimmingFieldsEnabled(!!data.dimmingEnabled);
+    document.getElementById('dimmingBrightnessValue').textContent =
+      (document.getElementById('dimBrightness').value == -1 ? 'Off' : document.getElementById('dimBrightness').value);
+
     // --- Populate Countdown Fields ---
     document.getElementById('isDramaticCountdown').checked = !!(data.countdown && data.countdown.isDramaticCountdown);
     const countdownEnabledEl = document.getElementById('countdownEnabled'); // Get reference
     countdownEnabledEl.checked = !!(data.countdown && data.countdown.enabled);
     if (data.countdown && data.countdown.targetTimestamp) {
-        // Convert Unix timestamp (seconds) to milliseconds for JavaScript Date object
-        const targetDate = new Date(data.countdown.targetTimestamp * 1000);
-        const year = targetDate.getFullYear();
-        // Month is 0-indexed in JS, so add 1
-        const month = (targetDate.getMonth() + 1).toString().padStart(2, '0');
-        const day = targetDate.getDate().toString().padStart(2, '0');
-        const hours = targetDate.getHours().toString().padStart(2, '0');
-        const minutes = targetDate.getMinutes().toString().padStart(2, '0');
-        document.getElementById('countdownDate').value = `${year}-${month}-${day}`;
-        document.getElementById('countdownTime').value = `${hours}:${minutes}`;
+      const targetDate = new Date(data.countdown.targetTimestamp * 1000);
+      const year = targetDate.getFullYear();
+      const month = (targetDate.getMonth() + 1).toString().padStart(2, '0');
+      const day = targetDate.getDate().toString().padStart(2, '0');
+      const hours = targetDate.getHours().toString().padStart(2, '0');
+      const minutes = targetDate.getMinutes().toString().padStart(2, '0');
+      document.getElementById('countdownDate').value = `${year}-${month}-${day}`;
+      document.getElementById('countdownTime').value = `${hours}:${minutes}`;
     } else {
-        // Clear fields if no target timestamp is set
-        document.getElementById('countdownDate').value = '';
-        document.getElementById('countdownTime').value = '';
+      document.getElementById('countdownDate').value = '';
+      document.getElementById('countdownTime').value = '';
     }
+
     // Countdown Label Input Validation 
     const countdownLabelInput = document.getElementById('countdownLabel');
     countdownLabelInput.addEventListener('input', function() {
-      // Convert to uppercase and remove any characters that are not A-Z or space
-      // Note: The `maxlength` attribute in HTML handles the length limit.
       this.value = this.value.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
     });
-    // Set initial value for countdownLabel from config.json (apply validation on load too)
     if (data.countdown && data.countdown.label) {
-        countdownLabelInput.value = data.countdown.label.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
+      countdownLabelInput.value = data.countdown.label.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
     } else {
-        countdownLabelInput.value = '';
+      countdownLabelInput.value = '';
     }
-      // Countdown Toggle Event Listener & Field Enabling 
-    // If you're using onchange="setCountdownEnabled(this.checked)" directly in HTML,
-    // you would add setCountdownFieldsEnabled(this.checked) there as well.
-    // If you are using addEventListener, keep this:
+
+    // Countdown Toggle Event Listener & Field Enabling 
     countdownEnabledEl.addEventListener('change', function() {
-        setCountdownEnabled(this.checked);       // Sends command to ESP
-        setCountdownFieldsEnabled(this.checked); // Enables/disables local fields
+      setCountdownEnabled(this.checked);
+      setCountdownFieldsEnabled(this.checked);
     });
     const dramaticCountdownEl = document.getElementById('isDramaticCountdown');
     dramaticCountdownEl.addEventListener('change', function () {
-        setIsDramaticCountdown(this.checked);
+      setIsDramaticCountdown(this.checked);
     });
-    // Set initial state of fields when page loads
     setCountdownFieldsEnabled(countdownEnabledEl.checked);
 
-  if (data.customMessage !== undefined) {
-  document.getElementById('customMessage').value = data.customMessage;
-}
+    if (data.customMessage !== undefined) {
+      document.getElementById('customMessage').value = data.customMessage;
+    }
+
     // Auto-detect browser's timezone if not set in config
     if (!data.timeZone) {
       try {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (
-          tz &&
-          document.getElementById('timeZone').querySelector(`[value="${tz}"]`)
-        ) {
+        if (tz && document.getElementById('timeZone').querySelector(`[value="${tz}"]`)) {
           document.getElementById('timeZone').value = tz;
         } else {
           document.getElementById('timeZone').value = '';
@@ -903,10 +931,21 @@ async function submitConfig(event) {
   formData.set('showHumidity', document.getElementById('showHumidity').checked ? 'on' : '');
   formData.set('colonBlinkEnabled', document.getElementById('colonBlinkEnabled').checked ? 'on' : '');
 
-  //dimming
-  formData.set('dimmingEnabled', document.getElementById('dimmingEnabled').checked ? 'true' : 'false');
+  // --- Dimming ---
+  const autoDimmingChecked = document.getElementById('autoDimmingEnabled').checked;
+  const customDimmingChecked = document.getElementById('dimmingEnabled').checked;
+
+  // Mutual exclusivity (if both checked somehow, keep auto as priority)
+  if (autoDimmingChecked && customDimmingChecked) {
+    formData.set('autoDimmingEnabled', 'true');
+    formData.set('dimmingEnabled', 'false');
+  } else {
+    formData.set('autoDimmingEnabled', autoDimmingChecked ? 'true' : 'false');
+    formData.set('dimmingEnabled', customDimmingChecked ? 'true' : 'false');
+  }
+
   const dimStart = document.getElementById('dimStartTime').value; // "18:45"
-  const dimEnd = document.getElementById('dimEndTime').value;     // "08:30"
+  const dimEnd = document.getElementById('dimEndTime').value; // "08:30"
 
   // Parse hour and minute
   if (dimStart) {
@@ -1367,8 +1406,6 @@ async function getLocation() {
   }
 }
 
-
-
 // --- OpenWeather API Key field UX ---
 const MASK_LENGTH = 32;
 const MASK = '*'.repeat(MASK_LENGTH);
@@ -1410,6 +1447,7 @@ apiInput.addEventListener('blur', () => {
       hasSavedKey = false; // user cleared the key
       apiInput.dataset.clearing = 'false';
       apiInput.value = ''; // leave blank
+      setDimmingFieldsEnabled();
     }
   }
 });
@@ -1527,6 +1565,71 @@ function clearCustomMessage() {
   });
 }
 
+// --- Dimming Controls Logic (The correct version) ---
+function setDimmingFieldsEnabled() {
+  const apiKeyField = document.getElementById('openWeatherApiKey');
+  const autoDimming = document.getElementById('autoDimmingEnabled');
+  const dimmingEnabled = document.getElementById('dimmingEnabled');
+  const dimStart = document.getElementById('dimStartTime'); 
+  const dimEnd = document.getElementById('dimEndTime');    
+  const dimBrightness = document.getElementById('dimBrightness');
+  const noteEl = document.getElementById('autoDimmingNote');
+
+  if (!apiKeyField || !autoDimming || !dimmingEnabled) return;
+
+  const currentApiKeyInput = apiKeyField.value.trim();
+  // Checks if a key is saved (hasSavedKey) OR if the user is currently typing a new one.
+  const isKeyPresent = hasSavedKey || (currentApiKeyInput !== '' && currentApiKeyInput !== MASK);
+
+  // --- 1. Control Auto Dimming based on Key Presence ---
+  // Meets requirement: "when page load after autodim has been saved to json, 
+  // if user removes the api key (masked) the toggle auto dim toggle should get disabled"
+  if (!isKeyPresent) {
+    autoDimming.checked = false; 
+    autoDimming.disabled = true;
+    if (noteEl) noteEl.style.display = 'block';
+  } else {
+    autoDimming.disabled = false;
+    if (noteEl) noteEl.style.display = 'none';
+  }
+  
+  // Custom Dimming toggle is always enabled (since it's not key-dependent)
+  dimmingEnabled.disabled = false;
+
+
+  // --- 2. Control Dependent Fields based on Active Mode ---
+
+  const isAutoDimmingActive = autoDimming.checked && isKeyPresent; // Auto is only active if checked AND key is present
+  const isCustomDimmingActive = dimmingEnabled.checked;
+  const isDimmingActive = isAutoDimmingActive || isCustomDimmingActive; // Brightness slider logic
+
+  // BRIGHTNESS SLIDER: Enabled if EITHER mode is active.
+  if (dimBrightness) {
+      dimBrightness.disabled = !isDimmingActive;
+  }
+
+  // START/END TIME FIELDS: Enabled ONLY if Custom Dimming is checked (key not needed).
+  const isCustomTimeEnabled = dimmingEnabled.checked;
+  if (dimStart) {
+      dimStart.disabled = !isCustomTimeEnabled; 
+  }
+  if (dimEnd) {
+      dimEnd.disabled = !isCustomTimeEnabled;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const apiKeyEl = document.getElementById('openWeatherApiKey');
+  const autoEl = document.getElementById('autoDimmingEnabled');
+  const dimEl = document.getElementById('dimmingEnabled');
+
+  if (apiKeyEl) {
+    apiKeyEl.addEventListener('input', setDimmingFieldsEnabled);
+    apiKeyEl.addEventListener('change', setDimmingFieldsEnabled);
+  }
+  if (autoEl) autoEl.addEventListener('change', setDimmingFieldsEnabled);
+  if (dimEl) dimEl.addEventListener('change', setDimmingFieldsEnabled);
+});
 
 </script>
 </body>

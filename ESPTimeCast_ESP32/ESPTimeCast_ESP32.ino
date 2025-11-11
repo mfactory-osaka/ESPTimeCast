@@ -71,7 +71,12 @@ int dimStartHour = 18;  // 6pm default
 int dimStartMinute = 0;
 int dimEndHour = 8;  // 8am default
 int dimEndMinute = 0;
-int dimBrightness = 2;  // Dimming level (0-15)
+int dimBrightness = 2;            // Dimming level (0-15)
+bool autoDimmingEnabled = false;  // true if using sunrise/sunset
+int sunriseHour = 6;
+int sunriseMinute = 0;
+int sunsetHour = 18;
+int sunsetMinute = 0;
 
 //Countdown Globals - NEW
 bool countdownEnabled = false;
@@ -226,6 +231,13 @@ void loadConfig() {
     doc[F("dimBrightness")] = dimBrightness;
     doc[F("showWeatherDescription")] = showWeatherDescription;
 
+    // --- Automatic dimming defaults ---
+    doc[F("autoDimmingEnabled")] = autoDimmingEnabled;
+    doc[F("sunriseHour")] = sunriseHour;
+    doc[F("sunriseMinute")] = sunriseMinute;
+    doc[F("sunsetHour")] = sunsetHour;
+    doc[F("sunsetMinute")] = sunsetMinute;
+
     // Add countdown defaults when creating a new config.json
     JsonObject countdownObj = doc.createNestedObject("countdown");
     countdownObj["enabled"] = false;
@@ -287,6 +299,14 @@ void loadConfig() {
   colonBlinkEnabled = doc.containsKey("colonBlinkEnabled") ? doc["colonBlinkEnabled"].as<bool>() : true;
   showWeatherDescription = doc["showWeatherDescription"] | false;
 
+  // --- Dimming settings ---
+  if (doc["dimmingEnabled"].is<bool>()) {
+    dimmingEnabled = doc["dimmingEnabled"].as<bool>();
+  } else {
+    String de = doc["dimmingEnabled"].as<String>();
+    dimmingEnabled = (de == "true" || de == "1" || de == "on");
+  }
+
   String de = doc["dimmingEnabled"].as<String>();
   dimmingEnabled = (de == "true" || de == "on" || de == "1");
 
@@ -295,6 +315,32 @@ void loadConfig() {
   dimEndHour = doc["dimEndHour"] | 8;
   dimEndMinute = doc["dimEndMinute"] | 0;
   dimBrightness = doc["dimBrightness"] | 0;
+
+  // safely handle both numeric or string "Off" for dimBrightness
+  if (doc["dimBrightness"].is<int>()) {
+    dimBrightness = doc["dimBrightness"].as<int>();
+  } else {
+    String val = doc["dimBrightness"].as<String>();
+    if (val.equalsIgnoreCase("off")) dimBrightness = -1;
+    else dimBrightness = val.toInt();
+  }
+
+  // --- Automatic dimming ---
+  if (doc.containsKey("autoDimmingEnabled")) {
+    if (doc["autoDimmingEnabled"].is<bool>()) {
+      autoDimmingEnabled = doc["autoDimmingEnabled"].as<bool>();
+    } else {
+      String val = doc["autoDimmingEnabled"].as<String>();
+      autoDimmingEnabled = (val == "true" || val == "1" || val == "on");
+    }
+  } else {
+    autoDimmingEnabled = false;  // default if key missing
+  }
+
+  sunriseHour = doc["sunriseHour"] | 6;
+  sunriseMinute = doc["sunriseMinute"] | 0;
+  sunsetHour = doc["sunsetHour"] | 18;
+  sunsetMinute = doc["sunsetMinute"] | 0;
 
   strlcpy(ntpServer1, doc["ntpServer1"] | "pool.ntp.org", sizeof(ntpServer1));
   strlcpy(ntpServer2, doc["ntpServer2"] | "time.nist.gov", sizeof(ntpServer2));
@@ -577,18 +623,45 @@ void printConfigToSerial() {
   Serial.println(ntpServer1);
   Serial.print(F("NTP Server 2: "));
   Serial.println(ntpServer2);
-  Serial.print(F("Dimming Enabled: "));
-  Serial.println(dimmingEnabled);
-  Serial.print(F("Dimming Start Hour: "));
-  Serial.println(dimStartHour);
-  Serial.print(F("Dimming Start Minute: "));
-  Serial.println(dimStartMinute);
-  Serial.print(F("Dimming End Hour: "));
-  Serial.println(dimEndHour);
-  Serial.print(F("Dimming End Minute: "));
-  Serial.println(dimEndMinute);
-  Serial.print(F("Dimming Brightness: "));
-  Serial.println(dimBrightness);
+
+  // ---------------------------------------------------------------------------
+  // DIMMING SECTION
+  // ---------------------------------------------------------------------------
+  Serial.print(F("Automatic Dimming: "));
+  Serial.println(autoDimmingEnabled ? "Enabled" : "Disabled");
+  Serial.print(F("Custom Dimming: "));
+  Serial.println(dimmingEnabled ? "Enabled" : "Disabled");
+
+  if (autoDimmingEnabled) {
+    // --- Automatic (Sunrise/Sunset) dimming mode ---
+    if ((sunriseHour == 6 && sunriseMinute == 0) && (sunsetHour == 18 && sunsetMinute == 0)) {
+      Serial.println(F("Automatic Dimming Schedule: Sunrise/Sunset Data not available yet (waiting for weather update)"));
+    } else {
+      Serial.printf("Automatic Dimming Schedule: Sunrise: %02d:%02d → Sunset: %02d:%02d\n",
+                    sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+
+      time_t now_time = time(nullptr);
+      struct tm localTime;
+      localtime_r(&now_time, &localTime);
+
+      int curTotal = localTime.tm_hour * 60 + localTime.tm_min;
+      int startTotal = sunsetHour * 60 + sunsetMinute;
+      int endTotal = sunriseHour * 60 + sunriseMinute;
+
+      bool autoActive = (startTotal < endTotal)
+                          ? (curTotal >= startTotal && curTotal < endTotal)
+                          : (curTotal >= startTotal || curTotal < endTotal);
+
+      Serial.printf("Current Auto-Dimming Status: %s\n", autoActive ? "ACTIVE" : "Inactive");
+      Serial.printf("Dimming Brightness (night): %d\n", dimBrightness);
+    }
+  } else {
+    // --- Manual (Custom Schedule) dimming mode ---
+    Serial.printf("Custom Dimming Schedule: %02d:%02d → %02d:%02d\n",
+                  dimStartHour, dimStartMinute, dimEndHour, dimEndMinute);
+    Serial.printf("Dimming Brightness: %d\n", dimBrightness);
+  }
+
   Serial.print(F("Countdown Enabled: "));
   Serial.println(countdownEnabled ? "Yes" : "No");
   Serial.print(F("Countdown Target Timestamp: "));
@@ -599,12 +672,14 @@ void printConfigToSerial() {
   Serial.println(isDramaticCountdown ? "Yes" : "No");
   Serial.print(F("Custom Message: "));
   Serial.println(customMessage);
+
   Serial.print(F("Total Runtime: "));
   if (totalUptimeSeconds > 0) {
     Serial.println(formatUptime(totalUptimeSeconds));
   } else {
     Serial.println(F("No runtime recorded yet."));
   }
+
   Serial.println(F("========================================"));
   Serial.println();
 }
@@ -687,8 +762,10 @@ void setupWebServer() {
       else if (n == "dimStartMinute") doc[n] = v.toInt();
       else if (n == "dimEndHour") doc[n] = v.toInt();
       else if (n == "dimEndMinute") doc[n] = v.toInt();
-      else if (n == "dimBrightness") doc[n] = v.toInt();
-      else if (n == "showWeatherDescription") doc[n] = (v == "true" || v == "on" || v == "1");
+      else if (n == "dimBrightness") {
+        if (v == "Off" || v == "off") doc[n] = -1;
+        else doc[n] = v.toInt();
+      } else if (n == "showWeatherDescription") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "dimmingEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "weatherUnits") doc[n] = v;
 
@@ -1711,10 +1788,93 @@ void fetchWeather() {
 
     weatherDescription = normalizeWeatherDescription(detailedDesc);
     Serial.printf("[WEATHER] Description used: %s\n", weatherDescription.c_str());
+
+    // -----------------------------------------
+    // Sunrise/Sunset for Auto Dimming (local time)
+    // -----------------------------------------
+    if (doc.containsKey(F("sys"))) {
+      JsonObject sys = doc[F("sys")];
+      if (sys.containsKey(F("sunrise")) && sys.containsKey(F("sunset"))) {
+        // OWM gives UTC timestamps
+        time_t sunriseUtc = sys[F("sunrise")].as<time_t>();
+        time_t sunsetUtc = sys[F("sunset")].as<time_t>();
+
+        // Get local timezone offset (in seconds)
+        long tzOffset = 0;
+        struct tm local_tm;
+        time_t now = time(nullptr);
+        if (localtime_r(&now, &local_tm)) {
+          tzOffset = mktime(&local_tm) - now;
+        }
+
+        // Convert UTC → local
+        time_t sunriseLocal = sunriseUtc + tzOffset;
+        time_t sunsetLocal = sunsetUtc + tzOffset;
+
+        // Break into hour/minute
+        struct tm tmSunrise, tmSunset;
+        localtime_r(&sunriseLocal, &tmSunrise);
+        localtime_r(&sunsetLocal, &tmSunset);
+
+        sunriseHour = tmSunrise.tm_hour;
+        sunriseMinute = tmSunrise.tm_min;
+        sunsetHour = tmSunset.tm_hour;
+        sunsetMinute = tmSunset.tm_min;
+
+        Serial.printf("[WEATHER] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n",
+                      sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+      } else {
+        Serial.println(F("[WEATHER] Sunrise/Sunset not found in JSON."));
+      }
+    } else {
+      Serial.println(F("[WEATHER] 'sys' object not found in JSON payload."));
+    }
+
     weatherFetched = true;
 
+    // -----------------------------------------
+    // Save updated sunrise/sunset to config.json
+    // -----------------------------------------
+    if (autoDimmingEnabled && sunriseHour >= 0 && sunsetHour >= 0) {
+      File configFile = LittleFS.open("/config.json", "r");
+      DynamicJsonDocument doc(1024);
+
+      if (configFile) {
+        DeserializationError error = deserializeJson(doc, configFile);
+        configFile.close();
+
+        if (!error) {
+          // Check if ANY value has changed
+          bool valuesChanged = (doc["sunriseHour"] != sunriseHour || doc["sunriseMinute"] != sunriseMinute || doc["sunsetHour"] != sunsetHour || doc["sunsetMinute"] != sunsetMinute);
+
+          if (valuesChanged) {  // Only write if a change occurred
+            doc["sunriseHour"] = sunriseHour;
+            doc["sunriseMinute"] = sunriseMinute;
+            doc["sunsetHour"] = sunsetHour;
+            doc["sunsetMinute"] = sunsetMinute;
+
+            File f = LittleFS.open("/config.json", "w");
+            if (f) {
+              serializeJsonPretty(doc, f);
+              f.close();
+              Serial.println(F("[WEATHER] SAVED NEW sunrise/sunset to config.json (Values changed)"));
+            } else {
+              Serial.println(F("[WEATHER] Failed to write updated sunrise/sunset to config.json"));
+            }
+          } else {
+            Serial.println(F("[WEATHER] Sunrise/Sunset unchanged, skipping config save."));
+          }
+          // --- END MODIFIED COMPARISON LOGIC ---
+
+        } else {
+          Serial.println(F("[WEATHER] JSON parse error when saving updated sunrise/sunset"));
+        }
+      }
+    }
+
   } else {
-    Serial.printf("[WEATHER] HTTP GET failed, error code: %d, reason: %s\n", httpCode, http.errorToString(httpCode).c_str());
+    Serial.printf("[WEATHER] HTTP GET failed, error code: %d, reason: %s\n",
+                  httpCode, http.errorToString(httpCode).c_str());
     weatherAvailable = false;
     weatherFetched = false;
   }
@@ -2081,65 +2241,69 @@ void loop() {
   }
 
 
-  // Dimming
+  // -----------------------------
+  // Dimming (auto + manual)
+  // -----------------------------
   time_t now_time = time(nullptr);
   struct tm timeinfo;
   localtime_r(&now_time, &timeinfo);
   int curHour = timeinfo.tm_hour;
   int curMinute = timeinfo.tm_min;
+
   int curTotal = curHour * 60 + curMinute;
-  int startTotal = dimStartHour * 60 + dimStartMinute;
-  int endTotal = dimEndHour * 60 + dimEndMinute;
-  bool isDimmingActive = false;
 
-  if (dimmingEnabled) {
-    // Determine if dimming is active (overnight-aware)
+  // -----------------------------
+  // Determine dimming start/end
+  // -----------------------------
+  int startTotal, endTotal;
+  bool dimActive = false;
+
+  if (autoDimmingEnabled) {
+    startTotal = sunsetHour * 60 + sunsetMinute;
+    endTotal = sunriseHour * 60 + sunriseMinute;
+  } else if (dimmingEnabled) {
+    startTotal = dimStartHour * 60 + dimStartMinute;
+    endTotal = dimEndHour * 60 + dimEndMinute;
+  } else {
+    startTotal = endTotal = -1;  // not used
+  }
+
+  // -----------------------------
+  // Check if dimming should be active
+  // -----------------------------
+  if (autoDimmingEnabled || dimmingEnabled) {
     if (startTotal < endTotal) {
-      isDimmingActive = (curTotal >= startTotal && curTotal < endTotal);
+      dimActive = (curTotal >= startTotal && curTotal < endTotal);
     } else {
-      isDimmingActive = (curTotal >= startTotal || curTotal < endTotal);
+      dimActive = (curTotal >= startTotal || curTotal < endTotal);  // overnight
     }
+  }
 
-    int targetBrightness = isDimmingActive ? dimBrightness : brightness;
+  // -----------------------------
+  // Apply brightness / display on-off
+  // -----------------------------
+  int targetBrightness;
+  if (dimActive) targetBrightness = dimBrightness;
+  else targetBrightness = brightness;
 
-    if (targetBrightness == -1) {
-      if (!displayOff) {
-        Serial.println(F("[DISPLAY] Turning display OFF (dimming -1)"));
-        P.displayShutdown(true);
-        P.displayClear();
-        displayOff = true;
-        displayOffByDimming = true;
-        displayOffByBrightness = false;
-      }
-    } else {
-      if (displayOff && displayOffByDimming) {
-        Serial.println(F("[DISPLAY] Waking display (dimming end)"));
-        P.displayShutdown(false);
-        displayOff = false;
-        displayOffByDimming = false;
-      }
-      P.setIntensity(targetBrightness);
+  if (targetBrightness == -1) {
+    if (!displayOff) {
+      Serial.println(F("[DISPLAY] Turning display OFF (dimming -1)"));
+      P.displayShutdown(true);
+      P.displayClear();
+      displayOff = true;
+      displayOffByDimming = dimActive;
+      displayOffByBrightness = !dimActive;
     }
   } else {
-    // Dimming disabled: just obey brightness slider
-    if (brightness == -1) {
-      if (!displayOff) {
-        Serial.println(F("[DISPLAY] Turning display OFF (brightness -1)"));
-        P.displayShutdown(true);
-        P.displayClear();
-        displayOff = true;
-        displayOffByBrightness = true;
-        displayOffByDimming = false;
-      }
-    } else {
-      if (displayOff && displayOffByBrightness) {
-        Serial.println(F("[DISPLAY] Waking display (brightness changed)"));
-        P.displayShutdown(false);
-        displayOff = false;
-        displayOffByBrightness = false;
-      }
-      P.setIntensity(brightness);
+    if (displayOff && ((dimActive && displayOffByDimming) || (!dimActive && displayOffByBrightness))) {
+      Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+      P.displayShutdown(false);
+      displayOff = false;
+      displayOffByDimming = false;
+      displayOffByBrightness = false;
     }
+    P.setIntensity(targetBrightness);
   }
 
 
