@@ -2241,70 +2241,82 @@ void loop() {
   }
 
 
-  // -----------------------------
-  // Dimming (auto + manual)
-  // -----------------------------
-  time_t now_time = time(nullptr);
-  struct tm timeinfo;
-  localtime_r(&now_time, &timeinfo);
-  int curHour = timeinfo.tm_hour;
-  int curMinute = timeinfo.tm_min;
+// -----------------------------
+// Dimming (auto + manual)
+// -----------------------------
+time_t now_time = time(nullptr);
+struct tm timeinfo;
+localtime_r(&now_time, &timeinfo);
+int curHour = timeinfo.tm_hour;
+int curMinute = timeinfo.tm_min;
+int curTotal = curHour * 60 + curMinute;
 
-  int curTotal = curHour * 60 + curMinute;
+// -----------------------------
+// Determine dimming start/end
+// -----------------------------
+int startTotal, endTotal;
+bool dimActive = false;
 
-  // -----------------------------
-  // Determine dimming start/end
-  // -----------------------------
-  int startTotal, endTotal;
-  bool dimActive = false;
+if (autoDimmingEnabled) {
+  startTotal = sunsetHour * 60 + sunsetMinute;
+  endTotal = sunriseHour * 60 + sunriseMinute;
+} else if (dimmingEnabled) {
+  startTotal = dimStartHour * 60 + dimStartMinute;
+  endTotal = dimEndHour * 60 + dimEndMinute;
+} else {
+  startTotal = endTotal = -1;  // not used
+}
 
-  if (autoDimmingEnabled) {
-    startTotal = sunsetHour * 60 + sunsetMinute;
-    endTotal = sunriseHour * 60 + sunriseMinute;
-  } else if (dimmingEnabled) {
-    startTotal = dimStartHour * 60 + dimStartMinute;
-    endTotal = dimEndHour * 60 + dimEndMinute;
+// -----------------------------
+// Check if dimming should be active
+// -----------------------------
+if (autoDimmingEnabled || dimmingEnabled) {
+  if (startTotal < endTotal) {
+    dimActive = (curTotal >= startTotal && curTotal < endTotal);
   } else {
-    startTotal = endTotal = -1;  // not used
+    dimActive = (curTotal >= startTotal || curTotal < endTotal);  // overnight
   }
+}
 
-  // -----------------------------
-  // Check if dimming should be active
-  // -----------------------------
-  if (autoDimmingEnabled || dimmingEnabled) {
-    if (startTotal < endTotal) {
-      dimActive = (curTotal >= startTotal && curTotal < endTotal);
-    } else {
-      dimActive = (curTotal >= startTotal || curTotal < endTotal);  // overnight
-    }
-  }
+// -----------------------------
+// Apply brightness / display on-off
+// -----------------------------
+static bool lastDimActive = false;  // remembers last state
+int targetBrightness = dimActive ? dimBrightness : brightness;
 
-  // -----------------------------
-  // Apply brightness / display on-off
-  // -----------------------------
-  int targetBrightness;
-  if (dimActive) targetBrightness = dimBrightness;
-  else targetBrightness = brightness;
-
-  if (targetBrightness == -1) {
-    if (!displayOff) {
-      Serial.println(F("[DISPLAY] Turning display OFF (dimming -1)"));
-      P.displayShutdown(true);
-      P.displayClear();
-      displayOff = true;
-      displayOffByDimming = dimActive;
-      displayOffByBrightness = !dimActive;
-    }
+// Log only when transitioning
+if (dimActive != lastDimActive) {
+  if (dimActive) {
+    if (autoDimmingEnabled)
+      Serial.printf("[DISPLAY] Automatic dimming setting brightness to %d\n", targetBrightness);
+    else if (dimmingEnabled)
+      Serial.printf("[DISPLAY] Custom dimming setting brightness to %d\n", targetBrightness);
   } else {
-    if (displayOff && ((dimActive && displayOffByDimming) || (!dimActive && displayOffByBrightness))) {
-      Serial.println(F("[DISPLAY] Waking display (dimming end)"));
-      P.displayShutdown(false);
-      displayOff = false;
-      displayOffByDimming = false;
-      displayOffByBrightness = false;
-    }
-    P.setIntensity(targetBrightness);
+    Serial.println(F("[DISPLAY] Waking display (dimming end)"));
   }
+  lastDimActive = dimActive;
+}
+
+// Apply brightness or shutdown
+if (targetBrightness == -1) {
+  if (!displayOff) {
+    Serial.println(F("[DISPLAY] Turning display OFF (dimming -1)"));
+    P.displayShutdown(true);
+    P.displayClear();
+    displayOff = true;
+    displayOffByDimming = dimActive;
+    displayOffByBrightness = !dimActive;
+  }
+} else {
+  if (displayOff && ((dimActive && displayOffByDimming) || (!dimActive && displayOffByBrightness))) {
+    Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+    P.displayShutdown(false);
+    displayOff = false;
+    displayOffByDimming = false;
+    displayOffByBrightness = false;
+  }
+  P.setIntensity(targetBrightness);
+}
 
 
   // --- IMMEDIATE COUNTDOWN FINISH TRIGGER ---
