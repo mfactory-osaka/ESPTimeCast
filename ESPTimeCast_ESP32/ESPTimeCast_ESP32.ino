@@ -700,8 +700,41 @@ void setupWebServer() {
 #ifdef ESP8266
     request->send_P(200, "text/html", index_html);
 #else
-      request->send(200, "text/html", index_html);
+      request->send(200, "text/html", FPSTR(index_html));
 #endif
+  });
+
+  server.on("/generate_204", HTTP_GET, handleCaptivePortal);         // Android
+  server.on("/fwlink", HTTP_GET, handleCaptivePortal);               // Windows
+  server.on("/hotspot-detect.html", HTTP_GET, handleCaptivePortal);  // iOS/macOS
+  server.on("/ncsi.txt", HTTP_GET, handleCaptivePortal);             // Windows NCSI (variation)
+  server.on("/cp/success.txt", HTTP_GET, handleCaptivePortal);       // Android/Generic Success Check
+  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(204);  // 204 No Content response
+  });
+  server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest *request) { // iOS icon check
+    request->send(204);
+  });
+  server.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest *request) { // Android short probe (already in handleCaptivePortal, but safe to also silence if somehow missed)
+    request->send(204);
+  });
+  server.on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest *request) { // iOS/macOS generic check
+    request->send(204);
+  });
+  server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) { // Windows NCSI check
+    request->send(204);
+  });
+  server.on("/msdownload/update/v3/static/trustedr/en/disallowedcertstl.cab", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(204);
+  });
+  server.on("/msdownload/update/v3/static/trustedr/en/authrootstl.cab", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(204);
+  });
+  server.on("/msdownload/update/v3/static/trustedr/en/pinrulesstl.cab", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(204);
+  });
+  server.on("/r/r1.crl", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(204);
   });
 
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -1572,9 +1605,6 @@ void setupWebServer() {
     });
   });
 
-  server.on("/generate_204", HTTP_GET, handleCaptivePortal);         // Android
-  server.on("/fwlink", HTTP_GET, handleCaptivePortal);               // Windows
-  server.on("/hotspot-detect.html", HTTP_GET, handleCaptivePortal);  // iOS/macOS
   server.onNotFound(handleCaptivePortal);
   server.begin();
   Serial.println(F("[WEBSERVER] Web server started"));
