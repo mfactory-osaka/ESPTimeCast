@@ -250,6 +250,8 @@ Once your IDE is ready:
 2. **Upload the Sketch**
    * Click the **Upload** button (right arrow icon) in the Arduino IDE toolbar. This will compile and upload the sketch to your board.
    * **No separate LittleFS upload is needed.** All web UI files are embedded in the sketch.
+  
+**⚠️ Note for existing users:** If you have previously uploaded /data via LittleFS, you can safely skip that step now — the device will manage config files internally.
 
 &nbsp;
 ## 🏠 ESPTimeCast Home Assistant Integration
@@ -457,6 +459,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
