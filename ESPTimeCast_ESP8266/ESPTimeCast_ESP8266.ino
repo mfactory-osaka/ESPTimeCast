@@ -694,7 +694,11 @@ void setupWebServer() {
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /"));
+#ifdef ESP8266
     request->send_P(200, "text/html", index_html);
+#else
+      request->send(200, "text/html", index_html);
+#endif
   });
 
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
