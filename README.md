@@ -197,6 +197,60 @@ Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal e
 - **Latitude and Longitude** You can enter coordinates in the city field (lat.) and country field (long.)
 - **Time Zone:** Select from IANA zones (e.g., `America/New_York`, handles DST automatically)
 
+
+&nbsp;
+## 🚀 Getting Started
+
+This guide will walk you through setting up your environment and uploading the **ESPTimeCast** project to your **ESP8266** or **ESP32** board. Please follow the instructions carefully for your specific board type.
+
+#### ⚙️ ESP8266 Setup
+
+Follow these steps to prepare your Arduino IDE for ESP8266 development:
+
+1.  **Install ESP8266 Board Package:**
+    * Open `File > Preferences` in Arduino IDE.
+    * Add `http://arduino.esp8266.com/stable/package_esp8266com_index.json` to "Additional Boards Manager URLs."
+    * Go to `Tools > Board > Boards Manager...`. Search for `esp8266` by `ESP8266 Community` and click "Install".
+2.  **Select Your Board:**
+    * Go to `Tools > Board` and select your specific board, e.g., **Wemos D1 Mini** (or your ESP8266 variant).
+3.  **Configure Flash Size:**
+    * Under `Tools`, select `Flash Size "4MB FS:2MB OTA:~1019KB"`. This ensures enough space for the sketch and LittleFS data.
+4.  **Install Libraries:**
+    * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
+        * `ArduinoJson` by Benoit Blanchon
+        * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
+        * `ESPAsyncTCP` by ESP32Async
+        * `ESPAsyncWebServer` by ESP32Async
+
+#### ⚙️ ESP32 Setup
+
+Follow these steps to prepare your Arduino IDE for ESP32 development:
+
+1.  **Install ESP32 Board Package:**
+    * Go to `Tools > Board > Boards Manager...`. Search for `esp32` by `Espressif Systems` and click "Install".
+2.  **Select Your Board:**
+    * Go to `Tools > Board` and select your specific board, e.g., **LOLIN S2 Mini** (or your ESP32 variant).
+3.  **Configure Partition Scheme:**
+    * Under `Tools`, select `Partition Scheme "No OTA (2MB APP/2MB SPIFFS)"`. This ensures enough space for the sketch and LittleFS data.
+4.  **Install Libraries:**
+    * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
+        * `ArduinoJson` by Benoit Blanchon
+        * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
+        * `AsyncTCP` by ESP32Async
+        * `ESPAsyncWebServer` by ESP32Async
+
+#### ⬆️ Uploading the Code and Data
+
+Once your IDE is ready:
+
+1. **Open the Project Folder**
+   * **ESP8266:** Open the `ESPTimeCast_ESP8266` folder and open `ESPTimeCast_ESP8266.ino`.
+   * **ESP32:** Open the `ESPTimeCast_ESP32` folder and open `ESPTimeCast_ESP32.ino`.
+
+2. **Upload the Sketch**
+   * Click the **Upload** button (right arrow icon) in the Arduino IDE toolbar. This will compile and upload the sketch to your board.
+   * **No separate LittleFS upload is needed.** All web UI files are embedded in the sketch.
+
 &nbsp;
 ## 🏠 ESPTimeCast Home Assistant Integration
 
@@ -359,64 +413,6 @@ In this mode:
 - Always verify your WiFi credentials and tokens before uploading edited configurations.
 
 &nbsp;
-## 🚀 Getting Started
-
-This guide will walk you through setting up your environment and uploading the **ESPTimeCast** project to your **ESP8266** or **ESP32** board. Please follow the instructions carefully for your specific board type.
-
-#### ⚙️ ESP8266 Setup
-
-Follow these steps to prepare your Arduino IDE for ESP8266 development:
-
-1.  **Install ESP8266 Board Package:**
-    * Open `File > Preferences` in Arduino IDE.
-    * Add `http://arduino.esp8266.com/stable/package_esp8266com_index.json` to "Additional Boards Manager URLs."
-    * Go to `Tools > Board > Boards Manager...`. Search for `esp8266` by `ESP8266 Community` and click "Install".
-2.  **Select Your Board:**
-    * Go to `Tools > Board` and select your specific board, e.g., **Wemos D1 Mini** (or your ESP8266 variant).
-3.  **Configure Flash Size:**
-    * Under `Tools`, select `Flash Size "4MB FS:2MB OTA:~1019KB"`. This ensures enough space for the sketch and LittleFS data.
-4.  **Install Libraries:**
-    * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
-        * `ArduinoJson` by Benoit Blanchon
-        * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
-        * `ESPAsyncTCP` by ESP32Async
-        * `ESPAsyncWebServer` by ESP32Async
-
-#### ⚙️ ESP32 Setup
-
-Follow these steps to prepare your Arduino IDE for ESP32 development:
-
-1.  **Install ESP32 Board Package:**
-    * Go to `Tools > Board > Boards Manager...`. Search for `esp32` by `Espressif Systems` and click "Install".
-2.  **Select Your Board:**
-    * Go to `Tools > Board` and select your specific board, e.g., **LOLIN S2 Mini** (or your ESP32 variant).
-3.  **Configure Partition Scheme:**
-    * Under `Tools`, select `Partition Scheme "Default 4MB with spiffs"`. This ensures enough space for the sketch and LittleFS data.
-4.  **Install Libraries:**
-    * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
-        * `ArduinoJson` by Benoit Blanchon
-        * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
-        * `AsyncTCP` by ESP32Async
-        * `ESPAsyncWebServer` by ESP32Async
-
-#### ⬆️ Uploading the Code and Data
-
-Once your Arduino IDE is set up for your board (as described above):
-
-1.  **Open the Project Folder:**
-    * For ESP8266: Navigate to and open the `ESPTimeCast_ESP8266` project folder. Inside, you'll find the main sketch file, typically named `ESPTimeCast_ESP8266.ino`. Open this `.ino` file in the Arduino IDE.
-    * For ESP32: Navigate to and open the `ESPTimeCast_ESP32` project folder. Inside, you'll find the main sketch file, typically named `ESPTimeCast_ESP32.ino`. Open this `.ino` file in the Arduino IDE.
-2. **Upload the Sketch:**
-    * With the main sketch file open, click the "Upload" button (the right arrow icon) in the Arduino IDE toolbar. This will compile the sketch and upload it to your board..
-3.  **Upload `/data` folder (LittleFS):**
-    * This project uses LittleFS for storing web interface files and other assets. You'll need the LittleFS Uploader plugin.
-    * [**Install the LittleFS Uploader Plugin**](https://randomnerdtutorials.com/arduino-ide-2-install-esp8266-littlefs/) 
-    * **Before uploading, ensure the Serial Monitor is closed.**
-    * Open the Command Palette (`Ctrl+Shift+P` on Windows, `Cmd+Shift+P` on macOS).
-    * Search for and run: `Upload LittleFS to Pico/ESP8266/ESP32` (the exact command name might vary).
-    * **Important for ESP32:** If the upload fails, you might need to manually put your ESP32 into "Download Mode." While holding down the **Boot button** (often labeled 'BOOT' or 'IO0' or 'IO9'), briefly press and release the **RST button**, then release the Boot button.
-
-&nbsp;
 ## 📺 Display Behavior
 
 **ESPTimeCast** automatically switches between two display modes: Clock and Weather.
@@ -461,6 +457,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
