@@ -367,7 +367,7 @@ curl -X POST -d "message=HELLO WORLD&speed=50" "http://<device_ip>/set_custom_me
 
 ESPTimeCast includes a few optional “power-user” features that aren’t visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
 
-#### 💾 `/export`
+#### 💾 /export
 Downloads your current configuration (`config.json`) directly from the device.  
 This is useful for creating backups or migrating settings between devices.
 
@@ -377,7 +377,7 @@ http://your-device-ip/export
 ```
 The file will download automatically with your saved WiFi credentials (safely masked for security) and all other settings.
 
-#### 📂 `/upload`
+#### 📂 /upload
 Lets you manually upload a configuration file (`config.json`) to the device.  
 Perfect for restoring a backup or quickly switching between setups.
 
@@ -457,6 +457,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
