@@ -17,6 +17,8 @@
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
+#include "index_html.h"     // Web UI
+
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
@@ -674,8 +676,8 @@ void printConfigToSerial() {
   Serial.println(customMessage);
 
   Serial.print(F("Total Runtime: "));
-  if (totalUptimeSeconds > 0) {
-    Serial.println(formatUptime(totalUptimeSeconds));
+  if (getTotalRuntimeSeconds() > 0) {
+    Serial.println(formatTotalRuntime());
   } else {
     Serial.println(F("No runtime recorded yet."));
   }
@@ -695,7 +697,7 @@ void setupWebServer() {
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /"));
-    request->send(LittleFS, "/index.html", "text/html");
+    request->send_P(200, "text/html", index_html);
   });
 
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -1883,42 +1885,71 @@ void fetchWeather() {
 }
 
 
+// -----------------------------
+// Load uptime from LittleFS
+// -----------------------------
 void loadUptime() {
   if (LittleFS.exists("/uptime.dat")) {
     File f = LittleFS.open("/uptime.dat", "r");
     if (f) {
       totalUptimeSeconds = f.parseInt();
       f.close();
+      bootMillis = millis();
       Serial.printf("[UPTIME] Loaded accumulated uptime: %lu seconds (%.2f hours)\n",
                     totalUptimeSeconds, totalUptimeSeconds / 3600.0);
     } else {
       Serial.println(F("[UPTIME] Failed to open /uptime.dat for reading."));
+      totalUptimeSeconds = 0;
+      bootMillis = millis();
     }
   } else {
     Serial.println(F("[UPTIME] No previous uptime file found. Starting from 0."));
     totalUptimeSeconds = 0;
+    bootMillis = millis();
   }
 }
 
 
+// -----------------------------
+// Save uptime to LittleFS
+// -----------------------------
 void saveUptime() {
-  // Add runtime since boot to total
-  unsigned long runtimeSeconds = (millis() - bootMillis) / 1000;
-  totalUptimeSeconds += runtimeSeconds;
-
-  // Reset bootMillis so next period counts correctly
-  bootMillis = millis();
+  // Use getTotalRuntimeSeconds() to include current session
+  totalUptimeSeconds = getTotalRuntimeSeconds();
+  bootMillis = millis();  // reset session start
 
   File f = LittleFS.open("/uptime.dat", "w");
   if (f) {
     f.print(totalUptimeSeconds);
     f.close();
-    Serial.printf("[UPTIME] Saved accumulated uptime: %lu seconds (%.2f hours)\n",
-                  totalUptimeSeconds, totalUptimeSeconds / 3600.0);
+    Serial.printf("[UPTIME] Saved accumulated uptime: %s\n", formatTotalRuntime().c_str());
   } else {
     Serial.println(F("[UPTIME] Failed to write /uptime.dat"));
   }
 }
+
+
+// -----------------------------
+// Get total uptime including current session
+// -----------------------------
+unsigned long getTotalRuntimeSeconds() {
+  return totalUptimeSeconds + (millis() - bootMillis) / 1000;
+}
+
+
+// -----------------------------
+// Format total uptime as HH:MM:SS
+// -----------------------------
+String formatTotalRuntime() {
+  unsigned long secs = getTotalRuntimeSeconds();
+  unsigned int h = secs / 3600;
+  unsigned int m = (secs % 3600) / 60;
+  unsigned int s = secs % 60;
+  char buf[16];
+  sprintf(buf, "%02u:%02u:%02u", h, m, s);
+  return String(buf);
+}
+
 
 void saveCustomMessageToConfig(const char *msg) {
   Serial.println(F("[CONFIG] Updating customMessage in config.json..."));
@@ -2241,82 +2272,82 @@ void loop() {
   }
 
 
-// -----------------------------
-// Dimming (auto + manual)
-// -----------------------------
-time_t now_time = time(nullptr);
-struct tm timeinfo;
-localtime_r(&now_time, &timeinfo);
-int curHour = timeinfo.tm_hour;
-int curMinute = timeinfo.tm_min;
-int curTotal = curHour * 60 + curMinute;
+  // -----------------------------
+  // Dimming (auto + manual)
+  // -----------------------------
+  time_t now_time = time(nullptr);
+  struct tm timeinfo;
+  localtime_r(&now_time, &timeinfo);
+  int curHour = timeinfo.tm_hour;
+  int curMinute = timeinfo.tm_min;
+  int curTotal = curHour * 60 + curMinute;
 
-// -----------------------------
-// Determine dimming start/end
-// -----------------------------
-int startTotal, endTotal;
-bool dimActive = false;
+  // -----------------------------
+  // Determine dimming start/end
+  // -----------------------------
+  int startTotal, endTotal;
+  bool dimActive = false;
 
-if (autoDimmingEnabled) {
-  startTotal = sunsetHour * 60 + sunsetMinute;
-  endTotal = sunriseHour * 60 + sunriseMinute;
-} else if (dimmingEnabled) {
-  startTotal = dimStartHour * 60 + dimStartMinute;
-  endTotal = dimEndHour * 60 + dimEndMinute;
-} else {
-  startTotal = endTotal = -1;  // not used
-}
-
-// -----------------------------
-// Check if dimming should be active
-// -----------------------------
-if (autoDimmingEnabled || dimmingEnabled) {
-  if (startTotal < endTotal) {
-    dimActive = (curTotal >= startTotal && curTotal < endTotal);
+  if (autoDimmingEnabled) {
+    startTotal = sunsetHour * 60 + sunsetMinute;
+    endTotal = sunriseHour * 60 + sunriseMinute;
+  } else if (dimmingEnabled) {
+    startTotal = dimStartHour * 60 + dimStartMinute;
+    endTotal = dimEndHour * 60 + dimEndMinute;
   } else {
-    dimActive = (curTotal >= startTotal || curTotal < endTotal);  // overnight
+    startTotal = endTotal = -1;  // not used
   }
-}
 
-// -----------------------------
-// Apply brightness / display on-off
-// -----------------------------
-static bool lastDimActive = false;  // remembers last state
-int targetBrightness = dimActive ? dimBrightness : brightness;
+  // -----------------------------
+  // Check if dimming should be active
+  // -----------------------------
+  if (autoDimmingEnabled || dimmingEnabled) {
+    if (startTotal < endTotal) {
+      dimActive = (curTotal >= startTotal && curTotal < endTotal);
+    } else {
+      dimActive = (curTotal >= startTotal || curTotal < endTotal);  // overnight
+    }
+  }
 
-// Log only when transitioning
-if (dimActive != lastDimActive) {
-  if (dimActive) {
-    if (autoDimmingEnabled)
-      Serial.printf("[DISPLAY] Automatic dimming setting brightness to %d\n", targetBrightness);
-    else if (dimmingEnabled)
-      Serial.printf("[DISPLAY] Custom dimming setting brightness to %d\n", targetBrightness);
+  // -----------------------------
+  // Apply brightness / display on-off
+  // -----------------------------
+  static bool lastDimActive = false;  // remembers last state
+  int targetBrightness = dimActive ? dimBrightness : brightness;
+
+  // Log only when transitioning
+  if (dimActive != lastDimActive) {
+    if (dimActive) {
+      if (autoDimmingEnabled)
+        Serial.printf("[DISPLAY] Automatic dimming setting brightness to %d\n", targetBrightness);
+      else if (dimmingEnabled)
+        Serial.printf("[DISPLAY] Custom dimming setting brightness to %d\n", targetBrightness);
+    } else {
+      Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+    }
+    lastDimActive = dimActive;
+  }
+
+  // Apply brightness or shutdown
+  if (targetBrightness == -1) {
+    if (!displayOff) {
+      Serial.println(F("[DISPLAY] Turning display OFF (dimming -1)"));
+      P.displayShutdown(true);
+      P.displayClear();
+      displayOff = true;
+      displayOffByDimming = dimActive;
+      displayOffByBrightness = !dimActive;
+    }
   } else {
-    Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+    if (displayOff && ((dimActive && displayOffByDimming) || (!dimActive && displayOffByBrightness))) {
+      Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+      P.displayShutdown(false);
+      displayOff = false;
+      displayOffByDimming = false;
+      displayOffByBrightness = false;
+    }
+    P.setIntensity(targetBrightness);
   }
-  lastDimActive = dimActive;
-}
-
-// Apply brightness or shutdown
-if (targetBrightness == -1) {
-  if (!displayOff) {
-    Serial.println(F("[DISPLAY] Turning display OFF (dimming -1)"));
-    P.displayShutdown(true);
-    P.displayClear();
-    displayOff = true;
-    displayOffByDimming = dimActive;
-    displayOffByBrightness = !dimActive;
-  }
-} else {
-  if (displayOff && ((dimActive && displayOffByDimming) || (!dimActive && displayOffByBrightness))) {
-    Serial.println(F("[DISPLAY] Waking display (dimming end)"));
-    P.displayShutdown(false);
-    displayOff = false;
-    displayOffByDimming = false;
-    displayOffByBrightness = false;
-  }
-  P.setIntensity(targetBrightness);
-}
 
 
   // --- IMMEDIATE COUNTDOWN FINISH TRIGGER ---

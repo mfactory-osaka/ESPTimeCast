@@ -1,0 +1,1641 @@
+#pragma once
+// index_html.h
+
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ESPTimeCast Settings</title>
+<style>
+
+:root{
+  --accent-color: #0075ff;
+}
+
+  * { box-sizing: border-box; }
+  html{
+    background: radial-gradient(ellipse at 70% 0%, #2b425a 0%, #171e23 100%);  
+    height: 100%;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    margin: 0;
+    padding: 2rem 1rem;
+    color: #FFFFFF;
+    background-repeat: no-repeat, repeat, repeat; 
+    opacity: 0;
+    transition: opacity 0.6s cubic-bezier(.4,0,.2,1);
+    visibility: hidden;
+    height: 100%;
+    line-height: 1.5;
+  }
+
+  body.loaded {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  body.modal-open {
+    overflow: hidden;
+  }
+  h1 { 
+    text-align: center; 
+    font-size: 1.5rem; 
+    margin-bottom: 1.5rem; 
+    color: #ffffff; 
+  }
+  h2{
+    margin-top: 2rem;
+    margin-bottom: 0;
+  }
+
+  h2:first-of-type{
+    margin-top: 1.5rem;
+  }
+
+  .logo svg{
+    filter: drop-shadow(0px 0px 0.5rem #1ec7fa);
+    width: 100%;
+    height: auto;
+    color: #c2f0ff;
+    margin: 0.5rem 0;
+  }
+  form {
+    display: flex; flex-direction: column;
+    max-width: 500px; margin: 0 auto;
+    background: linear-gradient(120deg, rgba(45,65,90,0.72) 0%, rgba(53,133,183,0.38) 100%); 
+    padding: 1.5rem;
+    border-radius: 24px;
+    box-shadow: 0 10px 36px 0 rgba(40,170,255,0.11), 0 2px 8px 0 rgba(44, 70, 110, 0.08);
+    border: 1.5px solid rgba(180, 230, 255, 0.10)
+  }  
+  label {
+    font-size: 0.9rem; 
+    display: block; 
+    margin-top: 0.75rem; 
+  }
+  input[type="text"], 
+  input[type="time"],   
+  input[type="password"], 
+  input[type="date"],
+  input[type="number"], select {
+    width: 100%; padding: 0.75rem;
+    border: 1.5px solid rgba(180, 230, 255, 0.08);
+    border-radius: 8px;
+    background-color: rgba(225,245,255,0.07); 
+    color: #ffffff;
+    font-size: 1rem; appearance: none;
+  }
+
+  input[type="time"]:disabled ,
+  input[type="text"]:disabled ,
+  input[type="number"]:disabled ,
+  input[type="date"]:disabled{
+    color: rgba(255, 255, 255, 0.250);
+  }
+
+  input[type="submit"] {
+    background-color: #007aff; color: white;
+    padding: 0.9rem; font-size: 1rem;
+    border: none; border-radius: 8px;
+    cursor: pointer; transition: background-color 0.2s ease-in-out;
+  }
+  input[type="submit"]:hover {
+    background-color: #005ecb;
+  }
+
+input[type="time"]::-webkit-calendar-picker-indicator, input[type="date"]::-webkit-calendar-picker-indicator{
+  filter: invert(100%);
+}
+
+
+/* Enabled & checked toggle */
+.toggle-switch input[type="checkbox"]:checked + .toggle-slider {
+  background-color: var(--accent-color);
+}
+
+/* Disabled toggle (regardless of checked state) */
+.toggle-switch input[type="checkbox"]:disabled + .toggle-slider { background-color: transparent !important; border: solid 1px #cccccc2e; cursor: not-allowed; }
+.toggle-switch input[type="checkbox"]:disabled + .toggle-slider::before {
+  background-color: rgba(204, 204, 204, 0.5);
+}
+
+
+  input:-webkit-autofill,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:hover {
+  background: rgba(225,245,255,0.07) !important;
+  color: #fff !important;
+  -webkit-box-shadow: 0 0 0 1000px rgba(225,245,255,0.07) inset !important;
+  box-shadow: 0 0 0 1000px rgba(225,245,255,0.07) inset !important;
+  -webkit-text-fill-color: #fff !important;
+  transition: background 9999s ease-in-out 0s;
+}
+
+input::placeholder, 
+textarea::placeholder {
+  color: hwb(0 100% 0% / 0.39);      /* Example: light blue */
+  opacity: 1;          /* Make sure it's not semi-transparent */
+}
+
+  .form-row { 
+    display: flex; 
+    flex-direction: column; 
+  }
+
+  .form-row.two-col { 
+    flex-direction: column;
+  }
+  .form-row.two-col > div { 
+    flex: 1;
+  }
+  .primary-button {
+    background: linear-gradient(90deg, #3e99bc, #47add4 85%);
+    color: white;
+    padding: 0.9rem; font-size: 1rem; font-weight: 600;
+    border: none; border-radius: 8px;
+    cursor: pointer; text-align: center;
+    transition: background 0.25s, transform 0.15s ease-in-out;
+  }
+  .primary-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 122, 255, 0.35);
+  }
+  .primary-button:active {
+    transform: scale(0.97); 
+  }  
+
+  .note { 
+    font-size: 0.85rem; 
+    text-align: center; 
+    margin-top: 1rem; 
+  }
+  #savingModal {
+    backdrop-filter: blur(5px);
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: radial-gradient(ellipse at 70% 0%, hsl(210.64deg 35.34% 26.08% / 60%) 0%, #171e2399 100%);
+    display: none; justify-content: center; align-items: center;
+    z-index: 1000;
+  }
+  #savingModalContent {
+    background: linear-gradient(120deg, rgb(45 65 90) 0%, rgb(53 133 183 / 44%) 100%);
+    border-radius: 12px;
+    box-shadow: 0 10px 36px 0 rgba(40, 170, 255, 0.11), 0 2px 8px 0 rgba(44, 70, 110, 0.08);
+    border: 1.5px solid rgba(180, 230, 255, 0.10);
+    margin: 1.5rem;
+    padding: 2rem 2.5rem;
+    text-align: center;
+  }  
+  .spinner {
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top: 4px solid #007aff;
+    border-radius: 50%;
+    width: 36px; height: 36px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+  }
+  .footer{
+    font-size: 0.8rem;
+    text-align: center;
+    margin-top: 1rem;
+  }
+  a{
+    color: white;
+  }
+
+  .small{
+    display: block;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+  }
+
+  select option {
+    color: black;
+  }
+  
+  .geo-disabled{
+    opacity: 0.5;
+    background: transparent;
+    border: 0.1rem white solid;
+    cursor: not-allowed;
+  }
+
+  .geo-disabled:hover{
+    transform: none;
+    box-shadow: none;
+  }
+
+ .button-row {
+    display: flex;
+    margin-top: 0.5rem;
+    gap: 0.8rem;
+    justify-content: center;
+}
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+      #openWeatherCountry{
+        margin-top: 0.75rem;
+      }
+
+  @media (min-width: 361px) {
+    .form-row.two-col { 
+      flex-direction: row; 
+      gap: 1rem; }
+
+      #openWeatherCountry{
+        margin-top: 0;
+      }
+  }
+
+
+
+
+/* Make sure .details-content is visible only when open */
+.animated-details[open] .details-content {
+  /* JS will animate the height */
+}
+
+
+  /* Toggle Switch Styling for Flip Display */
+  .toggle-switch { position: relative; display: inline-block; width: 48px; height: 24px; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc; transition: .4s; border-radius: 24px;
+  }
+  .toggle-slider:before {
+    position: absolute; content: ""; height: 20px; width: 20px; left: 2px; bottom: 2px;
+    background-color: white; transition: .4s; border-radius: 50%;
+  }
+  input:checked + .toggle-slider { background-color: var(--accent-color); }
+  input:checked + .toggle-slider:before { transform: translateX(24px); }
+
+  .accent{
+    accent-color: var(--accent-color);
+  }
+
+      .collapsible-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: bold;
+    background: none;
+    border: none;
+    color: white;
+    padding: 0;
+    margin: 0;
+    outline: none;
+    gap: 0.5em;
+    user-select: none;
+    margin-top: 2.5rem;
+    }
+    .collapsible-toggle .icon-area {
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+      display: flex;
+    }
+    .collapsible-toggle.open .icon-area {
+      transform: rotate(90deg);
+    }
+    .collapsible-content {
+    overflow: hidden;
+    height: 0;
+    transition: height 0.3s cubic-bezier(.4,0,.2,1);
+    color: #fff;
+    margin-bottom: 2rem;
+    }
+    .collapsible-content-inner {
+      padding: 1em 0;
+    }
+</style>
+</head>
+<body>
+
+<form id="configForm" onsubmit="submitConfig(event)">
+  <div class="logo">
+    <svg viewBox="0 0 132.291 14.322" xml:space="preserve" xmlns="http://www.w3.org/2000/svg"><path style="fill:currentColor; stroke-width:1" d="M326.491 337.688c-.233.003-.476.121-.657.38-.333.475-.326.56.074.96.603.604 1.332.33 1.332-.499 0-.529-.36-.846-.749-.841m4.23.009c-.698 0-1.057.903-.557 1.403.144.143.4.261.57.261.38 0 .832-.43.832-.79 0-.368-.49-.874-.845-.874m35.71 0c-.697 0-1.055.903-.556 1.403.144.143.4.261.57.261.38 0 .833-.43.833-.79 0-.368-.49-.874-.846-.874m-118.103.008a.7.7 0 0 0-.504.192c-.28.28-.248.892.062 1.203.337.337.716.332 1.098-.014.378-.342.387-.69.03-1.085a.93.93 0 0 0-.686-.296m22.402 0a.7.7 0 0 0-.505.192c-.28.28-.248.892.062 1.203.337.337.716.332 1.099-.014.377-.342.386-.69.028-1.085a.93.93 0 0 0-.684-.296m15.342 0a.7.7 0 0 0-.504.192c-.28.28-.248.892.062 1.203.337.336.717.332 1.099-.014.377-.342.387-.69.029-1.085a.93.93 0 0 0-.686-.296m-28.564 0c-.248-.009-.496.112-.672.362-.333.476-.326.56.074.961.45.45.935.419 1.264-.083.252-.385.252-.447 0-.832-.172-.262-.419-.399-.666-.408m15.445 0c-.248-.009-.496.112-.671.362-.334.476-.327.56.073.961.451.45.935.419 1.264-.083.252-.385.252-.447 0-.832-.172-.262-.419-.399-.666-.408m-30.884.001a.76.76 0 0 0-.663.343c-.27.386-.199.783.2 1.104.403.325.827.246 1.125-.208.252-.385.252-.447 0-.832-.17-.258-.416-.395-.662-.407m37.744 0a.76.76 0 0 0-.663.343c-.27.386-.199.783.2 1.104.402.325.827.246 1.125-.208.252-.385.252-.447 0-.832-.17-.258-.416-.395-.662-.407m-39.949.002c-.232.003-.445.108-.554.31-.242.452-.215.778.089 1.082.337.336.716.332 1.098-.014.378-.342.387-.69.03-1.085a.9.9 0 0 0-.663-.293m15.444 0c-.232.003-.447.108-.555.31-.242.452-.215.778.09 1.082.336.337.715.332 1.097-.014.378-.342.387-.69.03-1.085a.9.9 0 0 0-.662-.293m73.302.001q-.279.004-.567.263c-.377.342-.387.69-.029 1.085.152.167.409.304.57.304.698 0 1.057-.903.558-1.402q-.255-.253-.532-.25m-40.331.005a.75.75 0 0 0-.648.343c-.341.488-.335.569.078.982.436.436 1.004.358 1.269-.176.298-.6-.186-1.133-.699-1.149m-42.007.01a.8.8 0 0 0-.55.235c-.336.337-.331.716.015 1.098.494.546 1.389.206 1.389-.528 0-.488-.425-.813-.854-.805m22.4 0a.8.8 0 0 0-.548.235c-.337.337-.332.716.014 1.098.494.546 1.388.206 1.388-.528 0-.488-.424-.813-.853-.805m15.344 0a.8.8 0 0 0-.55.235c-.336.337-.331.716.015 1.098.494.546 1.388.206 1.388-.528 0-.488-.424-.813-.853-.805m-39.875.001a.8.8 0 0 0-.505.217c-.41.37-.43.71-.063 1.115.554.611 1.456.203 1.362-.616-.053-.458-.413-.733-.794-.716m15.443 0a.8.8 0 0 0-.505.217c-.41.37-.429.71-.063 1.115.554.611 1.456.203 1.362-.616-.053-.458-.413-.733-.794-.716m6.958 0a.8.8 0 0 0-.505.217c-.41.37-.429.71-.063 1.115.554.611 1.455.203 1.362-.616-.053-.458-.414-.733-.794-.716m15.343 0a.8.8 0 0 0-.505.217c-.41.37-.43.71-.063 1.115.554.611 1.456.203 1.362-.616-.053-.458-.413-.733-.794-.716m11.157 0a.8.8 0 0 0-.504.217c-.41.37-.43.71-.063 1.115.553.611 1.455.203 1.361-.616-.052-.458-.413-.733-.794-.716m-53.124 2.112c-.608-.001-1.077.752-.505 1.383.355.393.643.385 1.056-.028.4-.401.422-.72.071-1.07-.2-.2-.419-.285-.622-.285m126.508.01a.8.8 0 0 0-.464.13c-.43.27-.424.976.012 1.282.476.334.52.332.978-.04.613-.496.123-1.348-.526-1.372m-42.091.013c-.728 0-1.005.782-.481 1.36.151.168.376.304.5.304.275 0 .889-.594.889-.86 0-.332-.533-.804-.908-.804m8.487 0c-.728 0-1.004.782-.48 1.36.15.168.375.304.498.304.276 0 .89-.594.89-.86 0-.332-.533-.804-.908-.804m-66.164.008a.97.97 0 0 0-.698.253c-.35.351-.33.67.072 1.07.4.4.719.422 1.07.071.31-.31.341-.923.061-1.203a.74.74 0 0 0-.505-.19m8.487 0c-.253-.008-.523.079-.697.253-.35.351-.33.67.07 1.07.402.4.72.422 1.07.071.311-.31.343-.923.063-1.203a.75.75 0 0 0-.506-.19m-21.896.075c-.482 0-.601.077-.741.475-.144.41-.113.52.222.79.496.403.726.398 1.106-.022.242-.268.273-.432.147-.79-.132-.375-.259-.453-.734-.453m8.487 0c-.481 0-.601.077-.741.475-.144.41-.113.52.222.79.497.403.726.398 1.106-.022.243-.268.273-.432.147-.79-.132-.375-.259-.453-.734-.453m22.301 0c-.481 0-.6.077-.741.475-.144.41-.113.52.222.79.497.403.726.398 1.106-.022.243-.268.273-.432.147-.79-.132-.375-.258-.453-.734-.453m-17.528 1.934c-.14-.001-.265.1-.477.313-.401.4-.422.719-.072 1.07.31.31.923.341 1.203.061.318-.318.232-.923-.17-1.205-.223-.156-.36-.238-.484-.24m8.487 0c-.14-.001-.264.1-.477.313-.4.4-.422.719-.071 1.07.31.31.923.341 1.203.061.317-.318.232-.923-.17-1.205-.224-.156-.361-.238-.485-.24m18.014 0c-.141-.001-.265.1-.478.313-.4.4-.421.719-.07 1.07.31.31.922.341 1.202.061.318-.318.232-.923-.17-1.205-.223-.156-.36-.238-.484-.24m4.794 0c-.14-.001-.264.1-.477.313-.4.4-.422.719-.072 1.07.31.31.923.341 1.203.061.318-.318.233-.923-.17-1.205-.223-.156-.36-.238-.484-.24m15.452 0c-.14-.001-.265.1-.477.313-.401.4-.422.719-.072 1.07.31.31.923.341 1.203.061.318-.317.232-.923-.17-1.205-.223-.156-.36-.238-.484-.24m51.004 0c-.14-.001-.264.1-.477.313-.4.4-.422.719-.071 1.07.31.31.923.341 1.203.061.317-.317.232-.923-.17-1.205-.224-.156-.36-.238-.485-.24m-111.01.025c-.113 0-.224.063-.417.19-.446.291-.552.894-.216 1.229.11.11.394.2.632.2.877 0 1.153-.947.416-1.43-.193-.126-.304-.19-.416-.19m30.787 0c-.111 0-.223.063-.416.19-.445.291-.552.894-.216 1.229.11.11.394.2.632.2.878 0 1.153-.947.416-1.43-.192-.126-.304-.19-.416-.19m18.121.01c-.111 0-.223.063-.416.19-.446.292-.551.894-.216 1.23.257.257 1.007.257 1.265 0 .335-.336.229-.938-.217-1.23-.192-.127-.304-.19-.416-.19m44.047.003c-.275-.001-.55.175-.712.53-.138.303-.122.474.068.745.135.194.425.352.643.352.56 0 .944-.588.714-1.092-.162-.355-.437-.534-.713-.535m-42.108.012c-.525.016-.892.648-.53 1.202.326.496.979.513 1.314.034.289-.411.132-.855-.402-1.141a.75.75 0 0 0-.382-.095m37.717 0c-.525.016-.892.648-.53 1.202.326.496.979.513 1.315.034.288-.411.131-.855-.403-1.141a.76.76 0 0 0-.382-.095m15.462.005a.6.6 0 0 0-.267.075c-.47.252-.574.672-.28 1.122.278.423.888.52 1.215.193.5-.5-.049-1.421-.668-1.39m2.217.002h-.059a.64.64 0 0 0-.27.078.854.854 0 0 0-.358 1.17c.204.382.977.465 1.302.14.488-.488-.015-1.366-.615-1.388m-119.55 0c-.595.03-1.092.902-.606 1.388.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m77.636 0c-.596.03-1.092.902-.607 1.388.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m6.806 0c-.597.03-1.093.902-.607 1.388.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m15.46 0c-.597.03-1.093.902-.607 1.388.11.11.406.2.66.2.833 0 1.04-1.105.282-1.51a.64.64 0 0 0-.336-.078m4.211 0a.63.63 0 0 0-.336.078.854.854 0 0 0-.359 1.17c.204.382.977.465 1.302.14.486-.486-.01-1.357-.607-1.388m9.07 0c-.597.03-1.093.902-.607 1.388.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m2.163 0c-.596.03-1.093.902-.607 1.388.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m11.131 0c-.596.03-1.093.902-.607 1.388.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m2.164 0c-.597.03-1.093.902-.607 1.388.11.11.406.2.66.2.832 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m2.009.001a.6.6 0 0 0-.29.072c-.632.338-.582 1.112.097 1.497.398.226.94-.15 1.007-.699.055-.458-.386-.871-.814-.87m-70.624.002c-.602.027-1.102.894-.612 1.385.278.278 1.05.25 1.296-.048.275-.33.084-1.028-.344-1.257a.65.65 0 0 0-.34-.08m15.452 0c-.603.027-1.103.894-.612 1.385.278.278 1.05.25 1.296-.048.275-.33.084-1.028-.344-1.257a.65.65 0 0 0-.34-.08m-60.08 2.084c-.61 0-1.002 1.023-.56 1.464s1.464.05 1.464-.56c0-.308-.596-.904-.904-.904m15.445 0c-.61 0-1.002 1.023-.56 1.464s1.464.05 1.464-.56c0-.308-.596-.904-.904-.904m31.295 0c-.61 0-1.002 1.023-.56 1.464.42.42 1.464.011 1.464-.575 0-.296-.603-.89-.904-.89m22.258 0c-.61 0-1.002 1.023-.56 1.464.42.42 1.464.011 1.464-.575 0-.296-.603-.89-.904-.89m21.884 0c-.357 0-.861.496-.861.846 0 .162.117.412.261.556s.4.262.57.262c.38 0 .833-.43.833-.79 0-.348-.483-.874-.803-.874m20.252 0c-.357 0-.861.496-.861.846 0 .162.117.412.261.556s.4.262.57.262c.38 0 .833-.43.833-.79 0-.348-.483-.874-.803-.874m-28.696.01c-.232.001-.476.12-.66.383-.333.476-.327.56.074.962.562.562 1.331.289 1.331-.472 0-.545-.357-.874-.745-.872m-97.915.005c-.159 0-.3.082-.465.247-.349.348-.332 1.012.03 1.223.964.561 1.908-.592 1.003-1.226-.234-.163-.41-.245-.568-.244m6.472 0c-.182-.01-.368.077-.57.26-.377.341-.39.78-.034 1.137.718.718 1.83-.321 1.148-1.074-.185-.205-.363-.312-.544-.322m22.4 0c-.181-.01-.367.077-.57.26-.376.341-.389.78-.033 1.137.718.718 1.83-.321 1.148-1.074-.185-.205-.363-.312-.545-.322m15.344 0c-.182-.01-.368.077-.57.26-.377.341-.39.78-.034 1.137.718.718 1.83-.321 1.148-1.074-.185-.205-.363-.312-.544-.322m27.088.028c-.583.002-1.021.64-.644 1.216.329.502.982.532 1.312.062.292-.418.181-.939-.25-1.17a.9.9 0 0 0-.418-.108m-4.882.007a.76.76 0 0 0-.479.206c-.4.362-.414.702-.043 1.112.33.365 1.02.337 1.264-.053.384-.612-.16-1.292-.742-1.265m44.674 0a.76.76 0 0 0-.478.206c-.4.362-.414.702-.044 1.112.331.365 1.022.337 1.265-.053.384-.612-.16-1.292-.743-1.265m-106.757.003c-.267.003-.547.153-.728.476-.228.408-.222.477.062.79.557.616 1.425.356 1.425-.425 0-.538-.367-.846-.758-.84m15.443 0c-.268.003-.547.153-.727.476-.228.408-.223.477.061.79.557.616 1.425.356 1.425-.425 0-.538-.367-.846-.759-.84m6.958 0c-.268.003-.547.153-.728.476-.228.408-.222.477.062.79.557.616 1.425.356 1.425-.425 0-.538-.367-.846-.759-.84m26.501 0c-.268.003-.547.153-.728.476-.228.408-.223.477.062.79.556.616 1.425.356 1.425-.425 0-.538-.367-.846-.759-.84m4.795 0c-.268.003-.548.153-.728.476-.228.408-.223.477.061.79.557.616 1.425.356 1.425-.425 0-.538-.367-.846-.758-.84m21.806 0a.85.85 0 0 0-.782.468c-.136.254-.115.43.087.738.485.74 1.423.44 1.423-.454 0-.469-.35-.74-.728-.752m-77.674 0c-.603-.007-1.03.684-.62 1.267.132.19.42.344.638.344.84 0 1.096-1.18.33-1.529a.9.9 0 0 0-.348-.081m15.443 0c-.603-.007-1.029.684-.62 1.267.132.19.42.344.638.344.84 0 1.096-1.18.33-1.529a.9.9 0 0 0-.348-.081m15.445 0c-.603-.007-1.029.684-.62 1.267.133.19.42.344.638.344.84 0 1.096-1.18.33-1.529a.9.9 0 0 0-.348-.081m38.282 2.098c-.233 0-.477.12-.66.382-.334.476-.327.56.073.962.562.562 1.331.289 1.331-.472 0-.545-.357-.874-.744-.872m8.487 0c-.233 0-.476.12-.66.382-.334.476-.327.56.073.962.563.562 1.332.289 1.332-.472 0-.545-.358-.874-.745-.872m37.71 0c-.233 0-.476.12-.66.382-.334.476-.327.56.074.962.562.562 1.33.289 1.33-.472 0-.545-.356-.874-.744-.872m-39.967.015a.68.68 0 0 0-.46.197c-.299.3-.243 1.09.092 1.285.48.28.85.203 1.138-.237.253-.385.253-.446 0-.832a.9.9 0 0 0-.77-.413m20.118 0a.68.68 0 0 0-.46.197c-.3.3-.243 1.09.091 1.285.481.28.85.203 1.139-.237.252-.385.252-.446 0-.832a.9.9 0 0 0-.77-.413m17.592 0a.68.68 0 0 0-.46.197c-.3.3-.243 1.09.092 1.285.48.28.85.203 1.139-.237.252-.385.252-.446 0-.832a.9.9 0 0 0-.771-.413m-115.3.004a.7.7 0 0 0-.505.192c-.28.28-.249.893.062 1.203.337.337.716.332 1.098-.014.378-.342.387-.689.03-1.084a.93.93 0 0 0-.686-.297m66.51.004q-.278.004-.566.263c-.378.342-.387.69-.03 1.085.152.167.409.304.571.304.698 0 1.056-.903.557-1.403q-.255-.251-.532-.249m6.964 0q-.278.004-.566.263c-.377.342-.387.69-.029 1.085.152.167.408.304.57.304.698 0 1.057-.903.558-1.403q-.255-.251-.532-.249m-11.356.008a.67.67 0 0 0-.399.154c-.336.28-.304 1.104.051 1.31.45.262.793.213 1.134-.164.284-.314.29-.383.062-.79-.19-.34-.532-.526-.848-.51m22.257 0a.67.67 0 0 0-.398.154c-.336.28-.304 1.104.05 1.31.45.262.794.213 1.134-.164.285-.314.29-.383.062-.79-.19-.34-.532-.526-.848-.51m-57.727.005c-.16 0-.286.069-.453.22-.441.4-.43.837.032 1.16.45.316.643.324 1.027.043.46-.336.297-1.153-.269-1.35a1 1 0 0 0-.337-.073m86.64.002a.8.8 0 0 0-.55.235c-.336.337-.331.716.015 1.098.494.546 1.388.206 1.388-.527 0-.489-.424-.814-.853-.806m-91.415 0a.8.8 0 0 0-.55.235c-.336.337-.331.716.015 1.098.494.546 1.388.206 1.388-.527 0-.489-.424-.814-.853-.805m22.3 0a.8.8 0 0 0-.548.235c-.337.337-.332.716.014 1.098.494.546 1.388.206 1.388-.527 0-.489-.424-.814-.853-.805m31.405 0a.8.8 0 0 0-.55.235c-.336.337-.331.716.015 1.098.494.546 1.388.206 1.388-.527 0-.489-.424-.814-.853-.805m-22.378.002a.8.8 0 0 0-.504.217c-.41.37-.43.71-.063 1.114.553.612 1.455.204 1.361-.616-.052-.458-.413-.733-.794-.715m4.804.004a.76.76 0 0 0-.514.212c-.41.371-.429.71-.063 1.115.341.377.78.39 1.137.034.56-.562.05-1.362-.56-1.361m48.345 0c-.602-.026-1.104.72-.574 1.305.357.394.794.418 1.147.065.354-.354.33-.79-.064-1.147a.8.8 0 0 0-.51-.223m20.252 0c-.603-.026-1.104.72-.573 1.305.356.394.793.418 1.146.065.354-.354.33-.79-.064-1.147a.8.8 0 0 0-.51-.223m-113.172 2.13a.81.81 0 0 0-.764.56c-.143.407-.112.518.223.79.214.173.44.315.5.315.318 0 .851-.567.851-.904 0-.5-.404-.771-.81-.76m84.414 0c-.406-.01-.81.26-.81.76 0 .213.166.503.37.646.467.327.51.325.98-.057.335-.27.367-.382.224-.79a.81.81 0 0 0-.764-.559m8.487 0c-.406-.01-.81.26-.81.76 0 .213.166.503.37.646.467.327.51.325.98-.057.336-.27.367-.382.224-.79a.81.81 0 0 0-.764-.559m20.252 0c-.406-.01-.81.26-.81.76 0 .213.166.503.37.646.467.327.51.325.98-.057.336-.27.367-.382.224-.79a.81.81 0 0 0-.764-.559m-68.625 0c-.762 0-1.034.77-.472 1.332.405.405.63.417 1.027.057.615-.556.282-1.388-.555-1.388m4.278 0c-.778 0-1.038.949-.386 1.406.203.142.428.259.499.259.201 0 .795-.643.795-.86 0-.333-.533-.804-.908-.804m4.209 0c-.762 0-1.034.77-.472 1.332.405.405.63.417 1.027.057.615-.556.282-1.388-.555-1.388m4.912 0c-.777 0-1.067.955-.444 1.457.142.114.341.208.444.208.262 0 .685-.366.796-.688.137-.397-.336-.976-.796-.976m13.137 0c-.778 0-1.039.949-.387 1.406.204.142.428.259.5.259.2 0 .795-.643.795-.86 0-.333-.533-.804-.908-.804m8.487 0c-.778 0-1.039.949-.386 1.406.203.142.428.259.499.259.2 0 .795-.643.795-.86 0-.333-.533-.804-.908-.804m26.626 0c-.762 0-1.034.77-.472 1.332.4.4.485.407.961.074.7-.49.382-1.405-.49-1.405m-92.79.009a.97.97 0 0 0-.698.253c-.35.35-.33.67.072 1.07.404.405.629.417 1.027.057.347-.314.398-.895.104-1.189-.122-.122-.308-.185-.505-.191m26.5 0a.97.97 0 0 0-.697.253c-.35.35-.33.67.071 1.07.405.405.63.417 1.027.057.348-.314.4-.895.105-1.189-.122-.122-.309-.185-.505-.191m-53.286.003a.7.7 0 0 0-.535.188c-.318.318-.232.924.17 1.206.204.142.429.259.5.259.22 0 .795-.653.795-.903 0-.42-.484-.737-.93-.75m104.176.015h-.059a.64.64 0 0 0-.27.078.854.854 0 0 0-.358 1.17c.204.382.977.465 1.302.14.488-.488-.015-1.365-.615-1.388m-82.312.057c-.481 0-.601.077-.741.475-.144.409-.113.52.222.79.214.174.448.316.52.316.07 0 .304-.142.518-.315.336-.272.367-.382.223-.79-.14-.4-.26-.476-.742-.476m22.301 0c-.481 0-.6.077-.741.475-.144.409-.113.52.222.79.215.174.448.316.52.316.07 0 .304-.142.518-.315.336-.272.367-.382.223-.79-.14-.4-.26-.476-.742-.476m-39.93 1.933c-.14 0-.263.1-.476.313-.4.401-.422.72-.072 1.07.31.31.923.342 1.203.062.318-.317.233-.923-.17-1.205-.223-.157-.36-.238-.484-.24m15.444 0c-.14 0-.264.1-.477.313-.401.401-.422.72-.072 1.07.31.31.923.342 1.203.062.318-.317.232-.923-.17-1.205-.223-.157-.36-.238-.484-.24m6.958 0c-.14 0-.265.1-.477.313-.401.401-.422.72-.072 1.07.31.31.923.342 1.203.062.318-.317.232-.923-.17-1.205-.223-.157-.36-.238-.484-.24m26.5 0c-.14 0-.264.1-.477.313-.4.401-.421.72-.07 1.07.31.31.922.342 1.202.062.318-.317.232-.923-.17-1.205-.223-.157-.36-.238-.484-.24m-50.958.017c-.276 0-.55.175-.712.53-.138.303-.123.474.067.745.136.194.425.352.644.352.56 0 .943-.587.714-1.091-.162-.356-.438-.535-.713-.536m15.443 0c-.276 0-.551.175-.712.53-.139.303-.123.474.067.745.136.194.425.352.644.352.559 0 .943-.587.714-1.091-.162-.356-.438-.535-.713-.536m68.972.004q-.09 0-.193.033c-.578.183-.773.702-.45 1.196.333.507 1.015.485 1.364-.044.211-.32.195-.403-.157-.812-.223-.26-.382-.37-.564-.373m15.46 0q-.09 0-.194.033c-.578.183-.773.702-.449 1.196.333.508 1.014.485 1.364-.044.21-.32.194-.403-.158-.812-.223-.26-.381-.37-.564-.373m15.444 0q-.09 0-.193.033c-.578.183-.773.702-.449 1.196.332.508 1.014.485 1.363-.044.211-.32.195-.403-.157-.812-.223-.26-.382-.37-.564-.373m-111.077.004c-.111 0-.223.064-.416.19-.445.292-.552.895-.216 1.23.257.258 1.007.258 1.265 0 .335-.335.23-.938-.217-1.23-.192-.126-.304-.19-.416-.19m37.744 0c-.111 0-.223.064-.416.19-.445.292-.552.895-.216 1.23.257.258 1.007.258 1.265 0 .335-.335.23-.938-.217-1.23-.192-.126-.304-.19-.416-.19m31.404 0c-.111 0-.223.064-.416.19-.446.292-.551.895-.216 1.23.316.317 1.097.243 1.292-.122.272-.508.205-.814-.244-1.108-.192-.126-.304-.19-.416-.19m55.202.006a.6.6 0 0 0-.192.03c-.554.175-.749.701-.435 1.18.285.434.89.536 1.222.204.471-.47.01-1.406-.595-1.414m-68.54.007a.7.7 0 0 0-.449.191c-.373.338-.436.913-.134 1.216.325.324 1.098.242 1.302-.14.33-.617-.174-1.283-.718-1.267m15.453 0a.7.7 0 0 0-.45.191c-.373.338-.436.913-.134 1.216.325.324 1.098.242 1.302-.14.33-.617-.174-1.283-.718-1.267m22.265 0a.7.7 0 0 0-.45.191c-.373.338-.436.913-.133 1.216.324.324 1.097.242 1.301-.14.33-.617-.174-1.283-.718-1.267m15.444 0a.7.7 0 0 0-.449.191c-.373.338-.436.913-.134 1.216.325.324 1.098.242 1.302-.14.33-.617-.174-1.283-.719-1.267m13.295 0a.7.7 0 0 0-.45.191c-.373.338-.436.913-.133 1.216.324.324 1.097.242 1.301-.14.33-.617-.174-1.283-.718-1.267m-128.616.02c-.596.03-1.093.9-.607 1.387.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m8.487 0c-.596.03-1.093.9-.607 1.387.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m6.956 0c-.596.03-1.093.9-.607 1.387.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m42.465 0a.63.63 0 0 0-.336.077.854.854 0 0 0-.359 1.17c.204.382.977.465 1.301.14.486-.486-.01-1.357-.606-1.388m8.487 0a.63.63 0 0 0-.336.077.854.854 0 0 0-.359 1.17c.205.382.977.465 1.302.14.485-.486-.01-1.357-.607-1.388m6.964 0a.63.63 0 0 0-.336.077.854.854 0 0 0-.358 1.17c.204.382.977.465 1.301.14.486-.486-.01-1.357-.607-1.388m15.294 0a.63.63 0 0 0-.337.077.854.854 0 0 0-.358 1.17c.204.382.977.465 1.301.14.486-.486-.01-1.357-.606-1.388m2.112 0c-.597.03-1.093.9-.607 1.387.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078m15.46 0c-.597.03-1.093.9-.607 1.387.11.11.406.2.66.2.832 0 1.04-1.105.282-1.51a.64.64 0 0 0-.336-.078m4.845 0a.63.63 0 0 0-.336.077.854.854 0 0 0-.359 1.17c.204.382.977.465 1.301.14.486-.486-.01-1.357-.606-1.388m2.112 0c-.597.03-1.093.9-.607 1.387.11.11.407.2.66.2.833 0 1.04-1.105.283-1.51a.64.64 0 0 0-.336-.078" transform="translate(-239.14 -337.688)"/></svg>
+  </div>
+
+  <h2>WiFi Settings</h2>
+  <label for="ssid">SSID</label>
+  <input type="text" id="ssid" name="ssid" required />
+  <label for="password">Password</label>
+  <div style="position: relative;">
+    <input type="password" id="password" name="password" required />
+    <label class="small">
+      <input type="checkbox" id="togglePassword" style="margin-right: 0.3rem;" />
+      Show Password
+    </label>
+  </div>
+
+
+  <h2>Clock Settings</h2>
+  <label for="timeZone">Time Zone</label>
+  <select id="timeZone" name="timeZone" required>
+    <option value="" disabled selected>Select your time zone</option>
+  <option value="Africa/Cairo">Africa/Cairo</option>
+  <option value="Africa/Casablanca">Africa/Casablanca</option>
+  <option value="Africa/Johannesburg">Africa/Johannesburg</option>
+  <option value="America/Anchorage">America/Anchorage</option>
+  <option value="America/Argentina/Buenos_Aires">America/Argentina/Buenos_Aires</option>
+  <option value="America/Chicago">America/Chicago</option>
+  <option value="America/Denver">America/Denver</option>
+  <option value="America/Guatemala">America/Guatemala</option>
+  <option value="America/Halifax">America/Halifax</option>
+  <option value="America/Los_Angeles">America/Los_Angeles</option>
+  <option value="America/Mexico_City">America/Mexico_City</option>
+  <option value="America/New_York">America/New_York</option>
+  <option value="America/Phoenix">America/Phoenix</option>
+  <option value="America/Santiago">America/Santiago</option>
+  <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+  <option value="America/St_Johns">America/St_Johns</option>
+  <option value="America/Toronto">America/Toronto</option>
+  <option value="America/Vancouver">America/Vancouver</option>
+  <option value="Asia/Almaty">Asia/Almaty</option>
+  <option value="Asia/Amman">Asia/Amman</option>
+  <option value="Asia/Baghdad">Asia/Baghdad</option>
+  <option value="Asia/Bangkok">Asia/Bangkok</option>
+  <option value="Asia/Beirut">Asia/Beirut</option>
+  <option value="Asia/Dhaka">Asia/Dhaka</option>
+  <option value="Asia/Dubai">Asia/Dubai</option>
+  <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh</option>
+  <option value="Asia/Hong_Kong">Asia/Hong_Kong</option>
+  <option value="Asia/Jakarta">Asia/Jakarta</option>
+  <option value="Asia/Jerusalem">Asia/Jerusalem</option>
+  <option value="Asia/Karachi">Asia/Karachi</option>
+  <option value="Asia/Kathmandu">Asia/Kathmandu</option>
+  <option value="Asia/Kolkata">Asia/Kolkata</option>
+  <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur</option>
+  <option value="Asia/Manila">Asia/Manila</option>
+  <option value="Asia/Seoul">Asia/Seoul</option>
+  <option value="Asia/Shanghai">Asia/Shanghai</option>
+  <option value="Asia/Singapore">Asia/Singapore</option>
+  <option value="Asia/Taipei">Asia/Taipei</option>
+  <option value="Asia/Tashkent">Asia/Tashkent</option>
+  <option value="Asia/Tokyo">Asia/Tokyo</option>
+  <option value="Asia/Ulaanbaatar">Asia/Ulaanbaatar</option>
+  <option value="Asia/Yekaterinburg">Asia/Yekaterinburg</option>
+  <option value="Atlantic/Azores">Atlantic/Azores</option>
+  <option value="Atlantic/Reykjavik">Atlantic/Reykjavik</option>
+  <option value="Australia/Adelaide">Australia/Adelaide</option>
+  <option value="Australia/Brisbane">Australia/Brisbane</option>
+  <option value="Australia/Darwin">Australia/Darwin</option>
+  <option value="Australia/Hobart">Australia/Hobart</option>
+  <option value="Australia/Melbourne">Australia/Melbourne</option>
+  <option value="Australia/Perth">Australia/Perth</option>
+  <option value="Australia/Sydney">Australia/Sydney</option>
+  <option value="Europe/Amsterdam">Europe/Amsterdam</option>
+  <option value="Europe/Athens">Europe/Athens</option>
+  <option value="Europe/Belgrade">Europe/Belgrade</option>
+  <option value="Europe/Berlin">Europe/Berlin</option>
+  <option value="Europe/Brussels">Europe/Brussels</option>
+  <option value="Europe/Bucharest">Europe/Bucharest</option>
+  <option value="Europe/Copenhagen">Europe/Copenhagen</option>
+  <option value="Europe/Dublin">Europe/Dublin</option>
+  <option value="Europe/Helsinki">Europe/Helsinki</option>
+  <option value="Europe/Istanbul">Europe/Istanbul</option>
+  <option value="Europe/Kiev">Europe/Kiev</option>
+  <option value="Europe/Lisbon">Europe/Lisbon</option>
+  <option value="Europe/London">Europe/London</option>
+  <option value="Europe/Madrid">Europe/Madrid</option>
+  <option value="Europe/Moscow">Europe/Moscow</option>
+  <option value="Europe/Oslo">Europe/Oslo</option>
+  <option value="Europe/Paris">Europe/Paris</option>
+  <option value="Europe/Prague">Europe/Prague</option>
+  <option value="Europe/Rome">Europe/Rome</option>
+  <option value="Europe/Stockholm">Europe/Stockholm</option>
+  <option value="Europe/Warsaw">Europe/Warsaw</option>
+  <option value="Pacific/Auckland">Pacific/Auckland</option>
+  <option value="Pacific/Chatham">Pacific/Chatham</option>
+  <option value="Pacific/Fiji">Pacific/Fiji</option>
+  <option value="Pacific/Guam">Pacific/Guam</option>
+  <option value="Pacific/Honolulu">Pacific/Honolulu</option>
+  <option value="Pacific/Port_Moresby">Pacific/Port_Moresby</option>
+  <option value="Pacific/Tahiti">Pacific/Tahiti</option>
+  <option value="UTC">UTC</option>
+  <option value="Etc/GMT+1">Etc/GMT+1</option>
+  <option value="Etc/GMT-1">Etc/GMT-1</option>
+  </select>
+
+    <label for="language">Language (Day & Weather)</label>
+  <select id="language" name="language" onchange="setLanguage(this.value)">
+    <option value="" disabled selected>Select language</option>
+    <option value="af">Afrikaans</option>
+    <option value="hr">Croatian</option>
+    <option value="cs">Czech</option>
+    <option value="da">Danish</option>
+    <option value="nl">Dutch</option>
+    <option value="en">English</option>
+    <option value="eo">Esperanto</option>
+    <option value="et">Estonian</option>
+    <option value="fi">Finnish</option>
+    <option value="fr">French</option>
+    <option value="de">German</option>
+    <option value="hu">Hungarian</option>
+    <option value="it">Italian</option>
+    <option value="ga">Irish</option>
+    <option value="ja">Japanese</option>
+    <option value="lv">Latvian</option>
+    <option value="lt">Lithuanian</option>
+    <option value="no">Norwegian</option>
+    <option value="pl">Polish</option>
+    <option value="pt">Portuguese</option>
+    <option value="ro">Romanian</option>
+    <option value="ru">Russian</option>
+    <option value="sr">Serbian</option>
+    <option value="sk">Slovak</option>
+    <option value="sl">Slovenian</option>
+    <option value="es">Spanish</option>
+    <option value="sv">Swedish</option>
+    <option value="sw">Swahili</option>
+    <option value="tr">Turkish</option>
+  </select>
+
+  <div class="form-row two-col">
+    <div>
+      <label for="clockDuration">Clock Duration</label>
+      <input type="number" id="clockDuration" name="clockDuration" min="1" required />
+      <label class="small">(Seconds)</label>
+    </div>
+    <div>
+      <label for="weatherDuration">Weather Duration</label>
+      <input type="number" id="weatherDuration" name="weatherDuration" min="1" required />
+      <label class="small">(Seconds)</label>
+    </div>
+  </div>
+
+
+  <h2>Weather Settings</h2>
+  <label for="openWeatherApiKey">OpenWeather API Key</label>
+  <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" placeholder="ADD-YOUR-API-KEY-32-CHARACTERS"/>    
+  <div class="small">Required to fetch weather data. <a href="https://home.openweathermap.org/users/sign_up" target="_blank">Get your API key here</a>.</div>
+
+  <label>Location</label>
+  <div class="form-row two-col"> 
+    <input type="text" id="openWeatherCity" name="openWeatherCity" placeholder="City / Zip / Lat."/>    
+    <input type="text" id="openWeatherCountry" name="openWeatherCountry" placeholder="Country Code / Long."/>  
+  </div>
+  <button type="button" class="primary-button" id="geo-button" onclick="getLocation()" style="margin-top: 1rem;">Get My Location</button>
+
+  <div class="small">    
+    <strong>Location format examples:</strong> City, Country Code - Osaka, JP | ZIP, Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023
+  </div>
+  
+  <div class="form-group">
+    <h2>Custom Message</h2>
+    <input id="customMessage" name="customMessage" type="text" maxlength="120" placeholder="ENTER MESSAGE" pattern="[A-Z0-9 :!'\-.,_\+%\/?]*" title="Only uppercase letters, numbers, space, and : ! ' - . ? , _ + % / ? allowed">
+    <div class="small">Allowed characters: A–Z, 0–9, space, and : ! ' - . ? , _ + % /</div>
+  </div>
+  <div class="button-row">
+    <button type="button" class="primary-button cmsg1" onclick="sendCustomMessage()">Send Message</button>
+    <button type="button" class="primary-button cmsg2" onclick="clearCustomMessage()">Clear Message</button>
+  </div>     
+
+  <div class="geo-note" style="display: none;">
+    <br>
+    <span class="small"><strong>Note:</strong> External links, Custom Message and the "Get My Location" button require internet access.</span>
+    <span class="small">They won't work while the device is in AP Mode - connect to Wi-Fi first.</span>
+  </div>
+
+  <button type="button" class="collapsible-toggle" aria-expanded="false">
+    <span class="icon-area" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 16 16" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <path  fill="currentColor" d="M16,9V7l-2.259-0.753c-0.113-0.372-0.262-0.728-0.441-1.066l1.066-2.131L12.95,1.634L10.819,2.7 c-0.338-0.178-0.694-0.325-1.066-0.441L9,0H7L6.247,2.259C5.875,2.372,5.519,2.522,5.181,2.7L3.05,1.638L1.638,3.05l1.066,2.131 C2.522,5.519,2.375,5.875,2.259,6.247L0,7v2l2.259,0.753c0.112,0.372,0.263,0.728,0.441,1.066L1.634,12.95l1.416,1.416L5.181,13.3 c0.338,0.178,0.694,0.328,1.066,0.441L7,16h2l0.753-2.259c0.372-0.113,0.728-0.262,1.066-0.441l2.131,1.066l1.416-1.416L13.3,10.819 c0.178-0.337,0.328-0.694,0.344-1.066L16,9z M8,11c-1.656,0-3-1.344-3-3s1.344-3,3-3s3,1.344,3,3S9.656,11,8,11z" />
+      </svg>
+    </span>
+    <span>Advanced Settings</span>
+  </button>
+
+  <div class="collapsible-content" aria-hidden="true">
+    <label>Primary NTP Server:</label>
+    <input type="text" name="ntpServer1" id="ntpServer1" placeholder="Enter NTP address">
+
+    <label>Secondary NTP Server:</label>
+    <input type="text" name="ntpServer2" id="ntpServer2" placeholder="Enter NTP address">
+    <div class="toggles" style="padding: 0 1rem;">
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Show Day Of The Week:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="showDayOfWeek" name="showDayOfWeek" onchange="setShowDayOfWeek(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Animated Seconds:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="colonBlinkEnabled" name="colonBlinkEnabled" onchange="setColonBlink(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Show Date:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="showDate" name="showDate" onchange="setShowDate(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Display 12-hour Clock:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="twelveHourToggle" name="twelveHourToggle" onchange="setTwelveHour(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Use Imperial Units (°F):</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="weatherUnits" name="weatherUnits" onchange="setWeatherUnits(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Show Humidity:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="showHumidity" name="showHumidity" onchange="setShowHumidity(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Show Weather Description:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="showWeatherDescription" name="showWeatherDescription" onchange="setShowWeatherDescription(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+        <span style="margin-right: 0.5em;">Flip Display (180°):</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="flipDisplay" name="flipDisplay" onchange="setFlipDisplay(this.checked)">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <label style="margin-top: 1.75rem;">Brightness: <span id="brightnessValue">10</span></label>
+      <input style="width: 100%;" type="range" min="-1" max="15" name="brightness" id="brightnessSlider" value="10" 
+      oninput="brightnessValue.textContent = (this.value == -1 ? 'Off' : this.value); setBrightnessLive(this.value);">
+      <br><br><br>
+
+
+<label style="display: flex; align-items: center; justify-content: space-between; margin-top: 1rem;">
+  <span style="margin-right: 0.5em;">Automatic Dimming:</span>
+  <span class="toggle-switch">
+    <input type="checkbox" id="autoDimmingEnabled" name="autoDimmingEnabled">
+    <span class="toggle-slider"></span>
+  </span>
+</label>
+<div id="autoDimmingNote" class="small">
+  Requires a valid OpenWeather API key.
+</div>
+
+
+<label style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.75rem;">
+  <span style="margin-right: 0.5em;">Custom Dimming:</span>
+  <span class="toggle-switch">
+    <input type="checkbox" id="dimmingEnabled" name="dimmingEnabled">
+    <span class="toggle-slider"></span>
+  </span>
+</label>
+
+
+<div class="form-row two-col">   
+  <div>         
+    <label for="dimStartTime">Start Time:</label>
+    <input type="time" id="dimStartTime" value="18:00">
+  </div>
+
+  <div>
+    <label for="dimEndTime">End Time:</label>
+    <input type="time" id="dimEndTime" value="08:00">
+  </div>
+</div>
+
+<label style="margin-top: 1.75rem;" for="dimBrightness">
+  Dimming Brightness: <span id="dimmingBrightnessValue">2</span>
+</label>
+<input style="width: 100%;" type="range" min="-1" max="15"
+  name="dimming_brightness" id="dimBrightness" value="2"
+  oninput="dimmingBrightnessValue.textContent = (this.value == -1 ? 'Off' : this.value);">
+
+      <br><br><br>
+      <div class="form-group">
+          <label style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="margin-right: 0.5em;">Enable Countdown:</span>
+              <span class="toggle-switch">
+                  <input type="checkbox" id="countdownEnabled" name="countdownEnabled">
+                  <span class="toggle-slider"></span>
+              </span>
+          </label>
+      </div>
+      <div class="form-group">
+        <label style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="margin-right: 0.5em;">Dramatic Countdown:</span>
+          <span class="toggle-switch">
+              <input type="checkbox" id="isDramaticCountdown" name="isDramaticCountdown">
+              <span class="toggle-slider"></span>
+          </span>
+        </label>
+      </div>
+      <div class="form-row two-col">
+        <div class="form-group">
+            <label for="countdownDate">Date:</label>
+            <input type="date" id="countdownDate" name="countdownDate" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="countdownTime">Time:</label>
+            <input type="time" id="countdownTime" name="countdownTime" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="countdownLabel">Countdown Label (Optional):</label>
+        <input type="text" id="countdownLabel" name="countdownLabel" class="form-control"
+          placeholder="e.g., BIRTHDAY, VACATION" maxlength="24"
+          pattern="[A-Z0-9 :!'\-.,_\+%\/?]*"
+          title="Only uppercase letters, numbers, space, and : ! ' - . , _ + % / ? allowed">
+        <div class="small">Allowed characters: A–Z, 0–9, space, and : ! ' - . ? , _ + % /</div>
+      </div>
+    </div>   
+  </div>
+  <input type="submit" class="primary-button" value="Save Settings">
+</form>
+
+<div class="footer">
+  Project by: <a href="https://www.instagram.com/mfactory.osaka" target="_blank" rel="noopener noreferrer">M-Factory</a><br>
+  Device uptime: <span id="uptimeDisplay">Loading...</span>
+</div>
+
+<div id="savingMessage"></div>
+<script>
+let isSaving = false;
+let isAPMode = false;
+
+// Set initial value display for brightness
+document.addEventListener('DOMContentLoaded', function() {
+  brightnessValue.textContent = brightnessSlider.value;
+
+ // Sanitize input LIVE for customMessage
+  var customMsgInput = document.getElementById('customMessage');
+  if (customMsgInput) {
+    customMsgInput.addEventListener('input', function() {
+      let before = this.value;
+      let after = before.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
+      if (before !== after) {
+        this.value = after;
+      }
+    });
+  }
+
+});
+
+// Show/Hide Password toggle
+document.addEventListener("DOMContentLoaded", function () {
+  const passwordInput = document.getElementById("password");
+  const toggleCheckbox = document.getElementById("togglePassword");
+
+  toggleCheckbox.addEventListener("change", function () {
+    if (this.checked) {
+      // Show password as text
+      passwordInput.type = "text";
+
+      // Only clear if it's the masked placeholder
+      if (passwordInput.value === "********") {
+        passwordInput.value = ""; 
+        passwordInput.placeholder = "Enter new password"; 
+      }
+    } else {
+      // Hide password as dots
+      passwordInput.type = "password";
+
+      // Remove placeholder only if it was set by show-password toggle
+      if (passwordInput.placeholder === "Enter new password") {
+        passwordInput.placeholder = "";
+      }
+    }
+  });
+});
+
+
+
+window.onbeforeunload = function () {
+  if (isSaving) {
+    return "Settings are being saved. Leaving now may interrupt the process.";
+  }
+};
+
+window.onload = function () {
+  fetch('/config.json')
+  .then(response => response.json())
+  .then(data => {
+    isAPMode = (data.mode === "ap");
+    if (isAPMode) {
+      document.querySelector('.geo-note').style.display = 'block';
+      document.getElementById('geo-button').classList.add('geo-disabled');
+      document.getElementById('geo-button').disabled = true;
+
+      document.querySelector('.cmsg1').classList.add('geo-disabled');
+      document.querySelector('.cmsg1').disabled = true;
+
+      document.querySelector('.cmsg2').classList.add('geo-disabled');
+      document.querySelector('.cmsg2').disabled = true;
+    }
+    document.getElementById('ssid').value = data.ssid || '';
+    document.getElementById('password').value = data.password || '';
+    const apiInput = document.getElementById('openWeatherApiKey');
+    if (data.openWeatherApiKey && data.openWeatherApiKey.trim() !== '') {
+      apiInput.value = MASK;
+      hasSavedKey = true;
+    } else {
+      apiInput.value = '';
+      hasSavedKey = false;
+    }
+
+    document.getElementById('openWeatherCity').value = data.openWeatherCity || '';
+    document.getElementById('openWeatherCountry').value = data.openWeatherCountry || '';
+    document.getElementById('weatherUnits').checked = (data.weatherUnits === "imperial");
+    document.getElementById('clockDuration').value = (data.clockDuration || 10000) / 1000;
+    document.getElementById('weatherDuration').value = (data.weatherDuration || 5000) / 1000;
+    document.getElementById('language').value = data.language || '';
+
+    // Advanced:
+    document.getElementById('brightnessSlider').value = typeof data.brightness !== "undefined" ? data.brightness : 10;
+    document.getElementById('brightnessValue').textContent = (document.getElementById('brightnessSlider').value == -1 ? 'Off' : document.getElementById('brightnessSlider').value);
+    document.getElementById('flipDisplay').checked = !!data.flipDisplay;
+    document.getElementById('ntpServer1').value = data.ntpServer1 || "";
+    document.getElementById('ntpServer2').value = data.ntpServer2 || "";
+    document.getElementById('twelveHourToggle').checked = !!data.twelveHourToggle;
+    document.getElementById('showDayOfWeek').checked = !!data.showDayOfWeek;
+    document.getElementById('showDate').checked = !!data.showDate;
+    document.getElementById('showHumidity').checked = !!data.showHumidity;
+    document.getElementById('colonBlinkEnabled').checked = !!data.colonBlinkEnabled;
+    document.getElementById('showWeatherDescription').checked = !!data.showWeatherDescription;
+
+    // --- Dimming Controls ---
+    const autoDimmingEl = document.getElementById('autoDimmingEnabled');
+    const dimmingEnabledEl = document.getElementById('dimmingEnabled');
+    const apiInputEl = document.getElementById('openWeatherApiKey');
+
+    // Evaluate flags from config.json
+    const isAutoDimming = (data.autoDimmingEnabled === true || data.autoDimmingEnabled === "true" || data.autoDimmingEnabled === 1);
+    const isCustomDimming = (data.dimmingEnabled === true || data.dimmingEnabled === "true" || data.dimmingEnabled === 1);
+
+    // Set toggle states
+    autoDimmingEl.checked = isAutoDimming;
+    dimmingEnabledEl.checked = isCustomDimming;
+
+    // Apply initial dimming state
+    setDimmingFieldsEnabled();
+
+    // Attach listeners (mutually exclusive + API dependency)
+    if (apiInputEl) apiInputEl.addEventListener('input', setDimmingFieldsEnabled);
+    autoDimmingEl.addEventListener('change', () => {
+      if (autoDimmingEl.checked) dimmingEnabledEl.checked = false;
+      setDimmingFieldsEnabled();
+    });
+    dimmingEnabledEl.addEventListener('change', () => {
+      if (dimmingEnabledEl.checked) autoDimmingEl.checked = false;
+      setDimmingFieldsEnabled();
+    });
+
+    // Set field values from config
+    document.getElementById('dimStartTime').value =
+      (data.dimStartHour !== undefined ? String(data.dimStartHour).padStart(2, '0') : "18") + ":" +
+      (data.dimStartMinute !== undefined ? String(data.dimStartMinute).padStart(2, '0') : "00");
+
+    document.getElementById('dimEndTime').value =
+      (data.dimEndHour !== undefined ? String(data.dimEndHour).padStart(2, '0') : "08") + ":" +
+      (data.dimEndMinute !== undefined ? String(data.dimEndMinute).padStart(2, '0') : "00");
+
+    document.getElementById('dimBrightness').value = (data.dimBrightness !== undefined ? data.dimBrightness : 2);
+    document.getElementById('dimmingBrightnessValue').textContent =
+      (document.getElementById('dimBrightness').value == -1 ? 'Off' : document.getElementById('dimBrightness').value);
+
+    // --- Populate Countdown Fields ---
+    document.getElementById('isDramaticCountdown').checked = !!(data.countdown && data.countdown.isDramaticCountdown);
+    const countdownEnabledEl = document.getElementById('countdownEnabled'); // Get reference
+    countdownEnabledEl.checked = !!(data.countdown && data.countdown.enabled);
+    if (data.countdown && data.countdown.targetTimestamp) {
+      const targetDate = new Date(data.countdown.targetTimestamp * 1000);
+      const year = targetDate.getFullYear();
+      const month = (targetDate.getMonth() + 1).toString().padStart(2, '0');
+      const day = targetDate.getDate().toString().padStart(2, '0');
+      const hours = targetDate.getHours().toString().padStart(2, '0');
+      const minutes = targetDate.getMinutes().toString().padStart(2, '0');
+      document.getElementById('countdownDate').value = `${year}-${month}-${day}`;
+      document.getElementById('countdownTime').value = `${hours}:${minutes}`;
+    } else {
+      document.getElementById('countdownDate').value = '';
+      document.getElementById('countdownTime').value = '';
+    }
+
+    // Countdown Label Input Validation 
+    const countdownLabelInput = document.getElementById('countdownLabel');
+    countdownLabelInput.addEventListener('input', function() {
+      this.value = this.value.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
+    });
+    if (data.countdown && data.countdown.label) {
+      countdownLabelInput.value = data.countdown.label.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
+    } else {
+      countdownLabelInput.value = '';
+    }
+
+    // Countdown Toggle Event Listener & Field Enabling 
+    countdownEnabledEl.addEventListener('change', function() {
+      setCountdownEnabled(this.checked);
+      setCountdownFieldsEnabled(this.checked);
+    });
+    const dramaticCountdownEl = document.getElementById('isDramaticCountdown');
+    dramaticCountdownEl.addEventListener('change', function () {
+      setIsDramaticCountdown(this.checked);
+    });
+    setCountdownFieldsEnabled(countdownEnabledEl.checked);
+
+    if (data.customMessage !== undefined) {
+      document.getElementById('customMessage').value = data.customMessage;
+    }
+
+    // Auto-detect browser's timezone if not set in config
+    if (!data.timeZone) {
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (tz && document.getElementById('timeZone').querySelector(`[value="${tz}"]`)) {
+          document.getElementById('timeZone').value = tz;
+        } else {
+          document.getElementById('timeZone').value = '';
+        }
+      } catch (e) {
+        document.getElementById('timeZone').value = '';
+      }
+    } else {
+      document.getElementById('timeZone').value = data.timeZone;
+    }
+  })
+  .catch(err => {
+    console.error('Failed to load config:', err);
+    showSavingModal("");
+    updateSavingModal("⚠️ Failed to load configuration.", false);
+    // Show appropriate button for load error
+    removeReloadButton();
+    removeRestoreButton();
+    const errorMsg = (err.message || "").toLowerCase();
+    if (
+      errorMsg.includes("config corrupted") ||
+      errorMsg.includes("failed to write config") ||
+      errorMsg.includes("restore")
+    ) {
+      ensureRestoreButton();
+    } else {
+      ensureReloadButton();
+    }
+  });
+  document.querySelector('html').style.height = 'unset';       
+  document.body.classList.add('loaded');     
+};
+
+async function submitConfig(event) {
+  event.preventDefault();
+  isSaving = true;
+
+  const form = document.getElementById('configForm');
+  const formData = new FormData(form);
+
+  const clockDuration = parseInt(formData.get('clockDuration')) * 1000;
+  const weatherDuration = parseInt(formData.get('weatherDuration')) * 1000;
+  formData.set('clockDuration', clockDuration);
+  formData.set('weatherDuration', weatherDuration);
+
+  let apiKeyToSend = apiInput.value;
+
+  // If the user left the masked key untouched, skip sending it
+  if (apiKeyToSend === MASK && hasSavedKey) {
+    formData.delete('openWeatherApiKey');
+  } else {
+    formData.set('openWeatherApiKey', apiKeyToSend);
+  }
+
+  // Advanced: ensure correct values are set for advanced fields
+  formData.set('brightness', document.getElementById('brightnessSlider').value);
+  formData.set('flipDisplay', document.getElementById('flipDisplay').checked ? 'on' : '');
+  formData.set('twelveHourToggle', document.getElementById('twelveHourToggle').checked ? 'on' : '');
+  formData.set('showDayOfWeek', document.getElementById('showDayOfWeek').checked ? 'on' : '');
+  formData.set('showDate', document.getElementById('showDate').checked ? 'on' : '');
+  formData.set('showHumidity', document.getElementById('showHumidity').checked ? 'on' : '');
+  formData.set('colonBlinkEnabled', document.getElementById('colonBlinkEnabled').checked ? 'on' : '');
+
+  // --- Dimming ---
+  const autoDimmingChecked = document.getElementById('autoDimmingEnabled').checked;
+  const customDimmingChecked = document.getElementById('dimmingEnabled').checked;
+
+  // Mutual exclusivity (if both checked somehow, keep auto as priority)
+  if (autoDimmingChecked && customDimmingChecked) {
+    formData.set('autoDimmingEnabled', 'true');
+    formData.set('dimmingEnabled', 'false');
+  } else {
+    formData.set('autoDimmingEnabled', autoDimmingChecked ? 'true' : 'false');
+    formData.set('dimmingEnabled', customDimmingChecked ? 'true' : 'false');
+  }
+
+  const dimStart = document.getElementById('dimStartTime').value; // "18:45"
+  const dimEnd = document.getElementById('dimEndTime').value; // "08:30"
+
+  // Parse hour and minute
+  if (dimStart) {
+    const [startHour, startMin] = dimStart.split(":").map(x => parseInt(x, 10));
+    formData.set('dimStartHour', startHour);
+    formData.set('dimStartMinute', startMin);
+  }
+  if (dimEnd) {
+    const [endHour, endMin] = dimEnd.split(":").map(x => parseInt(x, 10));
+    formData.set('dimEndHour', endHour);
+    formData.set('dimEndMinute', endMin);
+  }
+  formData.set('dimBrightness', document.getElementById('dimBrightness').value);
+  formData.set('showWeatherDescription', document.getElementById('showWeatherDescription').checked ? 'on' : '');
+  formData.set('weatherUnits', document.getElementById('weatherUnits').checked ? 'imperial' : 'metric');
+
+  // --- NEW: Countdown Form Data ---
+  formData.set('countdownEnabled', document.getElementById('countdownEnabled').checked ? 'true' : 'false');
+  formData.set('isDramaticCountdown', document.getElementById('isDramaticCountdown').checked ? 'true' : 'false');
+  // Date and Time inputs are already handled by formData if they have a 'name' attribute
+  // 'countdownDate' and 'countdownTime' are collected automatically
+  // Also apply the same validation for the label when submitting
+  const finalCountdownLabel = document.getElementById('countdownLabel').value.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
+  formData.set('countdownLabel', finalCountdownLabel);
+  // --- END NEW ---
+
+  const params = new URLSearchParams();
+  for (const pair of formData.entries()) {
+    params.append(pair[0], pair[1]);
+  }
+
+  // Sanitize and set customMessage before sending
+  const customMsgInput = document.getElementById('customMessage');
+  if (customMsgInput) {
+    customMsgInput.value = customMsgInput.value
+      .toUpperCase()
+      .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 120);
+  }
+
+  // Check AP mode status
+  let isAPMode = false;
+  try {
+    const apStatusResponse = await fetch('/ap_status');
+    const apStatusData = await apStatusResponse.json();
+    isAPMode = apStatusData.isAP;
+  } catch (error) {
+    console.error("Error fetching AP status:", error);
+    // Handle error appropriately (e.g., assume not in AP mode)
+  }
+
+  if (isAPMode) {
+    showSavingModal("");
+    updateSavingModal(
+      "✅ Settings saved successfully!<br><br>" +
+      "Rebooting the device now...<br><br>" +
+      "Your device will connect to your Wi-Fi.<br>" +
+      "Its new IP address will appear on the display for future access.",
+      true // show spinner
+    );
+    } else{
+      showSavingModal("");
+    };  
+
+  await new Promise(resolve => setTimeout(resolve, isAPMode ? 5000 : 0));
+  fetch('/save', {
+    method: 'POST',
+    body: params
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.json().then(json => {
+        throw new Error(`Server error ${response.status}: ${json.error}`);
+      });
+    }
+    return response.json();
+  })
+  .then(json => {
+    isSaving = false;
+    removeReloadButton();
+    removeRestoreButton();
+
+    if (isAPMode) {
+      setTimeout(() => {
+      document.getElementById('configForm').style.display = 'none';
+      document.querySelector('.footer').style.display = 'none';
+      document.querySelector('html').style.height = '100vh';
+      document.body.style.height = '100vh';
+      updateSavingModal(
+        "✅ All done!<br>You can now close this tab safely.<br><br>" +
+        "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
+        "Check the display for the current IP address.",
+        false // stop spinner
+      );
+    }, 5000);
+  return;
+  } else {
+      showSavingModal("");
+      updateSavingModal("✅ Configuration saved successfully.<br><br>Device will reboot", false);
+      setTimeout(() => location.href = location.href.split('#')[0], 3000);
+    }
+  })
+  .catch(err => {
+    isSaving = false;
+
+    if (isAPMode && err.message.includes("Failed to fetch")) {
+      console.warn("Expected disconnect in AP mode after reboot.");
+      showSavingModal("");
+      updateSavingModal("✅ Settings saved successfully!<br><br>Rebooting the device now... ", false);
+      setTimeout(() => {
+        document.getElementById('configForm').style.display = 'none'; 
+        updateSavingModal("✅ All done!<br>You can now close this tab safely.<br><br>" +
+        "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
+        "Check the display for the current IP address.", false);
+      }, 5000);
+      removeReloadButton();
+      removeRestoreButton();
+      return;
+    }
+
+    console.error('Save error:', err);
+    let friendlyMessage = "⚠️ Something went wrong while saving the configuration.";
+    if (err.message.includes("Failed to fetch")) {
+      friendlyMessage = "⚠️ Cannot connect to the device.<br>Is it powered on and connected?";
+    }
+
+    updateSavingModal(`${friendlyMessage}<br><br>Details: ${err.message}`, false);
+
+    // Show only one action button, based on error content
+    removeReloadButton();
+    removeRestoreButton();
+    const errorMsg = (err.message || "").toLowerCase();
+    if (
+      errorMsg.includes("config corrupted") ||
+      errorMsg.includes("failed to write config") ||
+      errorMsg.includes("restore")
+    ) {
+      ensureRestoreButton();
+    } else {
+      ensureReloadButton();
+    }
+  });
+}
+
+function showSavingModal(message) {
+  let modal = document.getElementById('savingModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'savingModal';
+    modal.innerHTML = `
+      <div id="savingModalContent">
+        <div class="spinner"></div>
+        <div id="savingModalText">${message}</div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  } else {
+    document.getElementById('savingModalText').innerHTML = message;
+    document.querySelector('#savingModal .spinner').style.display = 'block';
+  }
+  modal.style.display = 'flex';
+  document.body.classList.add('modal-open');
+}
+
+function updateSavingModal(message, showSpinner = false) {
+  let modalText = document.getElementById('savingModalText');
+  modalText.innerHTML = message;
+  document.querySelector('#savingModal .spinner').style.display = showSpinner ? 'block' : 'none';
+
+  // Remove reload/restore buttons if no longer needed
+  if (message.includes("saved successfully") || message.includes("Backup restored") || message.includes("All done!")) {
+    removeReloadButton();
+    removeRestoreButton();
+  }
+}
+
+function ensureReloadButton(options = {}) {
+  let modalContent = document.getElementById('savingModalContent');
+  if (!modalContent) return;
+  let btn = document.getElementById('reloadButton');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'reloadButton';
+    btn.className = 'primary-button';
+    btn.style.display = 'inline-block';
+    btn.style.margin = '1rem 0.5rem 0 0';
+    modalContent.appendChild(btn);
+  }
+  btn.textContent = options.text || "Reload Page";
+  btn.onclick = options.onClick || (() => location.reload());
+  btn.style.display = 'inline-block';
+  return btn;
+}
+
+function ensureRestoreButton(options = {}) {
+  let modalContent = document.getElementById('savingModalContent');
+  if (!modalContent) return;
+  let btn = document.getElementById('restoreButton');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'restoreButton';
+    btn.className = 'primary-button';
+    btn.style.display = 'inline-block';
+    btn.style.margin = '1rem 0 0 0.5rem';
+    modalContent.appendChild(btn);
+  }
+  btn.textContent = options.text || "Restore Backup";
+  btn.onclick = options.onClick || restoreBackupConfig;
+  btn.style.display = 'inline-block';
+  return btn;
+}
+
+function removeReloadButton() {
+  let btn = document.getElementById('reloadButton');
+  if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+}
+function removeRestoreButton() {
+  let btn = document.getElementById('restoreButton');
+  if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+}
+function restoreBackupConfig() {
+  showSavingModal("Restoring backup...");
+  removeReloadButton();
+  removeRestoreButton();
+
+  fetch('/restore', { method: 'POST' })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error("Server returned an error");
+    }
+    return response.json();
+  })
+  .then(data => {
+    updateSavingModal("✅ Backup restored! Device will now reboot.");
+    setTimeout(() => location.reload(), 1500);
+  })
+  .catch(err => {
+    console.error("Restore error:", err);
+    updateSavingModal(`❌ Failed to restore backup: ${err.message}`, false);
+
+    // Show only one button, for backup restore failures show reload.
+    removeReloadButton();
+    removeRestoreButton();
+    ensureReloadButton();
+  });
+}
+
+function hideSavingModal() {
+  const modal = document.getElementById('savingModal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+  }
+}
+
+const toggle = document.querySelector('.collapsible-toggle');
+const content = document.querySelector('.collapsible-content');
+toggle.addEventListener('click', function() {
+  const isOpen = toggle.classList.toggle('open');
+  toggle.setAttribute('aria-expanded', isOpen);
+  content.setAttribute('aria-hidden', !isOpen);
+  if(isOpen) {
+    content.style.height = content.scrollHeight + 'px';
+    content.addEventListener('transitionend', function handler() {
+      content.style.height = 'auto';
+      content.removeEventListener('transitionend', handler);
+    });
+  } else {
+    content.style.height = content.scrollHeight + 'px';
+    // Force reflow to make sure the browser notices the height before transitioning to 0
+    void content.offsetHeight;
+    content.style.height = '0px';
+  }
+});
+// Optional: If open on load, set height to auto
+if(toggle.classList.contains('open')) {
+  content.style.height = 'auto';
+}
+
+let brightnessDebounceTimeout = null;
+
+function setBrightnessLive(val) {
+  // Cancel the previous timeout if it exists
+  if (brightnessDebounceTimeout) {
+    clearTimeout(brightnessDebounceTimeout);
+  }
+  // Set a new timeout
+  brightnessDebounceTimeout = setTimeout(() => {
+    fetch('/set_brightness', {
+      method: 'POST',
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "value=" + encodeURIComponent(val)
+    })
+    .then(res => res.json())
+    .catch(e => {}); // Optionally handle errors
+  }, 150); // 150ms debounce, adjust as needed
+}
+
+function setFlipDisplay(val) {
+  fetch('/set_flip', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setTwelveHour(val) {
+  fetch('/set_twelvehour', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setShowDayOfWeek(val) {
+  fetch('/set_dayofweek', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setShowDate(val) {
+  fetch('/set_showdate', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setColonBlink(val) {
+  fetch('/set_colon_blink', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setShowHumidity(val) {
+  fetch('/set_humidity', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setLanguage(val) {
+  fetch('/set_language', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + encodeURIComponent(val)
+  });
+}
+
+function setShowWeatherDescription(val) {
+  fetch('/set_weatherdesc', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function setWeatherUnits(val) {
+  fetch('/set_units', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+// --- Countdown Controls Logic ---
+// NEW: Function to enable/disable countdown specific fields
+function setCountdownFieldsEnabled(enabled) {
+  document.getElementById('countdownLabel').disabled = !enabled;
+  document.getElementById('countdownDate').disabled = !enabled;
+  document.getElementById('countdownTime').disabled = !enabled;
+  document.getElementById('isDramaticCountdown').disabled = !enabled;
+}
+
+// Existing function to send countdown enable/disable command to ESP
+function setCountdownEnabled(val) {
+  fetch('/set_countdown_enabled', {
+      method: 'POST',
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "value=" + (val ? 1 : 0) // Send 1 for true, 0 for false
+  });
+}
+
+function setIsDramaticCountdown(val) {
+  fetch('/set_dramatic_countdown', {
+      method: 'POST',
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "value=" + (val ? 1 : 0) // Send 1 for true, 0 for false
+  });
+}
+// --- END Countdown Controls Logic ---
+
+
+// --- Dimming Controls Logic ---
+function setDimmingFieldsEnabled(enabled) {
+  document.getElementById('dimStartTime').disabled = !enabled;
+  document.getElementById('dimEndTime').disabled = !enabled;
+  document.getElementById('dimBrightness').disabled = !enabled;
+}
+
+async function getLocation() {
+  const normalize = v => {
+    if (v === null || v === undefined) return '';
+    const s = String(v).trim();
+    if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'none' || s === '-') return '';
+    return s;
+  };
+
+  const setFields = (lat, lon, label) => {
+    if (lat) document.getElementById('openWeatherCity').value = lat;
+    if (lon) document.getElementById('openWeatherCountry').value = lon;
+    const btn = document.getElementById('geo-button');
+    btn.textContent = "Location: " + (label || "Location Found");
+    btn.disabled = true;
+    btn.classList.add('geo-disabled');
+  };
+
+  try {
+    // 1) get your public IP
+    const ipResp = await fetch('https://api.ipify.org?format=json');
+    if (!ipResp.ok) throw new Error('ipify failed: ' + ipResp.status);
+    const { ip } = await ipResp.json();
+    if (!ip) throw new Error('no IP returned by ipify');
+
+    // 2) call HackerTarget GeoIP with JSON output
+    const geoResp = await fetch(`https://api.hackertarget.com/geoip/?q=${encodeURIComponent(ip)}&output=json`);
+    if (!geoResp.ok) throw new Error('HackerTarget returned ' + geoResp.status);
+    const data = await geoResp.json();
+
+    // 3) extract and normalize fields
+    const lat = data.latitude;
+    const lon = data.longitude;
+    const city = normalize(data.city);
+    const state = normalize(data.state);
+    const country = normalize(data.country);
+    const label = city || state || country || "Location Found";
+
+    if (!lat || !lon) throw new Error('missing latitude/longitude');
+
+    setFields(lat, lon, label);
+    //console.log('Location fetched via HackerTarget. Label:', label);
+  } catch (err) {
+    console.error('HackerTarget geolocation failed:', err);
+    alert(
+      "Failed to guess your location using HackerTarget.\n\n" +
+      "Possible causes:\n" +
+      "- CORS blocking in browser (try server-side)\n" +
+      "- Network issue or rate limit\n\n" +
+      "You can manually search for coordinates on https://openweathermap.org/find"
+    );
+  }
+}
+
+// --- OpenWeather API Key field UX ---
+const MASK_LENGTH = 32;
+const MASK = '*'.repeat(MASK_LENGTH);
+const apiInput = document.getElementById('openWeatherApiKey');
+let hasSavedKey = false;
+
+// --- Initialize the field after config load ---
+if (apiInput.value && apiInput.value.trim() !== '') {
+  apiInput.value = MASK;   // show mask
+  hasSavedKey = true;
+} else {
+  apiInput.value = '';
+  hasSavedKey = false;
+}
+
+// --- Detect user clearing intent ---
+apiInput.addEventListener('input', () => {
+  apiInput.dataset.clearing = apiInput.value === '' ? 'true' : 'false';
+});
+
+// --- Handle Delete/Backspace when focused but empty ---
+apiInput.addEventListener('keydown', (e) => {
+  if ((e.key === 'Backspace' || e.key === 'Delete') && apiInput.value === '') {
+    apiInput.dataset.clearing = 'true';
+  }
+});
+
+// --- Focus handler: clear mask for editing ---
+apiInput.addEventListener('focus', () => {
+  if (apiInput.value === MASK) apiInput.value = '';
+});
+
+// --- Blur handler: restore mask if user didn’t clear the field ---
+apiInput.addEventListener('blur', () => {
+  if (apiInput.value === '') {
+    if (hasSavedKey && apiInput.dataset.clearing !== 'true') {
+      apiInput.value = MASK; // remask
+    } else {
+      hasSavedKey = false; // user cleared the key
+      apiInput.dataset.clearing = 'false';
+      apiInput.value = ''; // leave blank
+      setDimmingFieldsEnabled();
+    }
+  }
+});
+
+// --- Uptime Tracker ---
+
+let uptimeSeconds = 0;
+let uptimeTimer;
+
+// Fetch uptime from ESP
+function fetchUptime() {
+  fetch('/uptime')
+    .then(res => res.text())
+    .then(text => {
+      uptimeSeconds = parseUptimeToSeconds(text);
+      updateUptimeDisplay();
+      if (uptimeTimer) clearInterval(uptimeTimer);
+      uptimeTimer = setInterval(() => {
+        uptimeSeconds++;
+        updateUptimeDisplay();
+      }, 1000);
+    })
+    .catch(err => console.error('Error fetching /uptime:', err));
+}
+
+// Convert "14:56:54" or "2d 03:12:33" → total seconds
+function parseUptimeToSeconds(text) {
+  let days = 0, h = 0, m = 0, s = 0;
+  const dayMatch = text.match(/(\d+)\s*(?:d|day)/i);
+  if (dayMatch) days = parseInt(dayMatch[1]);
+  const timeMatch = text.match(/(\d+):(\d+):(\d+)/);
+  if (timeMatch) {
+    h = parseInt(timeMatch[1]);
+    m = parseInt(timeMatch[2]);
+    s = parseInt(timeMatch[3]);
+  }
+  return days * 86400 + h * 3600 + m * 60 + s;
+}
+
+// Format seconds → "2 days 04:09:31", "1 day 03:05:12", or "03:05:12"
+function formatUptime(seconds) {
+  const days = Math.floor(seconds / 86400);
+  seconds %= 86400;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+
+  const timePart = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  if (days > 1) return `${days} days ${timePart}`;
+  if (days === 1) return `1 day ${timePart}`;
+  return timePart;
+}
+
+// Update the text on screen
+function updateUptimeDisplay() {
+  document.getElementById('uptimeDisplay').textContent = formatUptime(uptimeSeconds);
+}
+
+// Start it up
+fetchUptime();
+
+
+function sendCustomMessage() {
+  const input = document.getElementById('customMessage');
+  let message = input.value
+    .toUpperCase()
+    .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 120);
+
+  fetch('/set_custom_message', {
+    method: 'POST',
+    headers: { 
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Source": "UI"
+    },
+    body: "message=" + encodeURIComponent(message)
+  })
+  .then(res => res.text())
+  .then(res => {
+    showSavingModal("");
+    updateSavingModal("✅ Message sent successfully!<br><br>Now displaying your custom message.", false);
+    setTimeout(hideSavingModal, 2000);
+  })
+  .catch(err => {
+    console.error("Error sending custom message:", err);
+    showSavingModal("");
+    updateSavingModal("⚠️ Failed to send message.<br><br>Check connection.", false);
+    setTimeout(hideSavingModal, 3000);
+  });
+}
+
+function clearCustomMessage() {
+  fetch('/set_custom_message', {
+    method: 'POST',
+    headers: { 
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Source": "UI"   // <-- Add this
+    },
+    body: "message="
+  })
+  .then(res => res.text())
+  .then(res => {
+    document.getElementById('customMessage').value = '';
+    showSavingModal("");
+    updateSavingModal("✅ Custom message cleared.<br><br>Display reverted to normal.", false);
+    setTimeout(hideSavingModal, 2000);
+  })
+  .catch(err => {
+    console.error("Error clearing custom message:", err);
+    showSavingModal("");
+    updateSavingModal("⚠️ Failed to clear message.<br><br>Check connection.", false);
+    setTimeout(hideSavingModal, 3000);
+  });
+}
+
+// --- Dimming Controls Logic (The correct version) ---
+function setDimmingFieldsEnabled() {
+  const apiKeyField = document.getElementById('openWeatherApiKey');
+  const autoDimming = document.getElementById('autoDimmingEnabled');
+  const dimmingEnabled = document.getElementById('dimmingEnabled');
+  const dimStart = document.getElementById('dimStartTime'); 
+  const dimEnd = document.getElementById('dimEndTime');    
+  const dimBrightness = document.getElementById('dimBrightness');
+  const noteEl = document.getElementById('autoDimmingNote');
+
+  if (!apiKeyField || !autoDimming || !dimmingEnabled) return;
+
+  const currentApiKeyInput = apiKeyField.value.trim();
+  // Checks if a key is saved (hasSavedKey) OR if the user is currently typing a new one.
+  const isKeyPresent = hasSavedKey || (currentApiKeyInput !== '' && currentApiKeyInput !== MASK);
+
+  // --- 1. Control Auto Dimming based on Key Presence ---
+  // Meets requirement: "when page load after autodim has been saved to json, 
+  // if user removes the api key (masked) the toggle auto dim toggle should get disabled"
+  if (!isKeyPresent) {
+    autoDimming.checked = false; 
+    autoDimming.disabled = true;
+    if (noteEl) noteEl.style.display = 'block';
+  } else {
+    autoDimming.disabled = false;
+    if (noteEl) noteEl.style.display = 'none';
+  }
+  
+  // Custom Dimming toggle is always enabled (since it's not key-dependent)
+  dimmingEnabled.disabled = false;
+
+
+  // --- 2. Control Dependent Fields based on Active Mode ---
+
+  const isAutoDimmingActive = autoDimming.checked && isKeyPresent; // Auto is only active if checked AND key is present
+  const isCustomDimmingActive = dimmingEnabled.checked;
+  const isDimmingActive = isAutoDimmingActive || isCustomDimmingActive; // Brightness slider logic
+
+  // BRIGHTNESS SLIDER: Enabled if EITHER mode is active.
+  if (dimBrightness) {
+      dimBrightness.disabled = !isDimmingActive;
+  }
+
+  // START/END TIME FIELDS: Enabled ONLY if Custom Dimming is checked (key not needed).
+  const isCustomTimeEnabled = dimmingEnabled.checked;
+  if (dimStart) {
+      dimStart.disabled = !isCustomTimeEnabled; 
+  }
+  if (dimEnd) {
+      dimEnd.disabled = !isCustomTimeEnabled;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const apiKeyEl = document.getElementById('openWeatherApiKey');
+  const autoEl = document.getElementById('autoDimmingEnabled');
+  const dimEl = document.getElementById('dimmingEnabled');
+
+  if (apiKeyEl) {
+    apiKeyEl.addEventListener('input', setDimmingFieldsEnabled);
+    apiKeyEl.addEventListener('change', setDimmingFieldsEnabled);
+  }
+  if (autoEl) autoEl.addEventListener('change', setDimmingFieldsEnabled);
+  if (dimEl) dimEl.addEventListener('change', setDimmingFieldsEnabled);
+});
+
+</script>
+</body>
+</html>
+)rawliteral";
