@@ -1477,6 +1477,93 @@ void setupWebServer() {
       if (final) f.close();       // finish file
     });
 
+  server.on("/factory_reset", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // If not in AP mode, block and return a 403 response
+    if (!isAPMode) {
+      request->send(403, "text/plain", "Factory reset only allowed in AP mode.");
+      Serial.println(F("[RESET] Factory reset attempt blocked (not in AP mode)."));
+      return;
+    }
+    const char *FACTORY_RESET_HTML = R"rawliteral(
+      <!DOCTYPE html>
+      <html style="background: radial-gradient(ellipse at 70% 0%, #2b425a 0%, #171e23 100%); height: 100%;">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>Resetting Device</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+              color: #FFFFFF;
+              line-height: 1.5;
+              max-width: 300px;
+              margin: 3rem auto;
+              background: linear-gradient(120deg, rgba(144, 45, 45, 0.72) 0%, rgba(183, 53, 53, 0.38) 100%);
+              padding: 1.5rem;
+              border-radius: 24px;
+              box-shadow: 0 10px 36px 0 rgba(255, 40, 40, 0.11), 0 2px 8px 0 rgba(110, 44, 44, 0.08);
+              border: 1.5px solid rgba(255, 180, 180, 0.10);
+              text-align: center;
+            }
+            h3 { margin-top: 0; color: #ff9999; }
+            p { font-size: 1.1em; }
+            .warning { font-size: 1.2em; font-weight: bold; color: #fff; margin-top: 15px; }
+          </style>
+        </head>
+        <body>
+          <h3>Factory Reset Initiated</h3>
+          <p>All saved configuration and Wi-Fi credentials are now being erased.</p>
+          <hr style="margin: 15px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.2);">
+          <p class="warning"><span style="color: yellow;">⚠️</span> ACTION REQUIRED</p>
+          <p>
+            The device is rebooting and will be temporarily offline for about <strong>45 seconds</strong>.
+            <br><br>
+            <strong>Your browser will disconnect automatically.</strong>
+          </p>
+          <p>
+            <strong>Next steps:</strong>
+            <br>1. Wait about 45 seconds for the reboot to finish.<br>
+            2. Reconnect your PC or phone to the Wi-Fi network: <strong>ESPTimeCast</strong>.<br>
+            3. Open your browser and go to <strong>192.168.4.1</strong> to continue setup.
+          </p>
+        </body>
+      </html>
+    )rawliteral";
+    request->send(200, "text/html", FACTORY_RESET_HTML);
+    Serial.println(F("[RESET] Factory reset requested, initiating cleanup..."));
+
+    // Use onDisconnect() to ensure the HTTP response is fully sent before the disruptive actions
+    request->onDisconnect([]() {
+      // Small delay to ensure the response buffer is flushed before file ops
+      delay(500);
+
+      // --- Remove configuration and uptime files ---
+      const char *filesToRemove[] = { "/config.json", "/uptime.dat" };
+      for (auto &file : filesToRemove) {
+        if (LittleFS.exists(file)) {
+          if (LittleFS.remove(file)) {
+            Serial.printf("[RESET] Deleted %s\n", file);
+          } else {
+            Serial.printf("[RESET] ERROR deleting %s\n", file);
+          }
+        } else {
+          Serial.printf("[RESET] %s not found, skipping delete.\n", file);
+        }
+      }
+
+// --- Clear Wi-Fi credentials ---
+#if defined(ESP8266)
+      WiFi.disconnect(true);  // true = wipe credentials
+#elif defined(ESP32)
+        WiFi.disconnect(true, true);  // (erase=true, wifioff=true)
+#endif
+
+      Serial.println(F("[RESET] Factory defaults restored. Rebooting..."));
+      delay(500);
+      ESP.restart();
+    });
+  });
+
   server.on("/generate_204", HTTP_GET, handleCaptivePortal);         // Android
   server.on("/fwlink", HTTP_GET, handleCaptivePortal);               // Windows
   server.on("/hotspot-detect.html", HTTP_GET, handleCaptivePortal);  // iOS/macOS
@@ -1486,8 +1573,14 @@ void setupWebServer() {
 }
 
 void handleCaptivePortal(AsyncWebServerRequest *request) {
-  Serial.print(F("[WEBSERVER] Captive Portal triggered for URL: "));
-  Serial.println(request->url());
+  String uri = request->url();
+
+  // Filter out system-generated probe requests
+  if (!uri.endsWith("/204") && !uri.endsWith("/ipv6check") && !uri.endsWith("connecttest.txt") && !uri.endsWith("/generate_204") && !uri.endsWith("/fwlink") && !uri.endsWith("/hotspot-detect.html")) {
+
+    Serial.print(F("[WEBSERVER] Captive Portal triggered for URL: "));
+    Serial.println(uri);
+  }
 
   if (isAPMode) {
     IPAddress apIP = WiFi.softAPIP();
