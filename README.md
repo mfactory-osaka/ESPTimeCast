@@ -25,7 +25,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-270%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-271%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -369,6 +369,10 @@ curl -X POST -d "message=HELLO WORLD&speed=50" "http://<device_ip>/set_custom_me
 
 ESPTimeCast includes a few optional “power-user” features that aren’t visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
 
+#### ⚙️ /factory_reset
+Erases all saved configuration data, Wi-Fi credentials, and uptime history.
+Used to restore the device to its original state. Only available in **AP mode**.
+
 #### 💾 /export
 Downloads your current configuration (`config.json`) directly from the device.  
 This is useful for creating backups or migrating settings between devices.
@@ -392,6 +396,7 @@ Perfect for restoring a backup or quickly switching between setups.
 3. The device will confirm the upload and automatically reboot with the new configuration.
 
 > *Tip:* You can export → edit the file on your computer → re-upload to test new settings without using the web interface.
+
 
 #### ⚕️ Nightscout Integration
 ESPTimeCast supports displaying glucose data from **Nightscout** servers alongside weather information.
@@ -459,6 +464,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
