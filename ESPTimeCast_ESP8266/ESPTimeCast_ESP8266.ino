@@ -694,11 +694,7 @@ void setupWebServer() {
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /"));
-#ifdef ESP8266
-    request->send_P(200, "text/html", index_html);
-#else
-      request->send(200, "text/html", FPSTR(index_html));
-#endif
+    request->send(LittleFS, "/index.html", "text/html");
   });
 
   server.on("/generate_204", HTTP_GET, handleCaptivePortal);         // Android
@@ -709,16 +705,16 @@ void setupWebServer() {
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(204);  // 204 No Content response
   });
-  server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest *request) { // iOS icon check
+  server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest *request) {  // iOS icon check
     request->send(204);
   });
-  server.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest *request) { // Android short probe (already in handleCaptivePortal, but safe to also silence if somehow missed)
+  server.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest *request) {  // Android short probe (already in handleCaptivePortal, but safe to also silence if somehow missed)
     request->send(204);
   });
-  server.on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest *request) { // iOS/macOS generic check
+  server.on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest *request) {  // iOS/macOS generic check
     request->send(204);
   });
-  server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) { // Windows NCSI check
+  server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) {  // Windows NCSI check
     request->send(204);
   });
   server.on("/msdownload/update/v3/static/trustedr/en/disallowedcertstl.cab", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -1575,7 +1571,7 @@ void setupWebServer() {
       delay(500);
 
       // --- Remove configuration and uptime files ---
-      const char *filesToRemove[] = { "/config.json", "/uptime.dat" };
+      const char *filesToRemove[] = { "/config.json", "/uptime.dat", "/index.html" };
       for (auto &file : filesToRemove) {
         if (LittleFS.exists(file)) {
           if (LittleFS.remove(file)) {
@@ -2149,6 +2145,7 @@ void setup() {
   }
   Serial.println(F("[SETUP] LittleFS file system mounted successfully."));
   loadUptime();
+  ensureHtmlFileExists();
   P.begin();  // Initialize Parola library
 
   P.setCharSpacing(0);
@@ -2184,6 +2181,55 @@ void setup() {
   saveUptime();
 }
 
+void ensureHtmlFileExists() {
+  Serial.println(F("[FS] Checking for /index.html on LittleFS..."));
+
+  // If the file exists, we're done (the file was provisioned on a previous boot).
+  if (LittleFS.exists("/index.html")) {
+    Serial.println(F("[FS] /index.html found. Using file system version."));
+    return;
+  }
+
+  Serial.println(F("[FS] /index.html NOT found. Writing embedded content to LittleFS..."));
+
+  // Open the file for writing
+  File f = LittleFS.open("/index.html", "w");
+  if (!f) {
+    Serial.println(F("[FS] ERROR: Failed to create /index.html for writing!"));
+    // Since we are now serving from LittleFS, failing here means the web page will be unavailable
+    // until a new file system write is successful.
+    return;
+  }
+
+  // Write the entire PROGMEM string to the file character-by-character to prevent
+  // the memory exception (Exception 3) that occurs when trying to buffer a large string at once
+  // on the ESP8266 heap.
+  size_t htmlLength = strlen_P(index_html);
+  size_t bytesWritten = 0;
+
+  for (size_t i = 0; i < htmlLength; i++) {
+    // Safely read one byte from PROGMEM
+    char c = pgm_read_byte_near(index_html + i);
+
+    // Write the byte to the file
+    if (f.write((uint8_t *)&c, 1) == 1) {
+      bytesWritten++;
+    } else {
+      Serial.printf("[FS] Write failure at character %u. Aborting write.\n", i);
+      f.close();
+      return;  // Stop on first error
+    }
+  }
+
+  f.close();
+
+  if (bytesWritten == htmlLength) {
+    Serial.printf("[FS] Successfully wrote %u bytes to /index.html.\n", bytesWritten);
+  } else {
+    // This case should ideally not happen with the loop above unless a catastrophic failure occurred
+    Serial.printf("[FS] WARNING: Only wrote %u of %u bytes to /index.html (might be incomplete).\n", bytesWritten, htmlLength);
+  }
+}
 
 void advanceDisplayMode() {
   prevDisplayMode = displayMode;
