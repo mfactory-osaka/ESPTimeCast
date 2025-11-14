@@ -25,7 +25,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-271%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-273%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -464,6 +464,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
