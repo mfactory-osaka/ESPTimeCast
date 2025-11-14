@@ -2192,40 +2192,54 @@ void setup() {
 void ensureHtmlFileExists() {
   Serial.println(F("[FS] Checking for /index.html on LittleFS..."));
 
-  // If the file exists, we're done (the file was provisioned on a previous boot).
+  // Length of embedded HTML in PROGMEM
+  size_t expectedSize = strlen_P(index_html);
+
+  // If the file exists, verify size before deciding to trust it
   if (LittleFS.exists("/index.html")) {
-    Serial.println(F("[FS] /index.html found. Using file system version."));
-    return;
+    File f = LittleFS.open("/index.html", "r");
+
+    if (!f) {
+      Serial.println(F("[FS] ERROR: /index.html exists but failed to open! Will rewrite."));
+    } else {
+      size_t actualSize = f.size();
+      f.close();
+
+      if (actualSize == expectedSize) {
+        Serial.printf("[FS] /index.html found (size OK: %u bytes). Using file system version.\n", actualSize);
+        return;  // STOP HERE — file is good
+      }
+
+      Serial.printf(
+        "[FS] /index.html size mismatch! Expected %u bytes, found %u. Rewriting...\n",
+        expectedSize, actualSize);
+    }
+  } else {
+    Serial.println(F("[FS] /index.html NOT found. Writing embedded content to LittleFS..."));
   }
 
-  Serial.println(F("[FS] /index.html NOT found. Writing embedded content to LittleFS..."));
+  // -------------------------------
+  // Write embedded HTML to LittleFS
+  // -------------------------------
 
-  // Open the file for writing
   File f = LittleFS.open("/index.html", "w");
   if (!f) {
     Serial.println(F("[FS] ERROR: Failed to create /index.html for writing!"));
-    // Since we are now serving from LittleFS, failing here means the web page will be unavailable
-    // until a new file system write is successful.
     return;
   }
 
-  // Write the entire PROGMEM string to the file character-by-character to prevent
-  // the memory exception (Exception 3) that occurs when trying to buffer a large string at once
-  // on the ESP8266 heap.
-  size_t htmlLength = strlen_P(index_html);
+  size_t htmlLength = expectedSize;
   size_t bytesWritten = 0;
 
   for (size_t i = 0; i < htmlLength; i++) {
-    // Safely read one byte from PROGMEM
     char c = pgm_read_byte_near(index_html + i);
 
-    // Write the byte to the file
     if (f.write((uint8_t *)&c, 1) == 1) {
       bytesWritten++;
     } else {
       Serial.printf("[FS] Write failure at character %u. Aborting write.\n", i);
       f.close();
-      return;  // Stop on first error
+      return;
     }
   }
 
@@ -2234,8 +2248,8 @@ void ensureHtmlFileExists() {
   if (bytesWritten == htmlLength) {
     Serial.printf("[FS] Successfully wrote %u bytes to /index.html.\n", bytesWritten);
   } else {
-    // This case should ideally not happen with the loop above unless a catastrophic failure occurred
-    Serial.printf("[FS] WARNING: Only wrote %u of %u bytes to /index.html (might be incomplete).\n", bytesWritten, htmlLength);
+    Serial.printf("[FS] WARNING: Only wrote %u of %u bytes to /index.html (might be incomplete).\n",
+                  bytesWritten, htmlLength);
   }
 }
 
