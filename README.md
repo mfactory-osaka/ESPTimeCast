@@ -220,7 +220,7 @@ Follow these steps to prepare your Arduino IDE for ESP8266 development:
         * `ArduinoJson` by Benoit Blanchon
         * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
         * `ESPAsyncTCP` by ESP32Async
-        * `ESPAsyncWebServer` by ESP32Async
+        * `ESPAsyncWebServer` by ESP32Async (**3.8.1**)
      
   **⚠️ ESP8266 Library Compatibility Notice**
 
@@ -477,6 +477,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
