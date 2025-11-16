@@ -1970,7 +1970,8 @@ void fetchWeather() {
 
         if (!error) {
           // Check if ANY value has changed
-          bool valuesChanged = (doc["sunriseHour"] != sunriseHour || doc["sunriseMinute"] != sunriseMinute || doc["sunsetHour"] != sunsetHour || doc["sunsetMinute"] != sunsetMinute);
+          bool valuesChanged =
+            (doc["sunriseHour"].as<int>() != sunriseHour || doc["sunriseMinute"].as<int>() != sunriseMinute || doc["sunsetHour"].as<int>() != sunsetHour || doc["sunsetMinute"].as<int>() != sunsetMinute);
 
           if (valuesChanged) {  // Only write if a change occurred
             doc["sunriseHour"] = sunriseHour;
