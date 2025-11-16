@@ -221,7 +221,20 @@ Follow these steps to prepare your Arduino IDE for ESP8266 development:
         * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
         * `ESPAsyncTCP` by ESP32Async
         * `ESPAsyncWebServer` by ESP32Async
+     
+  **⚠️ ESP8266 Library Compatibility Notice**
 
+Due to internal changes in **ESPAsyncWebServer 3.9.0**, large files served from SPIFFS/LittleFS may fail to load on ESP8266 (blank page).
+Version **3.8.1** is currently the most stable release for ESP8266, and is recommended for this project.
+
+Install version **3.8.1** manually:
+  * Arduino IDE → Tools → Manage Libraries
+  * Search: ESPAsyncWebServer
+  * Install version 3.8.1
+    
+>Future versions may fix this, but for now 3.8.1 ensures full compatibility.
+
+&nbsp;
 #### ⚙️ ESP32 Setup
 
 Follow these steps to prepare your Arduino IDE for ESP32 development:
@@ -464,6 +477,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
