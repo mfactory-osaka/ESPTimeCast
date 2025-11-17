@@ -551,32 +551,17 @@ void setupTime() {
     Serial.println(F("[TIME] Starting NTP sync"));
   }
 
-  bool serverOk = false;
-  IPAddress resolvedIP;
-
-  // Try first server if it's not empty
-  if (strlen(ntpServer1) > 0 && WiFi.hostByName(ntpServer1, resolvedIP) == 1) {
-    serverOk = true;
-  }
-  // Try second server if first failed
-  else if (strlen(ntpServer2) > 0 && WiFi.hostByName(ntpServer2, resolvedIP) == 1) {
-    serverOk = true;
-  }
-
-  if (serverOk) {
-    configTime(0, 0, ntpServer1, ntpServer2);  // safe to call now
-    setenv("TZ", ianaToPosix(timeZone), 1);
-    tzset();
-    ntpState = NTP_SYNCING;
-    ntpStartTime = millis();
-    ntpRetryCount = 0;
-    ntpSyncSuccessful = false;
-  } else {
-    Serial.println(F("[TIME] NTP server lookup failed — retry sync in 30 seconds"));
-    ntpSyncSuccessful = false;
-    ntpState = NTP_SYNCING;   // instead of NTP_IDLE
-    ntpStartTime = millis();  // start the failed timer (so retry delay counts from now)
-  }
+  configTime(0, 0, ntpServer1, ntpServer2);
+  
+  // Set the Time Zone
+  setenv("TZ", ianaToPosix(timeZone), 1);
+  tzset();
+  
+  // Initialize state flags to begin synchronization tracking
+  ntpState = NTP_SYNCING;
+  ntpStartTime = millis();
+  ntpRetryCount = 0;
+  ntpSyncSuccessful = false;
 }
 
 
