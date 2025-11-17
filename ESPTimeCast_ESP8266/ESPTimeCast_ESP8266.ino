@@ -64,6 +64,10 @@ char ntpServer1[64] = "pool.ntp.org";
 char ntpServer2[256] = "time.nist.gov";
 char customMessage[121] = "";
 char lastPersistentMessage[128] = "";
+int messageDisplaySeconds;
+int messageScrollTimes;
+unsigned long messageStartTime = 0;
+int currentScrollCount = 0;
 
 // Dimming
 bool dimmingEnabled = false;
@@ -543,17 +547,17 @@ void clearWiFiCredentialsInConfig() {
 // Time / NTP Functions
 // -----------------------------------------------------------------------------
 void setupTime() {
-  sntp_stop();   
+  sntp_stop();
   if (!isAPMode) {
     Serial.println(F("[TIME] Starting NTP sync"));
   }
 
   configTime(0, 0, ntpServer1, ntpServer2);
-  
+
   // Set the Time Zone
   setenv("TZ", ianaToPosix(timeZone), 1);
   tzset();
-  
+
   // Initialize state flags (essential for your loop logic to handle retries)
   ntpState = NTP_SYNCING;
   ntpStartTime = millis();
@@ -1222,37 +1226,63 @@ void setupWebServer() {
       bool isFromUI = (sourceHeader == "UI");
       bool isFromHA = !isFromUI;
 
+      messageDisplaySeconds = 0;  // Reset
+      if (request->hasParam("seconds", true)) {
+        messageDisplaySeconds = constrain(request->getParam("seconds", true)->value().toInt(), 0, 3600);  // 1 hour max
+      }
+
+      messageScrollTimes = 0;  // Reset
+      if (request->hasParam("scrolltimes", true)) {
+        messageScrollTimes = constrain(request->getParam("scrolltimes", true)->value().toInt(), 0, 100);  // 100 max scrolls
+      }
+
       // --- Local speed variable (does not modify global GENERAL_SCROLL_SPEED) ---
       int localSpeed = GENERAL_SCROLL_SPEED;  // Default for UI messages
       if (request->hasParam("speed", true)) {
         localSpeed = constrain(request->getParam("speed", true)->value().toInt(), 10, 200);
-        Serial.printf("[MESSAGE] Custom Message scroll speed set to %d\n", localSpeed);
       }
+
 
       // --- CLEAR MESSAGE ---
       if (msg.length() == 0) {
         if (isFromUI) {
-          // Web UI clear: remove everything
+          // Web UI clear: The "real" clear, resets everything.
           customMessage[0] = '\0';
           lastPersistentMessage[0] = '\0';
           displayMode = 0;
+          messageStartTime = 0;
+          currentScrollCount = 0;
+          messageDisplaySeconds = 0;
+          messageScrollTimes = 0;
           Serial.println(F("[MESSAGE] All messages cleared by UI. Returning to normal mode."));
           request->send(200, "text/plain", "CLEARED (UI)");
 
           // --- SAVE CLEAR STATE ---
           saveCustomMessageToConfig("");
         } else {
-          // HA clear: remove only temporary message
-          customMessage[0] = '\0';
+          // HA clear: remove only temporary message, reset time/scroll variables.
+          customMessage[0] = '\0';  // Clear the currently active message
+
+          // Reset the temporary HA timing/scroll limits.
+          messageStartTime = 0;
+          currentScrollCount = 0;
+          messageDisplaySeconds = 0;
+          messageScrollTimes = 0;
 
           if (strlen(lastPersistentMessage) > 0) {
             // Restore the last persistent message
             strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
             messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Use global speed for persistent
+
+            // Ensure displayMode is set to 6 so the restored persistent message is shown immediately.
+            displayMode = 6;
+            prevDisplayMode = 0;
+
             Serial.printf("[MESSAGE] Temporary HA message cleared. Restored persistent message: '%s' (speed=%d)\n",
                           customMessage, messageScrollSpeed);
             request->send(200, "text/plain", "CLEARED (HA temporary, persistent restored)");
           } else {
+            // No persistent message to restore, return to clock mode.
             displayMode = 0;
             Serial.println(F("[MESSAGE] Temporary HA message cleared. No persistent message to restore."));
             request->send(200, "text/plain", "CLEARED (HA temporary, no persistent)");
@@ -1286,9 +1316,12 @@ void setupWebServer() {
         filtered.toCharArray(customMessage, sizeof(customMessage));
         messageScrollSpeed = localSpeed;
 
-        Serial.printf("[HA] Temporary HA message received: '%s' (persistent: '%s')\n",
+        Serial.printf("[HA] Temporary HA message received: '%s' (persistent: '%s', duration: %ds, scrolls: %d, speed: %d)\n",
                       customMessage,
-                      strlen(lastPersistentMessage) ? lastPersistentMessage : "(none)");
+                      strlen(lastPersistentMessage) ? lastPersistentMessage : "(none)",
+                      messageDisplaySeconds,  // Added seconds
+                      messageScrollTimes,     // Added scrolltimes
+                      localSpeed);            // Added speed
       } else {
         // --- UI-originated message: permanent ---
         filtered.toCharArray(customMessage, sizeof(customMessage));
@@ -1305,8 +1338,11 @@ void setupWebServer() {
       // --- Activate display ---
       displayMode = 6;
       prevDisplayMode = 0;
+      messageStartTime = millis();  // Start the timer
+      currentScrollCount = 0;
 
-      String response = String(isFromHA ? "OK (HA message, speed=" : "OK (UI message, speed=") + String(localSpeed) + ")";
+      String response = String(isFromHA ? "OK (HA message, speed=" : "OK (UI message, speed=") + String(localSpeed);
+      response += String(", duration=") + String(messageDisplaySeconds) + "s, scrolls=" + String(messageScrollTimes) + ")";
       request->send(200, "text/plain", response);
     } else {
       Serial.println(F("[MESSAGE] Error: missing 'message' parameter in request."));
@@ -3449,6 +3485,51 @@ void loop() {
       return;
     }
 
+    // --- CHECK FOR TIMEOUT ---
+    bool timedOut = false;
+    // Check if a time limit (messageDisplaySeconds > 0) has been exceeded
+    if (messageDisplaySeconds > 0 && (millis() - messageStartTime) >= (messageDisplaySeconds * 1000UL)) {
+      Serial.printf("[MESSAGE] Custom message timed out after %d seconds.\n", messageDisplaySeconds);
+      timedOut = true;
+    }
+
+    // --- CHECK FOR SCROLL LIMIT BEFORE DISPLAYING ---
+    bool scrollsComplete = (messageScrollTimes > 0) && (currentScrollCount >= messageScrollTimes);
+
+    // --- ADVANCE MODE CHECK (Check if done based on time or scrolls) ---
+    if (timedOut || scrollsComplete) {
+      Serial.println(F("[MESSAGE] Custom message finished."));
+
+      // Reset common counters, regardless of what happens next
+      currentScrollCount = 0;
+      messageStartTime = 0;
+
+      // ----------------------------------------------------------------------
+      // CRITICAL LOGIC: RESTORE PERSISTENT MESSAGE
+      // ----------------------------------------------------------------------
+      if (strlen(lastPersistentMessage) > 0) {
+        // A persistent message exists, restore it to customMessage
+        strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
+        messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Persistent messages use global speed
+
+        // Clear HA timing/scroll variables (restored persistent message is infinite)
+        messageDisplaySeconds = 0;
+        messageScrollTimes = 0;
+
+        Serial.printf("[MESSAGE] Restored persistent message: '%s'. Staying in mode 6.\n", customMessage);
+
+        // DO NOT advanceDisplayMode() or clear customMessage[0]!
+        // The function returns, and the next loop cycle will immediately display the restored message.
+      } else {
+        // No persistent message to restore. Exit mode 6.
+        customMessage[0] = '\0';  // Clear the buffer to exit mode 6 in the next loop cycle
+        Serial.println(F("[MESSAGE] No persistent message to restore. Advancing display mode."));
+        advanceDisplayMode();
+      }
+      yield();
+      return;
+    }
+
     String msg = String(customMessage);
 
     // Replace standard digits 0–9 with your custom font character codes
@@ -3478,14 +3559,26 @@ void loop() {
     P.setTextAlignment(PA_LEFT);
     P.setCharSpacing(1);
     textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-    extern int messageScrollSpeed;  // declare globally once at the top of your sketch
+    extern int messageScrollSpeed;
+
+    // START SCROLL CYCLE
     P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
+
+    // BLOCKING WAIT: Completes 1 full scroll, matching your definition of "1 scroll"
     while (!P.displayAnimate()) yield();
+
+    // SCROLL COUNT INCREMENT
+    if (messageScrollTimes > 0) {
+      currentScrollCount++;
+      Serial.printf("[MESSAGE] Scroll complete. Count: %d/%d\n", currentScrollCount, messageScrollTimes);
+    }
+
     P.setTextAlignment(PA_CENTER);
     advanceDisplayMode();
     yield();
     return;
   }
+
 
   unsigned long currentMillis = millis();
   unsigned long runtimeSeconds = (currentMillis - bootMillis) / 1000;
