@@ -276,9 +276,10 @@ This guide explains how to integrate **ESPTimeCast** with **Home Assistant** to 
 ESPTimeCast exposes a REST API endpoint that lets you send **scrolling messages** to the display from either **Home Assistant** or the built-in **Web UI**.
 
 - **Web UI messages** are **persistent** — they remain active until manually cleared via the Web UI.  
-- **Home Assistant messages** are **temporary overrides** - they appear immediately but do not modify the saved Web UI message.
-- **When cleared from HA** - the display will resume showing the previously saved UI message on the next update loop.
+- **Home Assistant messages** are **temporary overrides** - they appear immediately and do not modify the saved Web UI message.
+- When a temporary HA message expires or is manually cleared, the display will automatically **restore the previously saved Web UI message**.
 
+>**New:** Home Assistant messages can now expire automatically after a set number of **seconds** or **scroll cycles**.
 #### 🔗 Endpoint
 
 ```
@@ -292,7 +293,8 @@ POST http://<device_ip>/set_custom_message
 |------------|------|-----------|-------------|
 | `message` | string | Yes | Message text to display. Send an empty string (`""`) to clear messages. |
 | `speed` | integer | Optional | Scrolling speed (range **10–200**). Lower values = **faster** scroll. |
-
+| `seconds` | integer | Optional | Maximum display duration in seconds (range **0–3600**). Set to **0** for infinite time. |
+| `scrolltimes` | integer | Optional | Maximum number of full scroll cycles (**range 0–100**). Set to **0** for infinite scrolls. |
 
 
 #### 💡 Behavior
@@ -303,12 +305,13 @@ POST http://<device_ip>/set_custom_message
 | **Web UI** | Displays message persistently until manually cleared. | Acts as a permanent banner or ticker. |
 | **Clear command from Web UI** | Clears *all* messages (HA + UI). | Use this to reset the display completely. |
 | **Clear command from Home Assistant** | Clears only the temporary HA message. | UI message will reappear if one was saved. |
+| **Time/Scroll Limits Met (HA only)** | **Automatic clear.** The temporary message is removed when the first limit is reached.| Automatically restores the saved UI message. |
 
 
 
 #### ⚙️ Example Automations
 
-#### 1. Send a Temporary HA Message
+#### 1. Send a Temporary HA Message with Duration
 
 ```yaml
 alias: Notify Door Open on ESPTimeCast
@@ -320,10 +323,22 @@ action:
   - service: rest_command.esptimecast_message
     data:
       message: "DOOR OPEN"
-      speed: 60  # lower = faster
+      speed: 60
+      seconds: 15 # Message will automatically clear after 15 seconds
 ```
 
-#### 2. Clear the Message
+#### 2. Send a Temporary HA Message with Scroll Count
+
+```yaml
+alias: Notify Mail Delivered Three Times
+action:
+  - service: rest_command.esptimecast_message
+    data:
+      message: "MAIL DELIVERED"
+      scrolltimes: 3 # Message will clear after 3 complete scroll cycles
+```
+
+#### 3. Manually Clear the Temporary Message
 
 ```yaml
 alias: Clear ESPTimeCast Message
@@ -334,13 +349,14 @@ trigger:
 action:
   - service: rest_command.esptimecast_message
     data:
-      message: ""
+      message: "" # Sends an empty message to trigger the clear logic
 ```
 
 
 #### 🧩 Example `rest_command` Configuration
 
-Add this to your `configuration.yaml`:
+Add this to your `configuration.yaml` This configuration uses default values for the new parameters (`seconds` and `scrolltimes`) set to `0` (infinite) if they are not passed in the service call.
+
 
 ```yaml
 rest_command:
@@ -348,7 +364,7 @@ rest_command:
     url: "http://<device_ip>/set_custom_message"
     method: POST
     content_type: "application/x-www-form-urlencoded"
-    payload: "message={{ message }}&speed={{ speed | default(85) }}"
+    payload: "message={{ message }}&speed={{ speed | default(85) }}&seconds={{ seconds | default(0) }}&scrolltimes={{ scrolltimes | default(0) }}"
 ```
 
 Then restart Home Assistant.
@@ -357,11 +373,12 @@ Then restart Home Assistant.
 You can quickly test sending a message to your ESPTimeCast display using `curl` from any computer on the same network:
 
 ```
-curl -X POST -d "message=HELLO WORLD&speed=50" "http://<device_ip>/set_custom_message"
+curl -X POST -d "message=HA TEST&speed=40&seconds=10&scrolltimes=2" "http://<device_ip>/set_custom_message"
 ```
 > Replace <device_ip> with the IP of your ESPTimeCast device.  
 > The message parameter is your text to display.  
 > The optional speed parameter controls the scroll speed (10–200, lower = faster).
+> The message will clear after **10 seconds** OR **2 scrolls**, whichever comes first.
 
 #### 🧾 Notes
 
@@ -369,6 +386,7 @@ curl -X POST -d "message=HELLO WORLD&speed=50" "http://<device_ip>/set_custom_me
 - All text is automatically converted to **uppercase**.
 - Lower scroll speed values make the message **scroll faster**.
 - Custom Message scroll speed can be changed via this endpoint.
+- If both seconds and scrolltimes are set to non-zero values, the message is removed when the **first condition is met**.
 
 #### ✅ Example Use Cases
 
@@ -477,6 +495,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
