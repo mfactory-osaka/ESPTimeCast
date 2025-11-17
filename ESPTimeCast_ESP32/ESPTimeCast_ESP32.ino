@@ -2527,8 +2527,7 @@ void loop() {
       displayOffByBrightness = !dimActive;
     }
   } else {
-    if (displayOff && ((dimActive && displayOffByDimming) || (!dimActive && displayOffByBrightness))) {
-      Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+    if (displayOff && ((dimActive && displayOffByBrightness) || (!dimActive && displayOffByDimming))) {
       P.displayShutdown(false);
       displayOff = false;
       displayOffByDimming = false;
@@ -3525,5 +3524,4 @@ void loop() {
                   formatUptime(currentTotal).c_str(), currentTotal / 3600.0);
     saveUptime();  // Save accumulated uptime every 10 minutes
   }
-  yield();
 }

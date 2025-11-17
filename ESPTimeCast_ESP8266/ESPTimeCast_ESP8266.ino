@@ -2519,8 +2519,7 @@ void loop() {
       displayOffByBrightness = !dimActive;
     }
   } else {
-    if (displayOff && ((dimActive && displayOffByDimming) || (!dimActive && displayOffByBrightness))) {
-      Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+    if (displayOff && ((dimActive && displayOffByBrightness) || (!dimActive && displayOffByDimming))) {
       P.displayShutdown(false);
       displayOff = false;
       displayOffByDimming = false;
