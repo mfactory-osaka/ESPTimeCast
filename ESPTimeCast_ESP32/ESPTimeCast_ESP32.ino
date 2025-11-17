@@ -3524,4 +3524,5 @@ void loop() {
                   formatUptime(currentTotal).c_str(), currentTotal / 3600.0);
     saveUptime();  // Save accumulated uptime every 10 minutes
   }
+  yield();
 }
