@@ -404,6 +404,11 @@ ESPTimeCast includes a few optional “power-user” features that aren’t visi
 Erases all saved configuration data, Wi-Fi credentials, and uptime history.
 Used to restore the device to its original state. Only available in **AP mode**.
 
+**Example:**  
+```
+http://192.168.4.1/factory_reset
+```
+
 #### 💾 /export
 Downloads your current configuration (`config.json`) directly from the device.  
 This is useful for creating backups or migrating settings between devices.
@@ -495,6 +500,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
