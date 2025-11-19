@@ -26,6 +26,12 @@
 #define CS_PIN 13    //D7
 #define DATA_PIN 15  //D8
 
+#ifdef ESP8266
+WiFiEventHandler mConnectHandler;
+WiFiEventHandler mDisConnectHandler;
+WiFiEventHandler mGotIpHandler;
+#endif
+
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 AsyncWebServer server(80);
 
@@ -46,6 +52,7 @@ char openWeatherCountry[64] = "";
 char weatherUnits[12] = "metric";
 char timeZone[64] = "";
 char language[8] = "en";
+unsigned long lastWifiConnectTime = 0;
 String mainDesc = "";
 String detailedDesc = "";
 
@@ -1843,6 +1850,11 @@ String buildWeatherURL() {
 
 
 void fetchWeather() {
+  if (millis() - lastWifiConnectTime < 5000) {
+    Serial.println(F("[WEATHER] Skipped: Network just reconnected. Letting it stabilize..."));
+    return;  // Stop execution if connection is less than 5 seconds old
+  }
+
   Serial.println(F("[WEATHER] Fetching weather data..."));
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println(F("[WEATHER] Skipped: WiFi not connected"));
@@ -1868,6 +1880,7 @@ void fetchWeather() {
 
   WiFiClientSecure client;  // use secure client for HTTPS
   client.stop();            // ensure previous session closed
+  yield();                  // Allow OS to process socket closure
   client.setInsecure();     // no cert validation
   HTTPClient http;          // Create an HTTPClient object
   http.begin(client, url);  // Pass the WiFiClient object and the URL
@@ -2180,6 +2193,40 @@ void setup() {
 
   Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
 
+#if defined(ESP32)
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    const char *name = nullptr;
+    switch (event) {
+      case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+        name = "GOT_IP";
+        lastWifiConnectTime = millis();
+        break;
+      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
+      default: return;  // ignore all other events
+    }
+    Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
+  });
+
+#elif defined(ESP8266)
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+
+  mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
+    Serial.println("[WIFI EVENT] Connected");
+  });
+  mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
+    Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
+  });
+  mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
+    Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
+    lastWifiConnectTime = millis();
+  });
+#endif
+
   connectWiFi();
 
   if (isAPMode) {
@@ -2197,7 +2244,7 @@ void setup() {
   printConfigToSerial();
   setupTime();
   displayMode = 0;
-  lastSwitch = millis();
+  lastSwitch = millis() - (clockDuration - 500);
   lastColonBlink = millis();
   bootMillis = millis();
   saveUptime();
