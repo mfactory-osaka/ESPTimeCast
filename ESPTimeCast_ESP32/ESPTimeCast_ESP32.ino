@@ -75,6 +75,7 @@ int messageDisplaySeconds;
 int messageScrollTimes;
 unsigned long messageStartTime = 0;
 int currentScrollCount = 0;
+int currentDisplayCycleCount = 0;
 
 // Dimming
 bool dimmingEnabled = false;
@@ -91,7 +92,7 @@ int sunriseMinute = 0;
 int sunsetHour = 18;
 int sunsetMinute = 0;
 
-//Countdown Globals - NEW
+//Countdown Globals
 bool countdownEnabled = false;
 time_t countdownTargetTimestamp = 0;  // Unix timestamp
 char countdownLabel[64] = "";         // Label for the countdown
@@ -517,40 +518,6 @@ void connectWiFi() {
     }
     delay(1);
   }
-}
-
-
-void clearWiFiCredentialsInConfig() {
-  DynamicJsonDocument doc(2048);
-
-  // Open existing config, if present
-  File configFile = LittleFS.open("/config.json", "r");
-  if (configFile) {
-    DeserializationError err = deserializeJson(doc, configFile);
-    configFile.close();
-    if (err) {
-      Serial.print(F("[SECURITY] Error parsing config.json: "));
-      Serial.println(err.f_str());
-      return;
-    }
-  }
-
-  doc["ssid"] = "";
-  doc["password"] = "";
-
-  // Optionally backup previous config
-  if (LittleFS.exists("/config.json")) {
-    LittleFS.rename("/config.json", "/config.bak");
-  }
-
-  File f = LittleFS.open("/config.json", "w");
-  if (!f) {
-    Serial.println(F("[SECURITY] ERROR: Cannot write to /config.json to clear credentials!"));
-    return;
-  }
-  serializeJson(doc, f);
-  f.close();
-  Serial.println(F("[SECURITY] Cleared WiFi credentials in config.json."));
 }
 
 
@@ -985,24 +952,6 @@ void setupWebServer() {
     }
   });
 
-  server.on("/clear_wifi", HTTP_POST, [](AsyncWebServerRequest *request) {
-    Serial.println(F("[WEBSERVER] Request: /clear_wifi"));
-    clearWiFiCredentialsInConfig();
-
-    DynamicJsonDocument okDoc(128);
-    okDoc[F("message")] = "✅ WiFi credentials cleared! Rebooting...";
-    String response;
-    serializeJson(okDoc, response);
-    request->send(200, "application/json", response);
-
-    request->onDisconnect([]() {
-      Serial.println(F("[WEBSERVER] Rebooting after clearing WiFi..."));
-      saveUptime();
-      delay(100);  // ensure file is written
-      ESP.restart();
-    });
-  });
-
   server.on("/ap_status", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.print(F("[WEBSERVER] Request: /ap_status. isAPMode = "));
     Serial.println(isAPMode);
@@ -1017,37 +966,49 @@ void setupWebServer() {
       request->send(400, "application/json", "{\"error\":\"Missing value\"}");
       return;
     }
+
+    String sourceHeader = request->header("X-Source");
+    bool isFromUI = (sourceHeader == "UI");
+    bool isFromHA = !isFromUI;
+
     int newBrightness = request->getParam("value", true)->value().toInt();
 
-    // Handle "off" request
+    // Handle OFF request
     if (newBrightness == -1) {
-      P.displayShutdown(true);  // Fully shut down display driver
+      P.displayShutdown(true);
       P.displayClear();
       displayOff = true;
-      Serial.println("[WEBSERVER] Display set to OFF (shutdown mode)");
+
+      Serial.printf("[BRIGHTNESS] Display OFF via %s\n",
+                    isFromUI ? "UI" : "HA");
+
       request->send(200, "application/json", "{\"ok\":true, \"display\":\"off\"}");
       return;
     }
 
-    // Clamp brightness to valid range
-    if (newBrightness < 0) newBrightness = 0;
-    if (newBrightness > 15) newBrightness = 15;
+    // Clamp brightness range (0–15)
+    newBrightness = constrain(newBrightness, 0, 15);
 
-    // Only run robust clear/reset when coming from "off"
     if (displayOff) {
+      // Wake from OFF
       P.setIntensity(newBrightness);
       advanceDisplayModeSafe();
       P.displayShutdown(false);
       brightness = newBrightness;
       displayOff = false;
-      Serial.println("[WEBSERVER] Display woke from OFF");
+
+      Serial.printf("[BRIGHTNESS] Display woke from OFF via %s → %d\n",
+                    isFromUI ? "UI" : "HA",
+                    newBrightness);
     } else {
-      // Display already on, just set brightness
+      // Display already ON
       brightness = newBrightness;
       P.setIntensity(brightness);
-      Serial.printf("[WEBSERVER] Set brightness to %d\n", brightness);
-    }
 
+      Serial.printf("[BRIGHTNESS] Set to %d via %s\n",
+                    brightness,
+                    isFromUI ? "UI" : "HA");
+    }
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -1917,7 +1878,7 @@ void fetchWeather() {
 
     if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("temp"))) {
       float temp = doc[F("main")][F("temp")];
-      currentTemp = String((int)round(temp)) + "º";
+      currentTemp = String((int)round(temp)) + "°";
       Serial.printf("[WEATHER] Temp: %s\n", currentTemp.c_str());
       weatherAvailable = true;
     } else {
@@ -2814,7 +2775,7 @@ void loop() {
         switch (ntpAnimFrame % 3) {
           case 0: P.print(F("S Y N C ®")); break;
           case 1: P.print(F("S Y N C ¯")); break;
-          case 2: P.print(F("S Y N C °")); break;
+          case 2: P.print(F("S Y N C º")); break;
         }
         ntpAnimFrame++;
       }
@@ -3533,107 +3494,160 @@ void loop() {
   }
 
 
-  // --- Custom Message Display Mode (displayMode == 6) ---
-  if (displayMode == 6) {
-    if (strlen(customMessage) == 0) {
-      advanceDisplayMode();
-      yield();
-      return;
-    }
-
-    // --- CHECK FOR TIMEOUT ---
-    bool timedOut = false;
-    // Check if a time limit (messageDisplaySeconds > 0) has been exceeded
-    if (messageDisplaySeconds > 0 && (millis() - messageStartTime) >= (messageDisplaySeconds * 1000UL)) {
-      Serial.printf("[MESSAGE] Custom message timed out after %d seconds.\n", messageDisplaySeconds);
-      timedOut = true;
-    }
-
-    // --- CHECK FOR SCROLL LIMIT BEFORE DISPLAYING ---
-    bool scrollsComplete = (messageScrollTimes > 0) && (currentScrollCount >= messageScrollTimes);
-
-    // --- ADVANCE MODE CHECK (Check if done based on time or scrolls) ---
-    if (timedOut || scrollsComplete) {
-      Serial.println(F("[MESSAGE] Custom message finished."));
-
-      // Reset common counters, regardless of what happens next
-      currentScrollCount = 0;
-      messageStartTime = 0;
-
-      // ----------------------------------------------------------------------
-      // CRITICAL LOGIC: RESTORE PERSISTENT MESSAGE
-      // ----------------------------------------------------------------------
-      if (strlen(lastPersistentMessage) > 0) {
-        // A persistent message exists, restore it to customMessage
-        strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
-        messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Persistent messages use global speed
-
-        // Clear HA timing/scroll variables (restored persistent message is infinite)
-        messageDisplaySeconds = 0;
-        messageScrollTimes = 0;
-
-        Serial.printf("[MESSAGE] Restored persistent message: '%s'. Staying in mode 6.\n", customMessage);
-
-        // DO NOT advanceDisplayMode() or clear customMessage[0]!
-        // The function returns, and the next loop cycle will immediately display the restored message.
-      } else {
-        // No persistent message to restore. Exit mode 6.
-        customMessage[0] = '\0';  // Clear the buffer to exit mode 6 in the next loop cycle
-        Serial.println(F("[MESSAGE] No persistent message to restore. Advancing display mode."));
-        advanceDisplayMode();
-      }
-      yield();
-      return;
-    }
-
-    String msg = String(customMessage);
-
-    // Replace standard digits 0–9 with your custom font character codes
-    for (int i = 0; i < msg.length(); i++) {
-      if (isDigit(msg[i])) {
-        int num = msg[i] - '0';           // 0–9
-        msg[i] = 145 + ((num + 9) % 10);  // Maps 0→154, 1→145, ... 9→153
-      }
-    }
-
-    // --- Determine if we need left padding based on previous mode ---
-    bool addPadding = false;
-    bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
-
-    // If coming from CLOCK mode
-    if (prevDisplayMode == 0 && (showDayOfWeek || colonBlinkEnabled)) {
-      addPadding = true;
-    } else if (prevDisplayMode == 1 && humidityVisible) {
-      addPadding = true;
-    }
-    // Apply padding (4 spaces) if needed
-    if (addPadding) {
-      msg = "    " + msg;
-    }
-
-    // --- Display scrolling message ---
-    P.setTextAlignment(PA_LEFT);
-    P.setCharSpacing(1);
-    textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-    extern int messageScrollSpeed;
-
-    // START SCROLL CYCLE
-    P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
-
-    // BLOCKING WAIT: Completes 1 full scroll, matching your definition of "1 scroll"
-    while (!P.displayAnimate()) yield();
-
-    // SCROLL COUNT INCREMENT
-    if (messageScrollTimes > 0) {
-      currentScrollCount++;
-      Serial.printf("[MESSAGE] Scroll complete. Count: %d/%d\n", currentScrollCount, messageScrollTimes);
-    }
-
-    P.setTextAlignment(PA_CENTER);
+// --- Custom Message Display Mode (displayMode == 6) ---
+if (displayMode == 6) {
+  
+  // 1. Initial Check: If message is empty, skip mode 6.
+  if (strlen(customMessage) == 0) {
     advanceDisplayMode();
     yield();
     return;
   }
+
+  // --- CHARACTER REPLACEMENT AND PADDING (Common to both short and long) ---
+  const size_t MAX_NON_SCROLLING_CHARS = 8;
+  String msg = String(customMessage);
+
+  // Replace standard digits 0–9 with your custom font character codes
+  for (int i = 0; i < msg.length(); i++) {
+    if (isDigit(msg[i])) {
+      int num = msg[i] - '0';
+      msg[i] = 145 + ((num + 9) % 10);
+    }
+  }
+
+  // --- CHECK FOR TIMEOUT (Applies to temporary short & long messages) ---
+  bool timedOut = false;
+  // Check if a time limit (messageDisplaySeconds > 0) has been exceeded
+  if (messageDisplaySeconds > 0 && (millis() - messageStartTime) >= (messageDisplaySeconds * 1000UL)) {
+    Serial.printf("[MESSAGE] HA message timed out after %d seconds.\n", messageDisplaySeconds);
+    timedOut = true;
+  }
+
+  // --- CHECK FOR SCROLL/CYCLE LIMIT BEFORE DISPLAYING ---
+  // Scrolls complete applies to long messages.
+  bool scrollsComplete = (messageScrollTimes > 0) && (currentScrollCount >= messageScrollTimes);
+
+  // Cycles complete applies to short messages.
+  extern int currentDisplayCycleCount; // Use the dedicated short message counter
+  bool cyclesComplete = (messageScrollTimes > 0) && (currentDisplayCycleCount >= messageScrollTimes);
+
+
+  // --- ADVANCE MODE CHECK (Check if HA parameters are complete) ---
+  // If either timer or cycle/scroll count is finished, we clean up the temporary message.
+  if (scrollsComplete || cyclesComplete) {
+    Serial.println(F("[MESSAGE] HA-controlled message finished."));
+
+    // Reset common counters
+    currentScrollCount = 0;
+    messageStartTime = 0;
+    currentDisplayCycleCount = 0; // Reset the cycle counter
+
+    // CRITICAL LOGIC: RESTORE PERSISTENT MESSAGE (Exit Mode 6 Logic)
+    if (strlen(lastPersistentMessage) > 0) {
+      // A persistent message exists, restore it
+      strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
+      messageScrollSpeed = GENERAL_SCROLL_SPEED;
+      messageDisplaySeconds = 0;
+      messageScrollTimes = 0;
+      Serial.printf("[MESSAGE] Restored persistent message: '%s'. Staying in mode 6.\n", customMessage);
+    } else {
+      // No persistent message to restore. Clear the temporary HA message and Exit mode 6.
+      customMessage[0] = '\0';
+      Serial.println(F("[MESSAGE] No persistent message to restore. Advancing display mode."));
+      advanceDisplayMode();
+    }
+    yield();
+    return;
+  }
+
+  // ----------------------------------------------------------------------
+  // BRANCH A: NON-SCROLLING (Short Message: strlen <= 8)
+  // ----------------------------------------------------------------------
+  if (msg.length() <= MAX_NON_SCROLLING_CHARS) {
+
+    // Determine the duration: use HA seconds if set, otherwise use weatherDuration.
+    unsigned long durationMs = (messageDisplaySeconds > 0)
+                               ? (messageDisplaySeconds * 1000UL)
+                               : weatherDuration;
+    
+    // If HA seconds is set, we use the timedOut check at the top. 
+    // If only scrollTimes is set, we still display for weatherDuration before incrementing the cycle count.
+    
+    Serial.printf("[MESSAGE] Displaying timed short message: '%s' for %lu ms. Advancing mode.\n", customMessage, durationMs);
+
+    P.setTextAlignment(PA_CENTER);
+    P.setCharSpacing(1);
+    P.print(msg.c_str());
+
+    // Block execution for the specified duration (non-HA uses weatherDuration)
+    unsigned long displayUntil = millis() + durationMs;
+    while (millis() < displayUntil) {
+      yield();
+    }
+
+    // --- CYCLE TRACKING FOR SCROLLTIMES ---
+    // Increment the counter if the HA message is configured to clear by scroll count.
+    if (messageScrollTimes > 0) {
+      currentDisplayCycleCount++;
+      Serial.printf("[MESSAGE] Short message cycle complete. Count: %d/%d\n", currentDisplayCycleCount, messageScrollTimes);
+    }
+
+    // After display, the message content must persist, but the display must cycle.
+    Serial.println(F("[MESSAGE] Short message duration complete. Advancing display mode."));
+    advanceDisplayMode();
+    yield();
+    return;
+  }
+
+  // ----------------------------------------------------------------------
+  // BRANCH B: SCROLLING (Long Message: strlen > 8) - (Existing Logic)
+  // ----------------------------------------------------------------------
+  
+  // --- Determine if we need left padding based on previous mode ---
+  bool addPadding = false;
+  bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
+
+  // If coming from CLOCK mode
+  if (prevDisplayMode == 0 && (showDayOfWeek || colonBlinkEnabled)) {
+    addPadding = true;
+  } else if (prevDisplayMode == 1 && humidityVisible) {
+    addPadding = true;
+  }
+  // Apply padding (4 spaces) if needed
+  if (addPadding) {
+    msg = "    " + msg;
+  }
+
+  // --- Display scrolling message ---
+  P.setTextAlignment(PA_LEFT);
+  P.setCharSpacing(1);
+  textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+  extern int messageScrollSpeed;
+
+  // START SCROLL CYCLE
+  P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
+
+  // BLOCKING WAIT: Completes 1 full scroll
+  while (!P.displayAnimate()) yield();
+
+  // SCROLL COUNT INCREMENT
+  if (messageScrollTimes > 0) {
+    currentScrollCount++;
+    Serial.printf("[MESSAGE] Scroll complete. Count: %d/%d\n", currentScrollCount, messageScrollTimes);
+  }
+
+  // If no HA parameters are set, this is a persistent/infinite scroll, so advance mode after 1 scroll cycle.
+  // If HA parameters ARE set, the mode relies on the check at the top to break out.
+  if (messageDisplaySeconds == 0 && messageScrollTimes == 0) {
+    P.setTextAlignment(PA_CENTER);
+    advanceDisplayMode();
+  }
+
+  yield();
+  return;
+}
+
 
   unsigned long currentMillis = millis();
   unsigned long runtimeSeconds = (currentMillis - bootMillis) / 1000;
