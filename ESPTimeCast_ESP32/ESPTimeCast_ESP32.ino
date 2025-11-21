@@ -22,9 +22,9 @@
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
-#define CLK_PIN 7    //D5
-#define CS_PIN 11    // D7
-#define DATA_PIN 12  //D8
+#define CLK_PIN 12    //D5
+#define CS_PIN 10    // D7
+#define DATA_PIN 11  //D8
 
 #ifdef ESP8266
 WiFiEventHandler mConnectHandler;
@@ -91,6 +91,10 @@ int sunriseHour = 6;
 int sunriseMinute = 0;
 int sunsetHour = 18;
 int sunsetMinute = 0;
+
+// Wifi constants
+const char *DEFAULT_AP_PASSWORD = "12345678";
+const char *AP_SSID = "ESPTimeCast";
 
 //Countdown Globals
 bool countdownEnabled = false;
@@ -400,9 +404,6 @@ void loadConfig() {
 // -----------------------------------------------------------------------------
 // WiFi Setup
 // -----------------------------------------------------------------------------
-const char *DEFAULT_AP_PASSWORD = "12345678";
-const char *AP_SSID = "ESPTimeCast";
-
 void connectWiFi() {
   Serial.println(F("[WIFI] Connecting to WiFi..."));
 
@@ -653,7 +654,7 @@ void printConfigToSerial() {
 // -----------------------------------------------------------------------------
 // Web Server and Captive Portal
 // -----------------------------------------------------------------------------
-void handleCaptivePortal(AsyncWebServerRequest *request);
+//void handleCaptivePortal(AsyncWebServerRequest *request);
 
 void setupWebServer() {
   Serial.println(F("[WEBSERVER] Setting up web server..."));
@@ -1432,7 +1433,7 @@ void setupWebServer() {
         </form>
       </body>
     </html>
-  )rawliteral";
+    )rawliteral";
     request->send(200, "text/html", html);
   });
 
@@ -1501,7 +1502,8 @@ void setupWebServer() {
       }
       if (f) f.write(data, len);  // write chunk
       if (final) f.close();       // finish file
-    });
+    }
+  );
 
   server.on("/factory_reset", HTTP_GET, [](AsyncWebServerRequest *request) {
     // If not in AP mode, block and return a 403 response
@@ -1577,17 +1579,17 @@ void setupWebServer() {
         }
       }
 
-// --- Clear Wi-Fi credentials ---
-#if defined(ESP8266)
-      WiFi.disconnect(true);  // true = wipe credentials
-#elif defined(ESP32)
-        WiFi.disconnect(true, true);  // (erase=true, wifioff=true)
-#endif
+    // --- Clear Wi-Fi credentials ---
+    #if defined(ESP8266)
+          WiFi.disconnect(true);  // true = wipe credentials
+    #elif defined(ESP32)
+            WiFi.disconnect(true, true);  // (erase=true, wifioff=true)
+    #endif
 
-      Serial.println(F("[RESET] Factory defaults restored. Rebooting..."));
-      delay(500);
-      ESP.restart();
-    });
+        Serial.println(F("[RESET] Factory defaults restored. Rebooting..."));
+        delay(500);
+        ESP.restart();
+      });
   });
 
   server.onNotFound(handleCaptivePortal);
@@ -2162,39 +2164,39 @@ void setup() {
 
   Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
 
-#if defined(ESP32)
-  WiFi.setSleep(false);
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(false);
+  #if defined(ESP32)
+    WiFi.setSleep(false);
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(false);
 
-  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-    const char *name = nullptr;
-    switch (event) {
-      case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-        name = "GOT_IP";
-        lastWifiConnectTime = millis();
-        break;
-      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
-      default: return;  // ignore all other events
-    }
-    Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
-  });
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+      const char *name = nullptr;
+      switch (event) {
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+          name = "GOT_IP";
+          lastWifiConnectTime = millis();
+          break;
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
+        default: return;  // ignore all other events
+      }
+      Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
+    });
 
-#elif defined(ESP8266)
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(false);
+  #elif defined(ESP8266)
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(false);
 
-  mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
-    Serial.println("[WIFI EVENT] Connected");
-  });
-  mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
-    Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
-  });
-  mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
-    Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
-    lastWifiConnectTime = millis();
-  });
-#endif
+    mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
+      Serial.println("[WIFI EVENT] Connected");
+    });
+    mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
+      Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
+    });
+    mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
+      Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
+      lastWifiConnectTime = millis();
+    });
+  #endif
 
   connectWiFi();
 
@@ -3260,20 +3262,20 @@ void loop() {
 
     // --- Small helper inside this block ---
     auto makeTimeUTC = [](struct tm *tm) -> time_t {
-#if defined(ESP32)
-      // ESP32: timegm() is not implemented — emulate correctly
-      struct tm tm_copy = *tm;
-      // mktime() interprets tm as local, but system time is UTC already
-      // so we can safely assume input is UTC
-      return mktime(&tm_copy);
-#elif defined(ESP8266)
-      // ESP8266: timegm() not available either, same logic
-      struct tm tm_copy = *tm;
-      return mktime(&tm_copy);
-#else
-      // Platforms with proper timegm()
-      return timegm(tm);
-#endif
+  #if defined(ESP32)
+        // ESP32: timegm() is not implemented — emulate correctly
+        struct tm tm_copy = *tm;
+        // mktime() interprets tm as local, but system time is UTC already
+        // so we can safely assume input is UTC
+        return mktime(&tm_copy);
+  #elif defined(ESP8266)
+        // ESP8266: timegm() not available either, same logic
+        struct tm tm_copy = *tm;
+        return mktime(&tm_copy);
+  #else
+        // Platforms with proper timegm()
+        return timegm(tm);
+  #endif
     };
     // --------------------------------------
 

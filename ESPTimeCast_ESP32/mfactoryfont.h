@@ -3,7 +3,7 @@
 
 MD_MAX72XX::fontType_t mFactory[] PROGMEM = 
 {
-1, 0, 	// 0 - 'Empty Cell'
+	1, 0, 	// 0 - 'Empty Cell'
 	1, 0, 	// 1 - 'Sad Smiley'
 	1, 0, 	// 2 - 'Happy Smiley'
 	1, 0, 	// 3 - 'Heart'
