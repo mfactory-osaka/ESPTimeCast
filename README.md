@@ -25,7 +25,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-281%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-285%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -275,11 +275,22 @@ This guide explains how to integrate **ESPTimeCast** with **Home Assistant** to 
 
 ESPTimeCast exposes a REST API endpoint that lets you send **scrolling messages** to the display from either **Home Assistant** or the built-in **Web UI**.
 
-- **Web UI messages** are **persistent** — they remain active until manually cleared via the Web UI.  
-- **Home Assistant messages** are **temporary overrides** - they appear immediately and do not modify the saved Web UI message.
-- When a temporary HA message expires or is manually cleared, the display will automatically **restore the previously saved Web UI message**.
+#### Web UI messages
+- Act as **persistent** messages
+- Remain active (even through reboots) until replaced or cleared in the Web UI
+- Short messages (up to 8 characters) display **static & centered**, using the Web UI’s `Weather Duration` before the display rotates to the next mode
 
->**New:** Home Assistant messages can now expire automatically after a set number of **seconds** or **scroll cycles**.
+#### Home Assistant messages
+- Are **temporary overrides**
+- Do **not** overwrite the persistent Web UI message
+- Can automatically expire using:
+  - `seconds` → time-based
+  - `scrolltimes` → number of scroll cycles
+- If neither parameter is sent:
+  - Short messages (up to 8 characters) use `Weather Duration`
+  - Long messages scroll **once per display cycle** (then the display advances to the next mode, e.g., clock → weather → …)
+
+>**New:** Home Assistant messages can now expire automatically after a set number of **seconds** or **scroll cycles** and the last Web UI message (if any) will be restored.
 #### 🔗 Endpoint
 
 ```
@@ -297,7 +308,7 @@ POST http://<device_ip>/set_custom_message
 | `scrolltimes` | integer | Optional | Maximum number of full scroll cycles (**range 0–100**). Set to **0** for infinite scrolls. |
 
 
-#### 💡 Behavior
+#### 💡 Message Behavior Overview
 
 | Source | Behavior | Notes |
 |---------|-----------|-------|
@@ -305,9 +316,16 @@ POST http://<device_ip>/set_custom_message
 | **Web UI** | Displays message persistently until manually cleared. | Acts as a permanent banner or ticker. |
 | **Clear command from Web UI** | Clears *all* messages (HA + UI). | Use this to reset the display completely. |
 | **Clear command from Home Assistant** | Clears only the temporary HA message. | UI message will reappear if one was saved. |
-| **Time/Scroll Limits Met (HA only)** | **Automatic clear.** The temporary message is removed when the first limit is reached.| Automatically restores the saved UI message. |
+| **Seconds/Scrolltimes expires (HA only)** | **Automatic clear.** The temporary message is removed when the first limit is reached.| Automatically restores the saved UI message. |
 
+**Short messages (up to 8 characters):**  
+- Display static & centered (no scrolling).  
+- **Home Assistant:** uses `seconds` if provided, otherwise the Web UI **Weather Duration**.  
+- **Web UI:** always uses **Weather Duration**.
 
+**Long messages (8 characters or more):**  
+- Always scroll.
+- If sent from HA, scrolling stops when **seconds** or **scrolltimes** limits are reached (whichever comes first).
 
 #### ⚙️ Example Automations
 
@@ -394,6 +412,61 @@ curl -X POST -d "message=HA TEST&speed=40&seconds=10&scrolltimes=2" "http://<dev
 - Persistent ticker messages from the Web UI like **WELCOME HOME** or **ESPTIMECAST LIVE**.  
 - Combine both: Web UI for a base banner, and HA for transient automation messages.
 
+&nbsp;
+#### 🔆 Brightness Control (Home Assistant)
+
+ESPTimeCast provides an endpoint that allows Home Assistant to remotely control the LED matrix brightness — including turning the display completely off.
+
+#### 🔗 Endpoint
+```
+POST http://<device_ip>/set_brightness
+```
+
+#### 📝 Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|-------|----------|-------------|
+| `value` | integer | Yes | Brightness level **0–15**, or **-1** to turn the display **off**. |
+
+- Values **0–15** set the LED matrix brightness normally.  
+- Value **-1** turns the display off entirely (LEDs disabled) until brightness is set again.
+- When brightness is set back to 0–15, the display immediately resumes showing the current message or mode.
+
+
+#### 🧩 Example Home Assistant `rest_command`
+
+```
+rest_command:
+  esptimecast_brightness:
+    url: "http://<device_ip>/set_brightness"
+    method: POST
+    content_type: "application/x-www-form-urlencoded"
+    payload: "value={{ brightness }}"
+```
+
+#### ⚡ Example Automation
+
+```
+alias: Dim ESPTimeCast at Night
+trigger:
+  - platform: time
+    at: "23:00"
+action:
+  - service: rest_command.esptimecast_brightness
+    data:
+      brightness: -1   # Turns the display off
+```
+
+#### ⚡ Quick Test via curl
+
+You can quickly test changing the brightness of your ESPTimeCast display using `curl` from any computer on the same network:
+
+```
+curl -X POST -d "value=10" "http://<device_ip>/set_brightness"
+```
+
+> Replace <device_ip> with the IP address of your ESPTimeCast device.  
+> Use a brightness value between **0–15**, or **-1** to turn the display off.
 
 &nbsp;
 ## 🧩 Hidden & Advanced Features
@@ -500,6 +573,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
