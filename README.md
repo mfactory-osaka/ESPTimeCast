@@ -284,7 +284,6 @@ ESPTimeCast exposes a REST API endpoint that lets you send **scrolling messages*
 - Are **temporary overrides**
 - Do **not** overwrite the persistent Web UI message
 - Can automatically expire using:
-  - `seconds` → time-based
   - `scrolltimes` → number of scroll cycles
 - If neither parameter is sent:
   - Short messages (up to 8 characters) use `Weather Duration`
@@ -304,7 +303,7 @@ POST http://<device_ip>/set_custom_message
 |------------|------|-----------|-------------|
 | `message` | string | Yes | Message text to display. Send an empty string (`""`) to clear messages. |
 | `speed` | integer | Optional | Scrolling speed (range **10–200**). Lower values = **faster** scroll. |
-| `seconds` | integer | Optional | Maximum display duration in seconds (range **0–3600**). Set to **0** for infinite time. |
+| `seconds` | integer | Optional | Maximum display duration in seconds (range **0–3600**). If set to **0**, `Weather Duration` will be used. |
 | `scrolltimes` | integer | Optional | Maximum number of full scroll cycles (**range 0–100**). Set to **0** for infinite scrolls. |
 
 
@@ -316,7 +315,7 @@ POST http://<device_ip>/set_custom_message
 | **Web UI** | Displays message persistently until manually cleared. | Acts as a permanent banner or ticker. |
 | **Clear command from Web UI** | Clears *all* messages (HA + UI). | Use this to reset the display completely. |
 | **Clear command from Home Assistant** | Clears only the temporary HA message. | UI message will reappear if one was saved. |
-| **Seconds/Scrolltimes expires (HA only)** | **Automatic clear.** The temporary message is removed when the first limit is reached.| Automatically restores the saved UI message. |
+| **Scrolltimes expires (HA only)** | **Automatic clear.** The temporary message is removed when the limit is reached.| Automatically restores the saved UI message. |
 
 **Short messages (up to 8 characters):**  
 - Display static & centered (no scrolling).  
@@ -325,7 +324,7 @@ POST http://<device_ip>/set_custom_message
 
 **Long messages (8 characters or more):**  
 - Always scroll.
-- If sent from HA, scrolling stops when **seconds** or **scrolltimes** limits are reached (whichever comes first).
+- If sent from HA, scrolling stops when **scrolltimes** limit is reached or manually clered when sent without parameter.
 
 #### ⚙️ Example Automations
 
@@ -573,6 +572,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
