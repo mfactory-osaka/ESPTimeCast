@@ -244,7 +244,7 @@ Follow these steps to prepare your Arduino IDE for ESP32 development:
 2.  **Select Your Board:**
     * Go to `Tools > Board` and select your specific board, e.g., **LOLIN S2 Mini** (or your ESP32 variant).
 3.  **Configure Partition Scheme:**
-    * Under `Tools`, select `Partition Scheme "No OTA (2MB APP/2MB SPIFFS)"`. This ensures enough space for the sketch and LittleFS data.
+    * Under `Tools`, select `Partition Scheme "No OTA (2MB APP/2MB SPIFFS) or No OTA (LARGE APP)"`. This ensures enough space for the sketch and LittleFS data.
 4.  **Install Libraries:**
     * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
         * `ArduinoJson` by Benoit Blanchon
@@ -572,6 +572,7 @@ If you enjoy this project, please consider supporting my work:
 
 
       
+
 
 
 
