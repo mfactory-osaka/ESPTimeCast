@@ -1268,6 +1268,11 @@ void setupWebServer() {
         if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == ':' || c == '!' || c == '\'' || c == '-' || c == '.' || c == ',' || c == '_' || c == '+' || c == '%' || c == '/' || c == '?') {
           filtered += c;
         }
+        // Check for degree symbol (UTF-8 0xC2 0xB0)
+        else if ((unsigned char)c == 0xC2 && i + 1 < msg.length() && (unsigned char)msg[i + 1] == 0xB0) {
+          filtered += "°";  // add single character
+          i++;              // skip next byte
+        }
       }
 
       filtered.toCharArray(customMessage, sizeof(customMessage));
