@@ -560,18 +560,27 @@ The following table summarizes what will appear on the display in each scenario:
 - ❌ **No**: Data not available
 - — : Value does not affect this mode
 
-&nbsp;
-## Support this project
 
-ESPTimeCast is an open-source passion project that blends art, engineering, and information display.
-If you enjoy this project, please consider supporting my work:
+&nbsp;
+## 📣 Community & Help
+If you need assistance, want to share your build, or discuss new features:  
+👉 Join the ESPTimeCast Community on Reddit: [r/ESPTimeCast](https://www.reddit.com/r/ESPTimeCast/)
+&nbsp;  
+&nbsp;
+## ❤️ Support this project
+ESPTimeCast is an open-source passion project that blends art, engineering, and design.  
+If you enjoy it, you can help keep the project growing - even something as simple as leaving a ⭐ on GitHub goes a long way.  
+
+If you'd like to go further, you can also support development through the options below:
 
 [![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg?logo=paypal)](https://www.paypal.me/officialuphoto)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-fafbfc?logo=github&logoColor=ea4aaa)](https://github.com/sponsors/mfactory-osaka)   
-
+&nbsp;
+&nbsp;
 
 
       
+
 
 
 
