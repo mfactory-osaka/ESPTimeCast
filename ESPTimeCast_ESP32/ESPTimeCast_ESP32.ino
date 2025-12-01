@@ -456,7 +456,7 @@ void connectWiFi() {
   while (animating) {
     unsigned long now = millis();
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("[WiFi] Connected: " + WiFi.localIP().toString());
+      Serial.println("[WIFI] Connected: " + WiFi.localIP().toString());
       isAPMode = false;
 
       WiFiMode_t mode = WiFi.getMode();
@@ -487,10 +487,10 @@ void connectWiFi() {
       animating = false;  // Exit the connection loop
       break;
     } else if (now - startAttemptTime >= timeout) {
-      Serial.println(F("[WiFi] Failed. Starting AP mode..."));
+      Serial.println(F("[WIFI] Failed. Starting AP mode..."));
       WiFi.mode(WIFI_AP);
       WiFi.softAP(AP_SSID, DEFAULT_AP_PASSWORD);
-      Serial.print(F("[WiFi] AP IP address: "));
+      Serial.print(F("[WIFI] AP IP address: "));
       Serial.println(WiFi.softAPIP());
       dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
       isAPMode = true;
@@ -530,9 +530,9 @@ void setupMDNS() {
 
   if (mdnsStarted) {
     MDNS.addService("http", "tcp", 80);
-    Serial.printf("mDNS started: http://%s.local\n", hostName);
+    Serial.printf("[WIFI] mDNS started: http://%s.local\n", hostName);
   } else {
-    Serial.println("mDNS failed to start");
+    Serial.println("[WIFI] mDNS failed to start");
   }
 }
 
