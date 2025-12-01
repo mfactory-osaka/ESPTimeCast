@@ -12,13 +12,13 @@
 #include <sntp.h>
 #include <time.h>
 #include <WiFiClientSecure.h>
+#include <ESPmDNS.h>
 
 #include "mfactoryfont.h"   // Custom font
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
-
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
@@ -146,7 +146,7 @@ const unsigned long ntpStatusPrintInterval = 1000;  // Print status every 1 seco
 // Non-blocking IP display globals
 bool showingIp = false;
 int ipDisplayCount = 0;
-const int ipDisplayMax = 2;  // As per working copy for how long IP shows
+const int ipDisplayMax = 1;  // As per working copy for how long IP shows
 String pendingIpToShow = "";
 
 // Countdown display state - NEW
@@ -520,6 +520,21 @@ void connectWiFi() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// mDNS
+// -----------------------------------------------------------------------------
+void setupMDNS() {
+  const char *hostName = "esptimecast";  // your device name
+  bool mdnsStarted = false;
+  mdnsStarted = MDNS.begin(hostName);
+
+  if (mdnsStarted) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.printf("mDNS started: http://%s.local\n", hostName);
+  } else {
+    Serial.println("mDNS failed to start");
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Time / NTP Functions
@@ -2211,6 +2226,7 @@ void setup() {
     Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
   }
 
+  setupMDNS();
   setupWebServer();
   Serial.println(F("[SETUP] Webserver setup complete"));
   Serial.println(F("[SETUP] Setup complete"));
