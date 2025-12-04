@@ -593,7 +593,6 @@ textarea::placeholder {
         </span>
       </label>
       <div id="owm-settings">
-      // Disabled if using Home Assistant currently
         <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
           <span style="margin-right: 0.5em;">Show Weather Description:</span>
           <span class="toggle-switch">
