@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <AsyncTCP.h>
 #include <LittleFS.h>
