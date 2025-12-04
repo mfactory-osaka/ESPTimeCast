@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <AsyncTCP.h>
 #include <LittleFS.h>
@@ -46,6 +47,10 @@ const unsigned int NIGHTSCOUT_IDLE_THRESHOLD_MIN = 10;  // minutes before data i
 // WiFi and configuration globals
 char ssid[32] = "";
 char password[64] = "";
+char homeAssistantURL[254] = "";
+char homeAssistantApiKey[254] = "";
+char haTempSensor[128] = "";
+char haHumiditySensor[128] = "";
 char openWeatherApiKey[64] = "";
 char openWeatherCity[64] = "";
 char openWeatherCountry[64] = "";
@@ -64,11 +69,11 @@ int brightness = 7;
 bool flipDisplay = false;
 bool twelveHourToggle = false;
 bool showDayOfWeek = true;
-bool showDate = false;
+bool useHomeAssistant = false;
 bool showHumidity = false;
 bool colonBlinkEnabled = true;
-char ntpServer1[64] = "pool.ntp.org";
-char ntpServer2[256] = "time.nist.gov";
+char ntpServer1[64] = "pool.ntp.org"; // Change these before flashing if you want local only
+char ntpServer2[256] = "time.nist.gov"; // Change these before flashing if you want local only
 char customMessage[121] = "";
 char lastPersistentMessage[128] = "";
 int messageDisplaySeconds;
@@ -76,6 +81,8 @@ int messageScrollTimes;
 unsigned long messageStartTime = 0;
 int currentScrollCount = 0;
 int currentDisplayCycleCount = 0;
+bool showDate = false;
+
 
 // Dimming
 bool dimmingEnabled = false;
@@ -197,6 +204,13 @@ const char *getSafeApiKey() {
     return "********************************";  // Always masked, even in AP mode
   }
 }
+const char *getSafeHAApiKey() {
+  if (strlen(homeAssistantApiKey) == 0) {
+    return "";
+  } else {
+    return "********************************";  // Always masked, even in AP mode
+  }
+}
 
 // Scroll flipped
 textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isFlipped) {
@@ -222,21 +236,26 @@ void loadConfig() {
   if (!LittleFS.exists("/config.json")) {
     Serial.println(F("[CONFIG] config.json not found, creating with defaults..."));
     DynamicJsonDocument doc(1024);
-    doc[F("ssid")] = "";
-    doc[F("password")] = "";
-    doc[F("openWeatherApiKey")] = "";
-    doc[F("openWeatherCity")] = "";
-    doc[F("openWeatherCountry")] = "";
-    doc[F("weatherUnits")] = "metric";
-    doc[F("clockDuration")] = 10000;
-    doc[F("weatherDuration")] = 5000;
-    doc[F("timeZone")] = "";
-    doc[F("language")] = "en";
+    doc[F("ssid")] = ssid;
+    doc[F("password")] = password;
+    doc[F("useHomeAssistant")] = useHomeAssistant;
+    doc[F("homeAssistantURL")] = homeAssistantURL;
+    doc[F("homeAssistantApiKey")] = homeAssistantApiKey;
+    doc[F("haTempSensor")] = haTempSensor;
+    doc[F("haHumiditySensor")] = haHumiditySensor;
+    doc[F("openWeatherApiKey")] = openWeatherApiKey;
+    doc[F("openWeatherCity")] = openWeatherCity;
+    doc[F("openWeatherCountry")] = openWeatherCountry;
+    doc[F("weatherUnits")] = weatherUnits;
+    doc[F("clockDuration")] = clockDuration;
+    doc[F("weatherDuration")] = weatherDuration;
+    doc[F("timeZone")] = timeZone;
+    doc[F("language")] = language;
     doc[F("brightness")] = brightness;
     doc[F("flipDisplay")] = flipDisplay;
     doc[F("twelveHourToggle")] = twelveHourToggle;
     doc[F("showDayOfWeek")] = showDayOfWeek;
-    doc[F("showDate")] = false;
+    doc[F("showDate")] = showDate;
     doc[F("showHumidity")] = showHumidity;
     doc[F("colonBlinkEnabled")] = colonBlinkEnabled;
     doc[F("ntpServer1")] = ntpServer1;
@@ -292,6 +311,10 @@ void loadConfig() {
 
   strlcpy(ssid, doc["ssid"] | "", sizeof(ssid));
   strlcpy(password, doc["password"] | "", sizeof(password));
+  strlcpy(homeAssistantURL, doc["homeAssistantURL"] | "", sizeof(homeAssistantURL));
+  strlcpy(homeAssistantApiKey, doc["homeAssistantApiKey"] | "", sizeof(homeAssistantApiKey));
+  strlcpy(haTempSensor, doc["haTempSensor"] | "", sizeof(haTempSensor));
+  strlcpy(haHumiditySensor, doc["haHumiditySensor"] | "", sizeof(haHumiditySensor));
   strlcpy(openWeatherApiKey, doc["openWeatherApiKey"] | "", sizeof(openWeatherApiKey));
   strlcpy(openWeatherCity, doc["openWeatherCity"] | "", sizeof(openWeatherCity));
   strlcpy(openWeatherCountry, doc["openWeatherCountry"] | "", sizeof(openWeatherCountry));
@@ -314,6 +337,7 @@ void loadConfig() {
   showDayOfWeek = doc["showDayOfWeek"] | true;
   showDate = doc["showDate"] | false;
   showHumidity = doc["showHumidity"] | false;
+  useHomeAssistant = doc["useHomeAssistant"] | false;
   colonBlinkEnabled = doc.containsKey("colonBlinkEnabled") ? doc["colonBlinkEnabled"].as<bool>() : true;
   showWeatherDescription = doc["showWeatherDescription"] | false;
 
@@ -544,6 +568,45 @@ void setupTime() {
 }
 
 
+// -----------------------------
+// Format total uptime as HH:MM:SS
+// -----------------------------
+String formatTotalRuntime() {
+  unsigned long secs = getTotalRuntimeSeconds();
+  unsigned int h = secs / 3600;
+  unsigned int m = (secs % 3600) / 60;
+  unsigned int s = secs % 60;
+  char buf[16];
+  sprintf(buf, "%02u:%02u:%02u", h, m, s);
+  return String(buf);
+}
+
+// -----------------------------
+// Save uptime to LittleFS
+// -----------------------------
+void saveUptime() {
+  // Use getTotalRuntimeSeconds() to include current session
+  totalUptimeSeconds = getTotalRuntimeSeconds();
+  bootMillis = millis();  // reset session start
+
+  File f = LittleFS.open("/uptime.dat", "w");
+  if (f) {
+    f.print(totalUptimeSeconds);
+    f.close();
+    Serial.printf("[UPTIME] Saved accumulated uptime: %s\n", formatTotalRuntime().c_str());
+  } else {
+    Serial.println(F("[UPTIME] Failed to write /uptime.dat"));
+  }
+}
+
+
+// -----------------------------
+// Get total uptime including current session
+// -----------------------------
+unsigned long getTotalRuntimeSeconds() {
+  return totalUptimeSeconds + (millis() - bootMillis) / 1000;
+}
+
 // -----------------------------------------------------------------------------
 // Utility
 // -----------------------------------------------------------------------------
@@ -559,6 +622,16 @@ void printConfigToSerial() {
   Serial.println(openWeatherCountry);
   Serial.print(F("OpenWeather API Key: "));
   Serial.println(openWeatherApiKey);
+  Serial.print(F("Use Home Assistant rather than OpenWeather: "));
+  Serial.println(useHomeAssistant ? "Yes" : "No");
+  Serial.print(F("HomeAssistant URL: "));
+  Serial.println(homeAssistantURL);
+  Serial.print(F("HomeAssistant API Key: "));
+  Serial.println(homeAssistantApiKey);
+  Serial.print(F("HomeAssistant Temperature Entity: "));
+  Serial.println(haTempSensor);
+  Serial.print(F("HomeAssistant Humidity Entity: "));
+  Serial.println(haHumiditySensor);
   Serial.print(F("Temperature Unit: "));
   Serial.println(weatherUnits);
   Serial.print(F("Clock duration: "));
@@ -650,11 +723,263 @@ void printConfigToSerial() {
   Serial.println();
 }
 
+void advanceDisplayMode() {
+  prevDisplayMode = displayMode;
+  int oldMode = displayMode;
+  String ntpField = String(ntpServer2);
+  bool nightscoutConfigured = ntpField.startsWith("https://");
+
+  if (displayMode == 0) {  // Clock
+    if (showDate) {
+      displayMode = 5;  // Date mode right after Clock
+      Serial.println(F("[DISPLAY] Switching to display mode: DATE (from Clock)"));
+    } else if (weatherAvailable && (
+          (!useHomeAssistant && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0)
+          ||
+          (useHomeAssistant && strlen(homeAssistantApiKey) > 32 && strlen(haTempSensor) > 0) // Or HomeAssistant setup 
+        )
+      ) {
+      displayMode = 1;
+      Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Clock)"));
+    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
+      displayMode = 3;
+      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Clock, weather skipped)"));
+    } else if (nightscoutConfigured) {
+      displayMode = 4;  // Clock -> Nightscout (if weather & countdown are skipped)
+      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Clock, weather & countdown skipped)"));
+    } else {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Staying in CLOCK (from Clock)"));
+    }
+  } else if (displayMode == 5) {  // Date mode
+    if (weatherAvailable && (
+          (!useHomeAssistant && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0)
+          ||
+          (useHomeAssistant && strlen(homeAssistantApiKey) > 32 && strlen(haTempSensor) > 0) // Or HomeAssistant setup 
+        )
+      ) {
+      displayMode = 1;
+      Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Date)"));
+    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
+      displayMode = 3;
+      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Date, weather skipped)"));
+    } else if (nightscoutConfigured) {
+      displayMode = 4;
+      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Date, weather & countdown skipped)"));
+    } else {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Date)"));
+    }
+  } else if (displayMode == 1) {  // Weather
+    if (showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
+      displayMode = 2;
+      Serial.println(F("[DISPLAY] Switching to display mode: DESCRIPTION (from Weather)"));
+    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
+      displayMode = 3;
+      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Weather)"));
+    } else if (nightscoutConfigured) {
+      displayMode = 4;  // Weather -> Nightscout (if description & countdown are skipped)
+      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Weather, description & countdown skipped)"));
+    } else {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Weather)"));
+    }
+  } else if (displayMode == 2) {  // Weather Description
+    if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
+      displayMode = 3;
+      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Description)"));
+    } else if (nightscoutConfigured) {
+      displayMode = 4;  // Description -> Nightscout (if countdown is skipped)
+      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Description, countdown skipped)"));
+    } else {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Description)"));
+    }
+  } else if (displayMode == 3) {  // Countdown -> Nightscout
+    if (nightscoutConfigured) {
+      displayMode = 4;
+      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Countdown)"));
+    } else {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Countdown)"));
+    }
+  } else if (displayMode == 4) {  // Nightscout -> Custom Message
+    displayMode = 6;
+    Serial.println(F("[DISPLAY] Switching to display mode: CUSTOM MESSAGE (from Nightscout)"));
+  } else if (displayMode == 6) {  // Custom Message -> Clock
+    displayMode = 0;
+    Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Custom Message)"));
+  }
+
+  // --- Common cleanup/reset logic remains the same ---
+  if ((displayMode == 0) && strlen(customMessage) > 0 && oldMode != 6) {
+    displayMode = 6;
+    Serial.println(F("[DISPLAY] Custom Message display before returning to CLOCK"));
+  }
+  lastSwitch = millis();
+}
+
+
+void advanceDisplayModeSafe() {
+  int attempts = 0;
+  const int MAX_ATTEMPTS = 7;  // Number of possible modes + 1
+  int startMode = displayMode;
+  bool valid = false;
+  do {
+    advanceDisplayMode();  // One step advance
+    attempts++;
+    // Recalculate validity for the new mode
+    valid = false;
+    String ntpField = String(ntpServer2);
+    bool nightscoutConfigured = ntpField.startsWith("https://");
+
+    if (displayMode == 0) valid = true;  // Clock always valid
+    else if (displayMode == 5 && showDate) valid = true;
+    else if (displayMode == 1 && weatherAvailable && (
+        (!useHomeAssistant && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0)
+        ||
+        (useHomeAssistant && strlen(homeAssistantApiKey) > 32 && strlen(haTempSensor) > 0)
+      )) valid = true;
+    else if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) valid = true;
+    else if (displayMode == 3 && countdownEnabled && !countdownFinished && ntpSyncSuccessful) valid = true;
+    else if (displayMode == 4 && nightscoutConfigured) valid = true;
+    else if (displayMode == 6 && strlen(customMessage) > 0) valid = true;
+
+    // If we've looped back to where we started, break to avoid infinite loop
+    if (displayMode == startMode) break;
+
+    if (valid) break;
+  } while (attempts < MAX_ATTEMPTS);
+
+  // If no valid mode found, fall back to Clock
+  if (!valid) {
+    displayMode = 0;
+    Serial.println(F("[DISPLAY] Safe fallback to CLOCK"));
+  }
+  lastSwitch = millis();
+}
+
+
+//config save after countdown finishes
+bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &label) {
+  DynamicJsonDocument doc(2048);
+
+  File configFile = LittleFS.open("/config.json", "r");
+  if (configFile) {
+    DeserializationError err = deserializeJson(doc, configFile);
+    configFile.close();
+    if (err) {
+      Serial.print(F("[saveCountdownConfig] Error parsing config.json: "));
+      Serial.println(err.f_str());
+      return false;
+    }
+  }
+
+  JsonObject countdownObj = doc["countdown"].is<JsonObject>() ? doc["countdown"].as<JsonObject>() : doc.createNestedObject("countdown");
+  countdownObj["enabled"] = enabled;
+  countdownObj["targetTimestamp"] = targetTimestamp;
+  countdownObj["label"] = label;
+  countdownObj["isDramaticCountdown"] = isDramaticCountdown;
+  doc.remove("countdownEnabled");
+  doc.remove("countdownDate");
+  doc.remove("countdownTime");
+  doc.remove("countdownLabel");
+
+  if (LittleFS.exists("/config.json")) {
+    LittleFS.rename("/config.json", "/config.bak");
+  }
+
+  File f = LittleFS.open("/config.json", "w");
+  if (!f) {
+    Serial.println(F("[saveCountdownConfig] ERROR: Cannot write to /config.json"));
+    return false;
+  }
+
+  size_t bytesWritten = serializeJson(doc, f);
+  f.close();
+
+  Serial.printf("[saveCountdownConfig] Config updated. %u bytes written.\n", bytesWritten);
+  return true;
+}
+
+
+
+void saveCustomMessageToConfig(const char *msg) {
+  Serial.println(F("[CONFIG] Updating customMessage in config.json..."));
+
+  DynamicJsonDocument doc(2048);
+
+  // Load existing config.json (if present)
+  File configFile = LittleFS.open("/config.json", "r");
+  if (configFile) {
+    DeserializationError err = deserializeJson(doc, configFile);
+    configFile.close();
+    if (err) {
+      Serial.print(F("[CONFIG] Error reading existing config: "));
+      Serial.println(err.f_str());
+    }
+  }
+
+  // Update only customMessage
+  doc["customMessage"] = msg;
+
+  // Safely write back to config.json
+  if (LittleFS.exists("/config.json")) {
+    LittleFS.rename("/config.json", "/config.bak");
+  }
+
+  File f = LittleFS.open("/config.json", "w");
+  if (!f) {
+    Serial.println(F("[CONFIG] ERROR: Failed to open /config.json for writing"));
+    return;
+  }
+
+  size_t bytesWritten = serializeJson(doc, f);
+  f.close();
+  Serial.printf("[CONFIG] Saved customMessage='%s' (%u bytes written)\n", msg, bytesWritten);
+}
+
+// Returns formatted uptime (for web UI or logs)
+String formatUptime(unsigned long seconds) {
+  unsigned long days = seconds / 86400;
+  unsigned long hours = (seconds % 86400) / 3600;
+  unsigned long minutes = (seconds % 3600) / 60;
+  unsigned long secs = seconds % 60;
+
+  char buf[64];
+  if (days > 0)
+    sprintf(buf, "%lud %02lu:%02lu:%02lu", days, hours, minutes, secs);
+  else
+    sprintf(buf, "%02lu:%02lu:%02lu", hours, minutes, secs);
+  return String(buf);
+}
 
 // -----------------------------------------------------------------------------
 // Web Server and Captive Portal
 // -----------------------------------------------------------------------------
-//void handleCaptivePortal(AsyncWebServerRequest *request);
+
+void handleCaptivePortal(AsyncWebServerRequest *request) {
+  String uri = request->url();
+
+  // Filter out system-generated probe requests
+  if (!uri.endsWith("/204") && !uri.endsWith("/ipv6check") && !uri.endsWith("connecttest.txt") && !uri.endsWith("/generate_204") && !uri.endsWith("/fwlink") && !uri.endsWith("/hotspot-detect.html")) {
+
+    Serial.print(F("[WEBSERVER] Captive Portal triggered for URL: "));
+    Serial.println(uri);
+  }
+
+  if (isAPMode) {
+    IPAddress apIP = WiFi.softAPIP();
+    String redirectUrl = "http://" + apIP.toString() + "/";
+    Serial.print(F("[WEBSERVER] Redirecting to captive portal: "));
+    Serial.println(redirectUrl);
+    request->redirect(redirectUrl);
+  } else {
+    Serial.println(F("[WEBSERVER] Not in AP mode — sending 404"));
+    request->send(404, "text/plain", "Not found");
+  }
+}
+
 
 void setupWebServer() {
   Serial.println(F("[WEBSERVER] Setting up web server..."));
@@ -719,6 +1044,10 @@ void setupWebServer() {
     doc[F("ssid")] = getSafeSsid();
     doc[F("password")] = getSafePassword();
     doc[F("openWeatherApiKey")] = getSafeApiKey();
+    doc[F("homeAssistantApiKey")] = getSafeHAApiKey();
+
+  
+
     doc[F("mode")] = isAPMode ? "ap" : "sta";
 
     String response;
@@ -755,6 +1084,7 @@ void setupWebServer() {
       else if (n == "twelveHourToggle") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showDayOfWeek") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showDate") doc[n] = (v == "true" || v == "on" || v == "1");
+      else if (n == "useHomeAssistant") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showHumidity") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "colonBlinkEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "dimStartHour") doc[n] = v.toInt();
@@ -767,7 +1097,6 @@ void setupWebServer() {
       } else if (n == "showWeatherDescription") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "dimmingEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "weatherUnits") doc[n] = v;
-
       else if (n == "password") {
         if (v != "********" && v.length() > 0) {
           doc[n] = v;  // user entered a new password
@@ -776,7 +1105,6 @@ void setupWebServer() {
           // do nothing, keep the one already in doc
         }
       }
-
       else if (n == "openWeatherApiKey") {
         if (v != "********************************") {  // ignore mask only
           doc[n] = v;                                   // save new key (even if empty)
@@ -785,7 +1113,17 @@ void setupWebServer() {
         } else {
           Serial.println(F("[SAVE] API key unchanged (mask ignored)."));
         }
-      } else {
+      } 
+      else if (n == "homeAssistantApiKey") {
+        if (v != "********************************") {  // ignore mask only
+          doc[n] = v;                                   // save new key (even if empty)
+          Serial.print(F("[SAVE] Home Assistant API key updated: "));
+          Serial.println(v.length() == 0 ? "(empty)" : v);
+        } else {
+          Serial.println(F("[SAVE] Home Assistant API key unchanged (mask ignored)."));
+        }
+      } 
+      else {
         doc[n] = v;
       }
     }
@@ -1058,6 +1396,17 @@ void setupWebServer() {
     Serial.printf("[WEBSERVER] Set showDate to %d\n", showDate);
     request->send(200, "application/json", "{\"ok\":true}");
   });
+
+  server.on("/set_useHomeAssistant", HTTP_POST, [](AsyncWebServerRequest *request) {
+    bool useHomeAssistantVal = false;
+    if (request->hasParam("value", true)) {
+      String v = request->getParam("value", true)->value();
+      useHomeAssistantVal = (v == "1" || v == "true" || v == "on");
+    }
+    useHomeAssistant = useHomeAssistantVal;
+    Serial.printf("[WEBSERVER] Set useHomeAssistant to %d\n", useHomeAssistant);
+    request->send(200, "application/json", "{\"ok\":true}");
+  });  
 
   server.on("/set_humidity", HTTP_POST, [](AsyncWebServerRequest *request) {
     bool showHumidityNow = false;
@@ -1372,6 +1721,7 @@ void setupWebServer() {
       doc["ssid"] = "********";
       doc["password"] = "********";
       doc["openWeatherApiKey"] = "********************************";
+      doc["homeAssistantApiKey"] = "********************************";
     }
 
     doc["mode"] = isAPMode ? "ap" : "sta";
@@ -1598,28 +1948,6 @@ void setupWebServer() {
 }
 
 
-void handleCaptivePortal(AsyncWebServerRequest *request) {
-  String uri = request->url();
-
-  // Filter out system-generated probe requests
-  if (!uri.endsWith("/204") && !uri.endsWith("/ipv6check") && !uri.endsWith("connecttest.txt") && !uri.endsWith("/generate_204") && !uri.endsWith("/fwlink") && !uri.endsWith("/hotspot-detect.html")) {
-
-    Serial.print(F("[WEBSERVER] Captive Portal triggered for URL: "));
-    Serial.println(uri);
-  }
-
-  if (isAPMode) {
-    IPAddress apIP = WiFi.softAPIP();
-    String redirectUrl = "http://" + apIP.toString() + "/";
-    Serial.print(F("[WEBSERVER] Redirecting to captive portal: "));
-    Serial.println(redirectUrl);
-    request->redirect(redirectUrl);
-  } else {
-    Serial.println(F("[WEBSERVER] Not in AP mode — sending 404"));
-    request->send(404, "text/plain", "Not found");
-  }
-}
-
 
 String normalizeWeatherDescription(String str) {
   // Serbian Cyrillic → Latin
@@ -1784,6 +2112,155 @@ bool isFiveDigitZip(const char *str) {
 // -----------------------------------------------------------------------------
 // Weather Fetching and API settings
 // -----------------------------------------------------------------------------
+String buildHomeAssistantURL(String entityName) {
+  String base = "";
+  if (homeAssistantURL) {
+    base += homeAssistantURL;
+    base +=  "/api/states/";
+    base += entityName;
+  }
+  return base;
+}
+
+String getHAJSON(String entityID, DynamicJsonDocument &doc) {
+  // Debug: Show what we are sending
+  Serial.print(F("[HOME ASSISTANT] Entity: "));
+  Serial.println(entityID);
+
+  Serial.print(F("[HOME ASSISTANT] URL: "));  // Use F() with Serial.print
+  String url = buildHomeAssistantURL(entityID);
+  Serial.println(url);
+  
+  WiFiClientSecure client;  // use secure client for HTTPS
+  client.stop();            // ensure previous session closed
+  yield();                  // Allow OS to process socket closure
+  client.setInsecure();     // no cert validation
+  HTTPClient http;          // Create an HTTPClient object
+  http.begin(client, url);  // Pass the WiFiClient object and the URL
+  http.setTimeout(10000);   // Sets both connection and stream timeout to 10 seconds
+  http.addHeader("content-type", "application/json"); // Ensures that the content returned is in json format 
+  http.addHeader("User-Agent", "ESPTimeCast"); // Sets the User-Agent to ESPTimeCast
+  http.addHeader("Authorization", String("Bearer ") + homeAssistantApiKey); // Add the API key to the header
+  Serial.println(F("[HOME ASSISTANT] Sending GET request..."));
+  int httpCode = http.GET();  // Send the GET request
+  if (httpCode != HTTP_CODE_OK){
+    Serial.printf("[HOME ASSISTANT] HTTP GET failed, error code: %d, reason: %s\n",
+                  httpCode, http.errorToString(httpCode).c_str());
+    Serial.println(F("[HOME ASSISTANT] Home Assistant requested, but not configured"));
+    Serial.println(F("[HOME ASSISTANT] Setting Use Home Assistant flag to off"));
+    return "Error: No Entity"; // Return text error
+  }
+  Serial.println(F("[HOME ASSISTANT] HTTP 200 OK. Reading payload..."));
+
+  String payload = http.getString();
+  http.end();
+  Serial.println(F("[HOME ASSISTANT] Response received."));
+  Serial.print(F("[HOME ASSISTANT] Payload: "));  // Use F() with Serial.print
+  Serial.println(payload);
+  doc.clear();
+  DeserializationError error = deserializeJson(doc, payload);
+
+  if (error) {
+    Serial.print(F("[HOME ASSISTANT] JSON parse error: "));
+    Serial.println(error.f_str());
+    return "Error: Parsing Error"; // Return text error
+  }
+  return "200";
+}
+
+// Function to grab the Entity state
+String getHAEntityState(String entityID) {
+  
+  DynamicJsonDocument doc(1536);
+  String status = getHAJSON(entityID, doc);
+  if (status == "200") {
+    if (doc.containsKey(F("state"))) {
+      String currentState = String(doc[F("state")]);
+      Serial.printf("[HOME ASSISTANT] Temp: %s\n", currentState.c_str());
+      return currentState; // Return text error
+    }
+  }
+  Serial.println(F("[HOME ASSISTANT] No State Returned"));
+  return "Error: No State"; 
+}
+
+String getHASun(int &sunriseHour, int &sunriseMinute, int &sunsetHour, int &sunsetMinute) {
+  DynamicJsonDocument doc(2048);
+  String status = getHAJSON("sun.sun", doc);
+
+  if (status == "200") {
+    // 1. Check for attributes
+    if (doc.containsKey(F("attributes"))) {
+        JsonObject sunAttributes = doc[F("attributes")];
+        
+        if (sunAttributes.containsKey(F("next_rising")) && sunAttributes.containsKey(F("next_setting"))) {
+          const char* riseStr = sunAttributes[F("next_rising")];
+          const char* setStr = sunAttributes[F("next_setting")];
+
+          // 2. Helper Lambda: Parse ISO String -> UTC time_t
+          auto parseIsoToUtc = [](const char* str) -> time_t {
+            int y, M, d, h, m, s;
+            // Parse "2025-12-03T08:04:34"
+            if (sscanf(str, "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) == 6) {
+              struct tm tm = {0};
+              tm.tm_year = y - 1900; 
+              tm.tm_mon = M - 1; 
+              tm.tm_mday = d;
+              tm.tm_hour = h; 
+              tm.tm_min = m; 
+              tm.tm_sec = s;
+              tm.tm_isdst = 0;
+              
+              // FIX for missing timegm: Swap TZ to UTC, mktime, then swap back
+              char *oldTz = getenv("TZ"); // Save current TZ
+              setenv("TZ", "UTC0", 1);    // Force UTC
+              tzset();
+              
+              time_t t = mktime(&tm);     // Convert
+              
+              if (oldTz) setenv("TZ", oldTz, 1); // Restore TZ
+              else unsetenv("TZ");
+              tzset();
+              
+              return t;
+            }
+            return 0;
+          };
+
+          // 3. Convert Strings to UTC Epochs
+          time_t riseUtc = parseIsoToUtc(riseStr);
+          time_t setUtc = parseIsoToUtc(setStr);
+
+          // 4. Convert UTC -> Local Time (Using restored system TZ)
+          struct tm riseLocal, setLocal;
+          localtime_r(&riseUtc, &riseLocal);
+          localtime_r(&setUtc, &setLocal);
+
+          // 5. Update the variables
+          sunriseHour = riseLocal.tm_hour;
+          sunriseMinute = riseLocal.tm_min;
+          sunsetHour = setLocal.tm_hour;
+          sunsetMinute = setLocal.tm_min;
+
+          Serial.printf("[HOME ASSISTANT] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n",
+                        sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+                        
+          return "OK"; // Successfully parsed
+        }
+    }
+    
+    // Fallback: If attributes missing, try state
+    if (doc.containsKey(F("state"))) {
+       String s = doc[F("state")].as<String>();
+       Serial.printf("[HOME ASSISTANT] Sun State: %s\n", s.c_str());
+       return s; 
+    }
+  }
+  
+  Serial.println(F("[HOME ASSISTANT] No valid sun object found"));
+  return "Error: No Sun"; 
+}
+
 String buildWeatherURL() {
   String base = "https://api.openweathermap.org/data/2.5/weather?";
 
@@ -1818,7 +2295,6 @@ String buildWeatherURL() {
   return base;
 }
 
-
 void fetchWeather() {
   if (millis() - lastWifiConnectTime < 5000) {
     Serial.println(F("[WEATHER] Skipped: Network just reconnected. Letting it stabilize..."));
@@ -1832,38 +2308,114 @@ void fetchWeather() {
     weatherFetched = false;
     return;
   }
-  if (!openWeatherApiKey || strlen(openWeatherApiKey) != 32) {
+
+  if (useHomeAssistant && (!homeAssistantURL || !homeAssistantApiKey || !haTempSensor)) {
+    Serial.println(F("[WEATHER] Home Assistant requested, but not configured"));
+    Serial.println(F("[WEATHER] Setting Use Home Assistant flag to off"));
+    useHomeAssistant = false;
+    // Not returning as going to fall back to OpenAPI
+  }
+
+  if (!useHomeAssistant && (!openWeatherApiKey || strlen(openWeatherApiKey) != 32)) {
     Serial.println(F("[WEATHER] Skipped: Invalid API key (must be exactly 32 characters)"));
     weatherAvailable = false;
     weatherFetched = false;
     return;
   }
-  if (!(strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0)) {
+  if (!useHomeAssistant && (!(strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0))) {
     Serial.println(F("[WEATHER] Skipped: City or Country is empty."));
     weatherAvailable = false;
     return;
   }
+  if (useHomeAssistant) {
+    // --- 1. TEMPERATURE ---
+    String rawTempStr = getHAEntityState(haTempSensor); // Returns e.g. "4.9°" or "unknown°"
+    String lowerTemp = rawTempStr;
+    lowerTemp.toLowerCase();
 
-  Serial.println(F("[WEATHER] Connecting to OpenWeatherMap..."));
-  String url = buildWeatherURL();
-  Serial.print(F("[WEATHER] URL: "));  // Use F() with Serial.print
-  Serial.println(url);
+    // Check for invalid HA states
+    if (rawTempStr.startsWith("Error:") || 
+        lowerTemp.indexOf("unknown") >= 0 || 
+        lowerTemp.indexOf("unavailable") >= 0) {
+      
+      Serial.println(F("[HOME ASSISTANT] Temp sensor is unknown/unavailable. Skipping weather display."));
+      weatherAvailable = false;
+    } 
+    else {
+      // Valid data found! 
+      // .toFloat() parses "4.9" and ignores the trailing "°"
+      float tempVal = rawTempStr.toFloat(); 
+      
+      // Round to nearest int, convert to String, and add symbol back manually
+      currentTemp = String((int)round(tempVal)) + "°";
+      
+      weatherAvailable = true;
+      Serial.printf("[HOME ASSISTANT] Temp Rounded: %s (Raw: %s)\n", currentTemp.c_str(), rawTempStr.c_str());
+    }
 
-  WiFiClientSecure client;  // use secure client for HTTPS
-  client.stop();            // ensure previous session closed
-  yield();                  // Allow OS to process socket closure
-  client.setInsecure();     // no cert validation
-  HTTPClient http;          // Create an HTTPClient object
-  http.begin(client, url);  // Pass the WiFiClient object and the URL
-  http.setTimeout(10000);   // Sets both connection and stream timeout to 10 seconds
+    // --- 2. HUMIDITY ---
+    if (useHomeAssistant && weatherAvailable && haHumiditySensor && showHumidity) {
+      String rawHumStr = getHAEntityState(haHumiditySensor); 
+      String lowerHum = rawHumStr;
+      lowerHum.toLowerCase();
 
-  Serial.println(F("[WEATHER] Sending GET request..."));
-  int httpCode = http.GET();  // Send the GET request
+      if (rawHumStr.startsWith("Error:") || 
+          lowerHum.indexOf("unknown") >= 0 || 
+          lowerHum.indexOf("unavailable") >= 0) {
+        
+        Serial.println(F("[HOME ASSISTANT] Humidity unavailable. Hiding humidity."));
+        currentHumidity = -1;
+      } 
+      else {
+        // .toFloat() parses "55.4" and ignores "°"
+        currentHumidity = (int)round(rawHumStr.toFloat());
+        Serial.printf("[HOME ASSISTANT] Humidity Parsed: %d%% (Raw: %s)\n", currentHumidity, rawHumStr.c_str());
+      }
+    }
 
-  if (httpCode == HTTP_CODE_OK) {  // Check if HTTP response code is 200 (OK)
+    // --- 3. SUNRISE/SUNSET (Auto Dimming) ---
+    if (useHomeAssistant && autoDimmingEnabled) {
+      String status = getHASun(sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+      
+      if (status.startsWith("Error:")) {
+        Serial.println(F("[HOME ASSISTANT] Home Assistant sun.sun not available"));
+      }
+      else {
+        if (sunriseHour >= 0 && sunsetHour >= 0) {
+             Serial.printf("[HOME ASSISTANT] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n",
+                          sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+        } else {
+          Serial.println(F("[HOME ASSISTANT] Sunrise/Sunset not found"));
+        }
+      }
+    }
+  }
+  if (!useHomeAssistant) {
+    Serial.println(F("[WEATHER] Connecting to OpenWeatherMap..."));
+    String url = buildWeatherURL();
+    Serial.print(F("[WEATHER] URL: "));  // Use F() with Serial.print
+    Serial.println(url);
+
+    WiFiClientSecure client;  // use secure client for HTTPS
+    client.stop();            // ensure previous session closed
+    yield();                  // Allow OS to process socket closure
+    client.setInsecure();     // no cert validation
+    HTTPClient http;          // Create an HTTPClient object
+    http.begin(client, url);  // Pass the WiFiClient object and the URL
+    http.setTimeout(10000);   // Sets both connection and stream timeout to 10 seconds
+    Serial.println(F("[WEATHER] Sending GET request..."));
+    int httpCode = http.GET();  // Send the GET request
+    if (httpCode != HTTP_CODE_OK){
+      Serial.printf("[WEATHER] HTTP GET failed, error code: %d, reason: %s\n",
+                    httpCode, http.errorToString(httpCode).c_str());
+      weatherAvailable = false;
+      weatherFetched = false;
+    }
+    if (httpCode == HTTP_CODE_OK) {  // Check if HTTP response code is 200 (OK)
     Serial.println(F("[WEATHER] HTTP 200 OK. Reading payload..."));
 
     String payload = http.getString();
+    http.end();
     Serial.println(F("[WEATHER] Response received."));
     Serial.print(F("[WEATHER] Payload: "));  // Use F() with Serial.print
     Serial.println(payload);
@@ -1888,7 +2440,7 @@ void fetchWeather() {
       weatherAvailable = false;
       return;
     }
-
+    
     if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("humidity"))) {
       currentHumidity = doc[F("main")][F("humidity")];
       Serial.printf("[WEATHER] Humidity: %d%%\n", currentHumidity);
@@ -1951,6 +2503,9 @@ void fetchWeather() {
     } else {
       Serial.println(F("[WEATHER] 'sys' object not found in JSON payload."));
     }
+  }
+
+  
 
     weatherFetched = true;
 
@@ -1995,14 +2550,7 @@ void fetchWeather() {
       }
     }
 
-  } else {
-    Serial.printf("[WEATHER] HTTP GET failed, error code: %d, reason: %s\n",
-                  httpCode, http.errorToString(httpCode).c_str());
-    weatherAvailable = false;
-    weatherFetched = false;
-  }
-
-  http.end();
+  } 
 }
 
 
@@ -2030,196 +2578,6 @@ void loadUptime() {
   }
 }
 
-
-// -----------------------------
-// Save uptime to LittleFS
-// -----------------------------
-void saveUptime() {
-  // Use getTotalRuntimeSeconds() to include current session
-  totalUptimeSeconds = getTotalRuntimeSeconds();
-  bootMillis = millis();  // reset session start
-
-  File f = LittleFS.open("/uptime.dat", "w");
-  if (f) {
-    f.print(totalUptimeSeconds);
-    f.close();
-    Serial.printf("[UPTIME] Saved accumulated uptime: %s\n", formatTotalRuntime().c_str());
-  } else {
-    Serial.println(F("[UPTIME] Failed to write /uptime.dat"));
-  }
-}
-
-
-// -----------------------------
-// Get total uptime including current session
-// -----------------------------
-unsigned long getTotalRuntimeSeconds() {
-  return totalUptimeSeconds + (millis() - bootMillis) / 1000;
-}
-
-
-// -----------------------------
-// Format total uptime as HH:MM:SS
-// -----------------------------
-String formatTotalRuntime() {
-  unsigned long secs = getTotalRuntimeSeconds();
-  unsigned int h = secs / 3600;
-  unsigned int m = (secs % 3600) / 60;
-  unsigned int s = secs % 60;
-  char buf[16];
-  sprintf(buf, "%02u:%02u:%02u", h, m, s);
-  return String(buf);
-}
-
-
-void saveCustomMessageToConfig(const char *msg) {
-  Serial.println(F("[CONFIG] Updating customMessage in config.json..."));
-
-  DynamicJsonDocument doc(2048);
-
-  // Load existing config.json (if present)
-  File configFile = LittleFS.open("/config.json", "r");
-  if (configFile) {
-    DeserializationError err = deserializeJson(doc, configFile);
-    configFile.close();
-    if (err) {
-      Serial.print(F("[CONFIG] Error reading existing config: "));
-      Serial.println(err.f_str());
-    }
-  }
-
-  // Update only customMessage
-  doc["customMessage"] = msg;
-
-  // Safely write back to config.json
-  if (LittleFS.exists("/config.json")) {
-    LittleFS.rename("/config.json", "/config.bak");
-  }
-
-  File f = LittleFS.open("/config.json", "w");
-  if (!f) {
-    Serial.println(F("[CONFIG] ERROR: Failed to open /config.json for writing"));
-    return;
-  }
-
-  size_t bytesWritten = serializeJson(doc, f);
-  f.close();
-  Serial.printf("[CONFIG] Saved customMessage='%s' (%u bytes written)\n", msg, bytesWritten);
-}
-
-// Returns formatted uptime (for web UI or logs)
-String formatUptime(unsigned long seconds) {
-  unsigned long days = seconds / 86400;
-  unsigned long hours = (seconds % 86400) / 3600;
-  unsigned long minutes = (seconds % 3600) / 60;
-  unsigned long secs = seconds % 60;
-
-  char buf[64];
-  if (days > 0)
-    sprintf(buf, "%lud %02lu:%02lu:%02lu", days, hours, minutes, secs);
-  else
-    sprintf(buf, "%02lu:%02lu:%02lu", hours, minutes, secs);
-  return String(buf);
-}
-
-
-// -----------------------------------------------------------------------------
-// Main setup() and loop()
-// -----------------------------------------------------------------------------
-/*
-DisplayMode key:
-  0: Clock
-  1: Weather
-  2: Weather Description
-  3: Countdown
-  4: Nightscout
-  5: Date
-  6: Custom Message
-*/
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println();
-  Serial.println(F("[SETUP] Starting setup..."));
-
-  if (!LittleFS.begin(true)) {
-    Serial.println(F("[ERROR] LittleFS mount failed in setup! Halting."));
-    while (true) {
-      delay(1000);
-      yield();
-    }
-  }
-  Serial.println(F("[SETUP] LittleFS file system mounted successfully."));
-  loadUptime();
-  ensureHtmlFileExists();
-  P.begin();  // Initialize Parola library
-
-  P.setCharSpacing(0);
-  P.setFont(mFactory);
-  loadConfig();  // This function now has internal yields and prints
-
-  P.setIntensity(brightness);
-  P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
-  P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
-
-  Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
-
-  #if defined(ESP32)
-    WiFi.setSleep(false);
-    WiFi.setAutoReconnect(true);
-    WiFi.persistent(false);
-
-    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-      const char *name = nullptr;
-      switch (event) {
-        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-          name = "GOT_IP";
-          lastWifiConnectTime = millis();
-          break;
-        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
-        default: return;  // ignore all other events
-      }
-      Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
-    });
-
-  #elif defined(ESP8266)
-    WiFi.setAutoReconnect(true);
-    WiFi.persistent(false);
-
-    mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
-      Serial.println("[WIFI EVENT] Connected");
-    });
-    mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
-      Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
-    });
-    mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
-      Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
-      lastWifiConnectTime = millis();
-    });
-  #endif
-
-  connectWiFi();
-
-  if (isAPMode) {
-    Serial.println(F("[SETUP] WiFi connection failed. Device is in AP Mode."));
-  } else if (WiFi.status() == WL_CONNECTED) {
-    Serial.println(F("[SETUP] WiFi connected successfully to local network."));
-  } else {
-    Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
-  }
-
-  setupWebServer();
-  Serial.println(F("[SETUP] Webserver setup complete"));
-  Serial.println(F("[SETUP] Setup complete"));
-  Serial.println();
-  printConfigToSerial();
-  setupTime();
-  displayMode = 0;
-  lastSwitch = millis() - (clockDuration - 500);
-  lastColonBlink = millis();
-  bootMillis = millis();
-  saveUptime();
-}
 
 void ensureHtmlFileExists() {
   Serial.println(F("[FS] Checking for /index.html on LittleFS..."));
@@ -2285,177 +2643,106 @@ void ensureHtmlFileExists() {
   }
 }
 
-void advanceDisplayMode() {
-  prevDisplayMode = displayMode;
-  int oldMode = displayMode;
-  String ntpField = String(ntpServer2);
-  bool nightscoutConfigured = ntpField.startsWith("https://");
 
-  if (displayMode == 0) {  // Clock
-    if (showDate) {
-      displayMode = 5;  // Date mode right after Clock
-      Serial.println(F("[DISPLAY] Switching to display mode: DATE (from Clock)"));
-    } else if (weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) {
-      displayMode = 1;
-      Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Clock)"));
-    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Clock, weather skipped)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;  // Clock -> Nightscout (if weather & countdown are skipped)
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Clock, weather & countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Staying in CLOCK (from Clock)"));
+// -----------------------------------------------------------------------------
+// Main setup() and loop()
+// -----------------------------------------------------------------------------
+/*
+DisplayMode key:
+  0: Clock
+  1: Weather
+  2: Weather Description
+  3: Countdown
+  4: Nightscout
+  5: Date
+  6: Custom Message
+*/
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println();
+  Serial.println(F("[SETUP] Starting setup..."));
+
+  if (!LittleFS.begin(true)) {
+    Serial.println(F("[ERROR] LittleFS mount failed in setup! Halting."));
+    while (true) {
+      delay(1000);
+      yield();
     }
-  } else if (displayMode == 5) {  // Date mode
-    if (weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) {
-      displayMode = 1;
-      Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Date)"));
-    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Date, weather skipped)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Date, weather & countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Date)"));
-    }
-  } else if (displayMode == 1) {  // Weather
-    if (showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
-      displayMode = 2;
-      Serial.println(F("[DISPLAY] Switching to display mode: DESCRIPTION (from Weather)"));
-    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Weather)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;  // Weather -> Nightscout (if description & countdown are skipped)
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Weather, description & countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Weather)"));
-    }
-  } else if (displayMode == 2) {  // Weather Description
-    if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Description)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;  // Description -> Nightscout (if countdown is skipped)
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Description, countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Description)"));
-    }
-  } else if (displayMode == 3) {  // Countdown -> Nightscout
-    if (nightscoutConfigured) {
-      displayMode = 4;
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Countdown)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Countdown)"));
-    }
-  } else if (displayMode == 4) {  // Nightscout -> Custom Message
-    displayMode = 6;
-    Serial.println(F("[DISPLAY] Switching to display mode: CUSTOM MESSAGE (from Nightscout)"));
-  } else if (displayMode == 6) {  // Custom Message -> Clock
-    displayMode = 0;
-    Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Custom Message)"));
+  }
+  Serial.println(F("[SETUP] LittleFS file system mounted successfully."));
+  loadUptime();
+  ensureHtmlFileExists();
+  P.begin();  // Initialize Parola library
+
+  P.setCharSpacing(0);
+  P.setFont(mFactory);
+  loadConfig();  // This function now has internal yields and prints
+
+  P.setIntensity(brightness);
+  P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
+  P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
+
+  Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
+
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+  #if defined(ESP32)
+    WiFi.setSleep(false);
+
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+      const char *name = nullptr;
+      switch (event) {
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+          name = "GOT_IP";
+          lastWifiConnectTime = millis();
+          break;
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
+        default: return;  // ignore all other events
+      }
+      Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
+    });
+
+  #elif defined(ESP8266)
+    mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
+      Serial.println("[WIFI EVENT] Connected");
+    });
+    mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
+      Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
+    });
+    mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
+      Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
+      lastWifiConnectTime = millis();
+    });
+  #endif
+
+  connectWiFi();
+
+  if (isAPMode) {
+    Serial.println(F("[SETUP] WiFi connection failed. Device is in AP Mode."));
+  } else if (WiFi.status() == WL_CONNECTED) {
+    Serial.println(F("[SETUP] WiFi connected successfully to local network."));
+  } else {
+    Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
   }
 
-  // --- Common cleanup/reset logic remains the same ---
-  if ((displayMode == 0) && strlen(customMessage) > 0 && oldMode != 6) {
-    displayMode = 6;
-    Serial.println(F("[DISPLAY] Custom Message display before returning to CLOCK"));
-  }
-  lastSwitch = millis();
+  setupWebServer();
+  Serial.println(F("[SETUP] Webserver setup complete"));
+  Serial.println(F("[SETUP] Setup complete"));
+  Serial.println();
+  printConfigToSerial();
+  setupTime();
+  displayMode = 0;
+  lastSwitch = millis() - (clockDuration - 500);
+  lastColonBlink = millis();
+  bootMillis = millis();
+  saveUptime();
 }
-
-
-void advanceDisplayModeSafe() {
-  int attempts = 0;
-  const int MAX_ATTEMPTS = 7;  // Number of possible modes + 1
-  int startMode = displayMode;
-  bool valid = false;
-  do {
-    advanceDisplayMode();  // One step advance
-    attempts++;
-    // Recalculate validity for the new mode
-    valid = false;
-    String ntpField = String(ntpServer2);
-    bool nightscoutConfigured = ntpField.startsWith("https://");
-
-    if (displayMode == 0) valid = true;  // Clock always valid
-    else if (displayMode == 5 && showDate) valid = true;
-    else if (displayMode == 1 && weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) valid = true;
-    else if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) valid = true;
-    else if (displayMode == 3 && countdownEnabled && !countdownFinished && ntpSyncSuccessful) valid = true;
-    else if (displayMode == 4 && nightscoutConfigured) valid = true;
-    else if (displayMode == 6 && strlen(customMessage) > 0) valid = true;
-
-    // If we've looped back to where we started, break to avoid infinite loop
-    if (displayMode == startMode) break;
-
-    if (valid) break;
-  } while (attempts < MAX_ATTEMPTS);
-
-  // If no valid mode found, fall back to Clock
-  if (!valid) {
-    displayMode = 0;
-    Serial.println(F("[DISPLAY] Safe fallback to CLOCK"));
-  }
-  lastSwitch = millis();
-}
-
-
-//config save after countdown finishes
-bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &label) {
-  DynamicJsonDocument doc(2048);
-
-  File configFile = LittleFS.open("/config.json", "r");
-  if (configFile) {
-    DeserializationError err = deserializeJson(doc, configFile);
-    configFile.close();
-    if (err) {
-      Serial.print(F("[saveCountdownConfig] Error parsing config.json: "));
-      Serial.println(err.f_str());
-      return false;
-    }
-  }
-
-  JsonObject countdownObj = doc["countdown"].is<JsonObject>() ? doc["countdown"].as<JsonObject>() : doc.createNestedObject("countdown");
-  countdownObj["enabled"] = enabled;
-  countdownObj["targetTimestamp"] = targetTimestamp;
-  countdownObj["label"] = label;
-  countdownObj["isDramaticCountdown"] = isDramaticCountdown;
-  doc.remove("countdownEnabled");
-  doc.remove("countdownDate");
-  doc.remove("countdownTime");
-  doc.remove("countdownLabel");
-
-  if (LittleFS.exists("/config.json")) {
-    LittleFS.rename("/config.json", "/config.bak");
-  }
-
-  File f = LittleFS.open("/config.json", "w");
-  if (!f) {
-    Serial.println(F("[saveCountdownConfig] ERROR: Cannot write to /config.json"));
-    return false;
-  }
-
-  size_t bytesWritten = serializeJson(doc, f);
-  f.close();
-
-  Serial.printf("[saveCountdownConfig] Config updated. %u bytes written.\n", bytesWritten);
-  return true;
-}
-
 
 void loop() {
   if (isAPMode) {
     dnsServer.processNextRequest();
   }
-
   static bool colonVisible = true;
   const unsigned long colonBlinkInterval = 800;
   if (millis() - lastColonBlink > colonBlinkInterval) {
@@ -2884,7 +3171,11 @@ void loop() {
     String desc = weatherDescription;
 
     // --- Check if humidity is actually visible ---
-    bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
+    bool humidityVisible = showHumidity && weatherAvailable && (
+      (!useHomeAssistant && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0)
+      ||
+      (useHomeAssistant && strlen(homeAssistantApiKey) > 32 && strlen(haTempSensor) > 0) 
+    );
 
     // --- Conditional padding ---
     bool addPadding = false;
@@ -3208,7 +3499,11 @@ void loop() {
 
         String fullString = String(buf);
         bool addPadding = false;
-        bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
+        bool humidityVisible = showHumidity && weatherAvailable && (
+          (!useHomeAssistant && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0)
+          ||
+          (useHomeAssistant && strlen(homeAssistantApiKey) > 32 && strlen(haTempSensor) > 0)
+        );
 
         // Padding logic
         if (prevDisplayMode == 0 && (showDayOfWeek || colonBlinkEnabled)) {
@@ -3262,20 +3557,20 @@ void loop() {
 
     // --- Small helper inside this block ---
     auto makeTimeUTC = [](struct tm *tm) -> time_t {
-  #if defined(ESP32)
-        // ESP32: timegm() is not implemented — emulate correctly
-        struct tm tm_copy = *tm;
-        // mktime() interprets tm as local, but system time is UTC already
-        // so we can safely assume input is UTC
-        return mktime(&tm_copy);
-  #elif defined(ESP8266)
-        // ESP8266: timegm() not available either, same logic
-        struct tm tm_copy = *tm;
-        return mktime(&tm_copy);
-  #else
-        // Platforms with proper timegm()
-        return timegm(tm);
-  #endif
+      #if defined(ESP32)
+            // ESP32: timegm() is not implemented — emulate correctly
+            struct tm tm_copy = *tm;
+            // mktime() interprets tm as local, but system time is UTC already
+            // so we can safely assume input is UTC
+            return mktime(&tm_copy);
+      #elif defined(ESP8266)
+            // ESP8266: timegm() not available either, same logic
+            struct tm tm_copy = *tm;
+            return mktime(&tm_copy);
+      #else
+            // Platforms with proper timegm()
+            return timegm(tm);
+      #endif
     };
     // --------------------------------------
 
@@ -3404,8 +3699,6 @@ void loop() {
       return;
     }
   }
-
-
   //DATE Display Mode
   else if (displayMode == 5 && showDate) {
 
@@ -3608,7 +3901,11 @@ void loop() {
 
     // --- Determine if we need left padding based on previous mode ---
     bool addPadding = false;
-    bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
+    bool humidityVisible = showHumidity && weatherAvailable && (
+      (!useHomeAssistant && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0)
+      ||
+      (useHomeAssistant && strlen(homeAssistantApiKey) > 32 && strlen(haTempSensor) > 0)
+    );
 
     // If coming from CLOCK mode
     if (prevDisplayMode == 0 && (showDayOfWeek || colonBlinkEnabled)) {
@@ -3649,7 +3946,6 @@ void loop() {
     yield();
     return;
   }
-
 
   unsigned long currentMillis = millis();
   unsigned long runtimeSeconds = (currentMillis - bootMillis) / 1000;

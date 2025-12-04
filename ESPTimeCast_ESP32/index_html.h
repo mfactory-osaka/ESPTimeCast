@@ -472,19 +472,44 @@ textarea::placeholder {
 
 
   <h2>Weather Settings</h2>
-  <label for="openWeatherApiKey">OpenWeather API Key</label>
-  <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" placeholder="ADD-YOUR-API-KEY-32-CHARACTERS"/>    
-  <div class="small">Required to fetch weather data. <a href="https://home.openweathermap.org/users/sign_up" target="_blank">Get your API key here</a>.</div>
-
-  <label>Location</label>
-  <div class="form-row two-col"> 
-    <input type="text" id="openWeatherCity" name="openWeatherCity" placeholder="City / Zip / Lat."/>    
-    <input type="text" id="openWeatherCountry" name="openWeatherCountry" placeholder="Country Code / Long."/>  
-  </div>
-  <button type="button" class="primary-button" id="geo-button" onclick="getLocation()" style="margin-top: 1rem;">Get My Location</button>
-
+  <label for="useHomeAssistant">
+    <span style="margin-right: 0.5em;">Use Home Assistant Weather:</span>
+    <span class="toggle-switch">
+      <input type="checkbox" id="useHomeAssistant" name="useHomeAssistant" onchange="setUseHomeAssistant(this.checked); toggleWeatherVisibility();">
+      <span class="toggle-slider"></span>
+    </span>
+  </label>
   <div class="small">    
-    <strong>Location format examples:</strong> City, Country Code - Osaka, JP | ZIP, Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023
+    Enable to disable OpenWeather API and use HomeAssistant API settings
+  </div>
+  <div id="ha-settings" style="display:none;">
+    <h3>Home Assistant API</h3>
+    <label for="homeAssistantURL">Home Assistant URL</label>
+    <input type="text" id="homeAssistantURL" name="homeAssistantURL" placeholder="http(s) URL for Home Assistant Insance"/>    
+    <label for="homeAssistantApiKey">Home Assistant API Key</label>
+    <input type="text" id="homeAssistantApiKey" name="homeAssistantApiKey" placeholder="ADD-YOUR-LONG-LIVED-ACCESS-TOKEN"/>    
+    <label for="haTempSensor">Home Assistant Temperature Entity Name</label>
+    <input type="text" id="haTempSensor" name="haTempSensor" placeholder="Temperature Entity Name"/>
+    <label for="haHumiditySensor">Home Assistant Humidity Entity Name</label>
+    <input type="text" id="haHumiditySensor" name="haHumiditySensor" placeholder="Humidity Entity Name"/>
+  </div>
+  
+  <div id="owm-settings">
+    <h3>OpenWeather API</h3>
+    <label for="openWeatherApiKey">OpenWeather API Key</label>
+    <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" placeholder="ADD-YOUR-API-KEY-32-CHARACTERS"/>    
+    <div class="small">Required to fetch weather data. <a href="https://home.openweathermap.org/users/sign_up" target="_blank">Get your API key here</a>.</div>
+
+    <label>Location</label>
+    <div class="form-row two-col"> 
+      <input type="text" id="openWeatherCity" name="openWeatherCity" placeholder="City / Zip / Lat."/>    
+      <input type="text" id="openWeatherCountry" name="openWeatherCountry" placeholder="Country Code / Long."/>  
+    </div>
+    <button type="button" class="primary-button" id="geo-button" onclick="getLocation()" style="margin-top: 1rem;">Get My Location</button>
+
+    <div class="small">    
+      <strong>Location format examples:</strong> City, Country Code - Osaka, JP | ZIP, Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023
+    </div>
   </div>
   
   <div class="form-group">
@@ -567,14 +592,16 @@ textarea::placeholder {
           <span class="toggle-slider"></span>
         </span>
       </label>
-
-      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
-        <span style="margin-right: 0.5em;">Show Weather Description:</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="showWeatherDescription" name="showWeatherDescription" onchange="setShowWeatherDescription(this.checked)">
-          <span class="toggle-slider"></span>
-        </span>
-      </label>
+      <div id="owm-settings">
+      // Disabled if using Home Assistant currently
+        <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+          <span style="margin-right: 0.5em;">Show Weather Description:</span>
+          <span class="toggle-switch">
+            <input type="checkbox" id="showWeatherDescription" name="showWeatherDescription" onchange="setShowWeatherDescription(this.checked)">
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
+      </div>
 
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Flip Display (180°):</span>
@@ -754,11 +781,19 @@ window.onload = function () {
     document.getElementById('ssid').value = data.ssid || '';
     document.getElementById('password').value = data.password || '';
     const apiInput = document.getElementById('openWeatherApiKey');
+    const haApiInput = document.getElementById('homeAssistantApiKey');
     if (data.openWeatherApiKey && data.openWeatherApiKey.trim() !== '') {
       apiInput.value = MASK;
       hasSavedKey = true;
     } else {
       apiInput.value = '';
+      hasSavedKey = false;
+    }
+    if (data.homeAssistantApiKey && data.homeAssistantApiKey.trim() !== '') {
+      haApiInput.value = MASK;
+      hasSavedKey = true;
+    } else {
+      haApiInput.value = '';
       hasSavedKey = false;
     }
 
@@ -768,6 +803,11 @@ window.onload = function () {
     document.getElementById('clockDuration').value = (data.clockDuration || 10000) / 1000;
     document.getElementById('weatherDuration').value = (data.weatherDuration || 5000) / 1000;
     document.getElementById('language').value = data.language || '';
+    document.getElementById('useHomeAssistant').checked = !!data.useHomeAssistant;
+    toggleWeatherVisibility();
+    document.getElementById('homeAssistantURL').value = data.homeAssistantURL || ''; 
+    document.getElementById('haTempSensor').value = data.haTempSensor || '';
+    document.getElementById('haHumiditySensor').value = data.haHumiditySensor || '';  
 
     // Advanced:
     document.getElementById('brightnessSlider').value = typeof data.brightness !== "undefined" ? data.brightness : 10;
@@ -786,6 +826,7 @@ window.onload = function () {
     const autoDimmingEl = document.getElementById('autoDimmingEnabled');
     const dimmingEnabledEl = document.getElementById('dimmingEnabled');
     const apiInputEl = document.getElementById('openWeatherApiKey');
+
 
     // Evaluate flags from config.json
     const isAutoDimming = (data.autoDimmingEnabled === true || data.autoDimmingEnabled === "true" || data.autoDimmingEnabled === 1);
@@ -917,20 +958,28 @@ async function submitConfig(event) {
   formData.set('weatherDuration', weatherDuration);
 
   let apiKeyToSend = apiInput.value;
-
+  let haApiKeyToSend = haApiInput.value;
+  
   // If the user left the masked key untouched, skip sending it
   if (apiKeyToSend === MASK && hasSavedKey) {
     formData.delete('openWeatherApiKey');
   } else {
     formData.set('openWeatherApiKey', apiKeyToSend);
   }
-
+  
+  // If the user left the masked key untouched, skip sending it
+  if (haApiKeyToSend === MASK && hasSavedKey) {
+    formData.delete('homeAssistantApiKey');
+  } else {
+    formData.set('homeAssistantApiKey', haApiKeyToSend);
+  }
   // Advanced: ensure correct values are set for advanced fields
   formData.set('brightness', document.getElementById('brightnessSlider').value);
   formData.set('flipDisplay', document.getElementById('flipDisplay').checked ? 'on' : '');
   formData.set('twelveHourToggle', document.getElementById('twelveHourToggle').checked ? 'on' : '');
   formData.set('showDayOfWeek', document.getElementById('showDayOfWeek').checked ? 'on' : '');
   formData.set('showDate', document.getElementById('showDate').checked ? 'on' : '');
+  formData.set('useHomeAssistant', document.getElementById('useHomeAssistant').checked ? 'on' : '');
   formData.set('showHumidity', document.getElementById('showHumidity').checked ? 'on' : '');
   formData.set('colonBlinkEnabled', document.getElementById('colonBlinkEnabled').checked ? 'on' : '');
 
@@ -1277,6 +1326,29 @@ function setShowDayOfWeek(val) {
   });
 }
 
+
+function setUseHomeAssistant(val) {
+  fetch('/set_useHomeAssistant', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function toggleWeatherVisibility() {
+  const isHA = document.getElementById('useHomeAssistant').checked;
+  const haDiv = document.getElementById('ha-settings');
+  const owmDiv = document.getElementById('owm-settings');
+
+  if (isHA) {
+    haDiv.style.display = 'block';
+    owmDiv.style.display = 'none';
+  } else {
+    haDiv.style.display = 'none';
+    owmDiv.style.display = 'block';
+  }
+}
+
 function setShowDate(val) {
   fetch('/set_showdate', {
     method: 'POST',
@@ -1417,7 +1489,10 @@ async function getLocation() {
 const MASK_LENGTH = 32;
 const MASK = '*'.repeat(MASK_LENGTH);
 const apiInput = document.getElementById('openWeatherApiKey');
+const haApiInput = document.getElementById('homeAssistantApiKey');
 let hasSavedKey = false;
+let haHasSavedKey = false;
+
 
 // --- Initialize the field after config load ---
 if (apiInput.value && apiInput.value.trim() !== '') {
@@ -1427,6 +1502,16 @@ if (apiInput.value && apiInput.value.trim() !== '') {
   apiInput.value = '';
   hasSavedKey = false;
 }
+
+// --- Initialize the field after config load ---
+if (haApiInput.value && haApiInput.value.trim() !== '') {
+  haApiInput.value = MASK;   // show mask
+  haHasSavedKey = true;
+} else {
+  haApiInput.value = '';
+  haHasSavedKey = false;
+}
+
 
 // --- Detect user clearing intent ---
 apiInput.addEventListener('input', () => {
@@ -1454,6 +1539,39 @@ apiInput.addEventListener('blur', () => {
       hasSavedKey = false; // user cleared the key
       apiInput.dataset.clearing = 'false';
       apiInput.value = ''; // leave blank
+      setDimmingFieldsEnabled();
+    }
+  }
+});
+
+
+
+// --- Detect user clearing intent ---
+haApiInput.addEventListener('input', () => {
+  haApiInput.dataset.clearing = haApiInput.value === '' ? 'true' : 'false';
+});
+
+// --- Handle Delete/Backspace when focused but empty ---
+haApiInput.addEventListener('keydown', (e) => {
+  if ((e.key === 'Backspace' || e.key === 'Delete') && haApiInput.value === '') {
+    haApiInput.dataset.clearing = 'true';
+  }
+});
+
+// --- Focus handler: clear mask for editing ---
+haApiInput.addEventListener('focus', () => {
+  if (haApiInput.value === MASK) haApiInput.value = '';
+});
+
+// --- Blur handler: restore mask if user didn’t clear the field ---
+haApiInput.addEventListener('blur', () => {
+  if (haApiInput.value === '') {
+    if (hasSavedKey && haApiInput.dataset.clearing !== 'true') {
+      haApiInput.value = MASK; // remask
+    } else {
+      hasSavedKey = false; // user cleared the key
+      haApiInput.dataset.clearing = 'false';
+      haApiInput.value = ''; // leave blank
       setDimmingFieldsEnabled();
     }
   }
