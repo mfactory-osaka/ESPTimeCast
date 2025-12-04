@@ -592,7 +592,7 @@ textarea::placeholder {
           <span class="toggle-slider"></span>
         </span>
       </label>
-      <div id="owm-settings">
+      <div id="owm-desc-settings">
         <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
           <span style="margin-right: 0.5em;">Show Weather Description:</span>
           <span class="toggle-switch">
@@ -1338,13 +1338,16 @@ function toggleWeatherVisibility() {
   const isHA = document.getElementById('useHomeAssistant').checked;
   const haDiv = document.getElementById('ha-settings');
   const owmDiv = document.getElementById('owm-settings');
+  const owmDescDiv = document.getElementById('owm-desc-settings');
 
   if (isHA) {
     haDiv.style.display = 'block';
     owmDiv.style.display = 'none';
+    owmDescDiv.style.display = 'none';
   } else {
     haDiv.style.display = 'none';
     owmDiv.style.display = 'block';
+    owmDescDiv.style.display = 'block';
   }
 }
 
