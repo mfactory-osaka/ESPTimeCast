@@ -47,6 +47,7 @@ ESPTimeCast has been featured on:
 - **Simple Web Interface** for all configuration (WiFi, weather, time zone, display durations, and more)
 - **Automatic NTP Sync** with robust status feedback and retries
 - **Weather Fetching** from OpenWeatherMap (every 5 minutes, temp/humidity/description)
+- **Optional:** **Home Assistant Intergration** Ability to get temp/humidity and Sun position from local Home Assistant sensors
 - **Custom Scroll Messages** - fully persistent until manually cleared via the Web UI
 - **Fallback AP Mode** for easy first-time setup or configuration
 - **Timezone Selection** from IANA names (DST integrated on backend)
@@ -158,11 +159,14 @@ mDNS / Bonjour - Works on macOS, iOS, Windows with Bonjour, and most modern brow
 #### The Web UI gives you control over:
 - **WiFi settings** (SSID & Password)
 - **Weather settings** (OpenWeatherMap API key, City, Country, Coordinates)
+- **Home Assistant settings** (Home Assistant URL, API Key, Temperature & Humidity entity names)
 - **Time zone** (will auto-populate if TZ is found)
 - **Day of the Week and Weather Description** languages
 - **Display durations** for clock and weather (milliseconds)
 - **Custom Scroll Text** - set a persistent scrolling message on the display directly from the Web UI
 - **Advanced Settings** (see below)
+
+Click the **Use Home Assistant Weather** in the Web UI to toggle between Home Assistant settings or OpenWeatherMap settings.  
 
 &nbsp;
 ## UI Example:
@@ -206,7 +210,16 @@ Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal e
 - **ZIP Code:** Enter your ZIP code in the city field and US in the country field (US only)
 - **Latitude and Longitude** You can enter coordinates in the city field (lat.) and country field (long.)
 - **Time Zone:** Select from IANA zones (e.g., `America/New_York`, handles DST automatically)
-
+  
+  
+### Home Assistant Notes
+- **Home Assistant URL:** Full URL to your Home Assistant instance (e.g. `https://home-assistant.local`) _include port if required_
+- **Home Assistant API Key:**
+   - Toggle the `Use Home Assistant Weather` button
+   - Setup a long live token in Home Assistant (under /profile/security)
+- **Home Assistant Temperature Entity Name:** full entity name for the Temperature sensor (e.g. `sensor.my_weather_temp`)
+- **Home Assistant Humidity Entity Name:** full entity name for the Humidity sensor (e.g. `sensor.my_weather_hum`)
+> **Note:** Enabling Home Assistant disables the Weather description option
 
 &nbsp;
 ## 🚀 Getting Started
