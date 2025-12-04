@@ -18,18 +18,18 @@ It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern w
 
 To help support the project’s development, the official **ESPTimeCast** case design is available as a **paid STL download** (see links below).  
 
-If you prefer a free option, there are many compatible **MAX7219 LED matrix enclosures** shared by the community — you can find plenty by searching for “MAX7219 case” on Printables, Cults3D, or similar sites.
+If you prefer a free option, there are many compatible **MAX7219 LED matrix enclosures** shared by the community - you can find plenty by searching for “MAX7219 case” on Printables, Cults3D, or similar sites.
 
 <img src="assets/image01.png" alt="3D Printable Case V1" width="640" />
 <img src="assets/image02.png" alt="3D Printable Case V2" width="640" />
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-285%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-332%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
-    <img src="https://img.shields.io/badge/Cults3D-108%20Downloads-blue?logo=cults3d" width="180">
+    <img src="https://img.shields.io/badge/Cults3D-109%20Downloads-blue?logo=cults3d" width="180">
   </a>
 </p>
 
@@ -127,18 +127,6 @@ This change improves **brightness**, **stability**, and protects the **onboard v
 
 > **Tip:** Always double-check that VCC (5V), GND, and DIN/CS/CLK match your MAX7219 module’s pin order — different modules sometimes label them differently.
 
-&nbsp;
-## 🌐 Web UI & Configuration
-
-The built-in web interface provides full configuration for:
-
-- **WiFi settings** (SSID & Password)
-- **Weather settings** (OpenWeatherMap API key, City, Country, Coordinates)
-- **Time zone** (will auto-populate if TZ is found)
-- **Day of the Week and Weather Description** languages
-- **Display durations** for clock and weather (milliseconds)
-- **Custom Scroll Text** - set a persistent scrolling message on the display directly from the Web UI
-- **Advanced Settings** (see below)
 
 &nbsp;
 ## First-time Setup / AP Mode
@@ -153,6 +141,28 @@ The built-in web interface provides full configuration for:
 
 > External links and the "Get My Location" button require internet access.  
 They won't work while the device is in AP Mode - connect to WiFi first.
+
+&nbsp;
+## 🌐 Web UI & Configuration
+
+ESPTimeCast includes a built-in Web UI that lets you fully configure the device from any browser — no apps required.
+
+#### You can open the Web UI using either:
+
+- http://esptimecast.local  
+mDNS / Bonjour - Works on macOS, iOS, Windows with Bonjour, and most modern browsers.
+
+- The device’s **local IP address**  
+→ On every reboot, ESPTimeCast shows its IP on the LED display so you can easily connect.
+
+#### The Web UI gives you control over:
+- **WiFi settings** (SSID & Password)
+- **Weather settings** (OpenWeatherMap API key, City, Country, Coordinates)
+- **Time zone** (will auto-populate if TZ is found)
+- **Day of the Week and Weather Description** languages
+- **Display durations** for clock and weather (milliseconds)
+- **Custom Scroll Text** - set a persistent scrolling message on the display directly from the Web UI
+- **Advanced Settings** (see below)
 
 &nbsp;
 ## UI Example:
@@ -220,20 +230,7 @@ Follow these steps to prepare your Arduino IDE for ESP8266 development:
         * `ArduinoJson` by Benoit Blanchon
         * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
         * `ESPAsyncTCP` by ESP32Async
-        * `ESPAsyncWebServer` by ESP32Async (**3.8.1**)
-     
-  **⚠️ ESP8266 Library Compatibility Notice**
-
-Due to internal changes in **ESPAsyncWebServer 3.9.0**, large files served from SPIFFS/LittleFS may fail to load on ESP8266 (blank page).
-Version **3.8.1** is currently the most stable release for ESP8266, and is recommended for this project.
-
-Install version **3.8.1** manually:
-  * Arduino IDE → Tools → Manage Libraries
-  * Search: ESPAsyncWebServer
-  * Install version 3.8.1
-    
->Future versions may fix this, but for now 3.8.1 ensures full compatibility.
-
+        * `ESPAsyncWebServer` by ESP32Async (3.9.1 or above)  
 &nbsp;
 #### ⚙️ ESP32 Setup
 
@@ -244,14 +241,15 @@ Follow these steps to prepare your Arduino IDE for ESP32 development:
 2.  **Select Your Board:**
     * Go to `Tools > Board` and select your specific board, e.g., **LOLIN S2 Mini** (or your ESP32 variant).
 3.  **Configure Partition Scheme:**
-    * Under `Tools`, select `Partition Scheme "No OTA (2MB APP/2MB SPIFFS)"`. This ensures enough space for the sketch and LittleFS data.
+    * Under `Tools`, select `Partition Scheme "No OTA (2MB APP/2MB SPIFFS) or No OTA (LARGE APP)"`. This ensures enough space for the sketch and LittleFS data.
 4.  **Install Libraries:**
     * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
         * `ArduinoJson` by Benoit Blanchon
         * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
         * `AsyncTCP` by ESP32Async
         * `ESPAsyncWebServer` by ESP32Async
-
+    
+&nbsp;
 #### ⬆️ Uploading the Code and Data
 
 Once your IDE is ready:
@@ -560,18 +558,38 @@ The following table summarizes what will appear on the display in each scenario:
 - ❌ **No**: Data not available
 - — : Value does not affect this mode
 
-&nbsp;
-## Support this project
 
-ESPTimeCast is an open-source passion project that blends art, engineering, and information display.
-If you enjoy this project, please consider supporting my work:
+&nbsp;
+## 📣 Community & Help
+If you need assistance, want to share your build, or discuss new features:  
+👉 Join the ESPTimeCast Community on Reddit: [r/ESPTimeCast](https://www.reddit.com/r/ESPTimeCast/)
+&nbsp;  
+&nbsp;
+## ❤️ Support this project
+ESPTimeCast is an open-source passion project that blends art, engineering, and design.  
+If you enjoy it, you can help keep the project growing - even something as simple as leaving a ⭐ on GitHub goes a long way.  
+
+If you'd like to go further, you can also support development through the options below:
 
 [![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg?logo=paypal)](https://www.paypal.me/officialuphoto)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-fafbfc?logo=github&logoColor=ea4aaa)](https://github.com/sponsors/mfactory-osaka)   
-
+&nbsp;
+&nbsp;
 
 
       
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

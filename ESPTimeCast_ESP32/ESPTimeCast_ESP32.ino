@@ -13,13 +13,13 @@
 #include <sntp.h>
 #include <time.h>
 #include <WiFiClientSecure.h>
+#include <ESPmDNS.h>
 
 #include "mfactoryfont.h"   // Custom font
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
-
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
@@ -157,7 +157,7 @@ const unsigned long ntpStatusPrintInterval = 1000;  // Print status every 1 seco
 // Non-blocking IP display globals
 bool showingIp = false;
 int ipDisplayCount = 0;
-const int ipDisplayMax = 2;  // As per working copy for how long IP shows
+const int ipDisplayMax = 1;  // As per working copy for how long IP shows
 String pendingIpToShow = "";
 
 // Countdown display state - NEW
@@ -481,7 +481,7 @@ void connectWiFi() {
   while (animating) {
     unsigned long now = millis();
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("[WiFi] Connected: " + WiFi.localIP().toString());
+      Serial.println("[WIFI] Connected: " + WiFi.localIP().toString());
       isAPMode = false;
 
       WiFiMode_t mode = WiFi.getMode();
@@ -512,10 +512,10 @@ void connectWiFi() {
       animating = false;  // Exit the connection loop
       break;
     } else if (now - startAttemptTime >= timeout) {
-      Serial.println(F("[WiFi] Failed. Starting AP mode..."));
+      Serial.println(F("[WIFI] Failed. Starting AP mode..."));
       WiFi.mode(WIFI_AP);
       WiFi.softAP(AP_SSID, DEFAULT_AP_PASSWORD);
-      Serial.print(F("[WiFi] AP IP address: "));
+      Serial.print(F("[WIFI] AP IP address: "));
       Serial.println(WiFi.softAPIP());
       dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
       isAPMode = true;
@@ -545,6 +545,21 @@ void connectWiFi() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// mDNS
+// -----------------------------------------------------------------------------
+void setupMDNS() {
+  const char *hostName = "esptimecast";  // your device name
+  bool mdnsStarted = false;
+  mdnsStarted = MDNS.begin(hostName);
+
+  if (mdnsStarted) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.printf("[WIFI] mDNS started: http://%s.local\n", hostName);
+  } else {
+    Serial.println("[WIFI] mDNS failed to start");
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Time / NTP Functions
@@ -901,7 +916,6 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
   Serial.printf("[saveCountdownConfig] Config updated. %u bytes written.\n", bytesWritten);
   return true;
 }
-
 
 
 void saveCustomMessageToConfig(const char *msg) {
@@ -1619,6 +1633,11 @@ void setupWebServer() {
         char c = msg[i];
         if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == ':' || c == '!' || c == '\'' || c == '-' || c == '.' || c == ',' || c == '_' || c == '+' || c == '%' || c == '/' || c == '?') {
           filtered += c;
+        }
+        // Check for degree symbol (UTF-8 0xC2 0xB0)
+        else if ((unsigned char)c == 0xC2 && i + 1 < msg.length() && (unsigned char)msg[i + 1] == 0xB0) {
+          filtered += "°";  // add single character
+          i++;              // skip next byte
         }
       }
 
@@ -2579,6 +2598,7 @@ void loadUptime() {
 }
 
 
+
 void ensureHtmlFileExists() {
   Serial.println(F("[FS] Checking for /index.html on LittleFS..."));
 
@@ -2643,6 +2663,106 @@ void ensureHtmlFileExists() {
   }
 }
 
+
+
+// -----------------------------------------------------------------------------
+// Main setup() and loop()
+// -----------------------------------------------------------------------------
+/*
+DisplayMode key:
+  0: Clock
+  1: Weather
+  2: Weather Description
+  3: Countdown
+  4: Nightscout
+  5: Date
+  6: Custom Message
+*/
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println();
+  Serial.println(F("[SETUP] Starting setup..."));
+
+  if (!LittleFS.begin(true)) {
+    Serial.println(F("[ERROR] LittleFS mount failed in setup! Halting."));
+    while (true) {
+      delay(1000);
+      yield();
+    }
+  }
+  Serial.println(F("[SETUP] LittleFS file system mounted successfully."));
+  loadUptime();
+  ensureHtmlFileExists();
+  P.begin();  // Initialize Parola library
+
+  P.setCharSpacing(0);
+  P.setFont(mFactory);
+  loadConfig();  // This function now has internal yields and prints
+
+  P.setIntensity(brightness);
+  P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
+  P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
+
+  Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
+
+  #if defined(ESP32)
+    WiFi.setSleep(false);
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(false);
+
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+      const char *name = nullptr;
+      switch (event) {
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+          name = "GOT_IP";
+          lastWifiConnectTime = millis();
+          break;
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
+        default: return;  // ignore all other events
+      }
+      Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
+    });
+
+  #elif defined(ESP8266)
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(false);
+
+    mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
+      Serial.println("[WIFI EVENT] Connected");
+    });
+    mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
+      Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
+    });
+    mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
+      Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
+      lastWifiConnectTime = millis();
+    });
+  #endif
+
+  connectWiFi();
+
+  if (isAPMode) {
+    Serial.println(F("[SETUP] WiFi connection failed. Device is in AP Mode."));
+  } else if (WiFi.status() == WL_CONNECTED) {
+    Serial.println(F("[SETUP] WiFi connected successfully to local network."));
+  } else {
+    Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
+  }
+
+  setupMDNS();
+  setupWebServer();
+  Serial.println(F("[SETUP] Webserver setup complete"));
+  Serial.println(F("[SETUP] Setup complete"));
+  Serial.println();
+  printConfigToSerial();
+  setupTime();
+  displayMode = 0;
+  lastSwitch = millis() - (clockDuration - 500);
+  lastColonBlink = millis();
+  bootMillis = millis();
+  saveUptime();
+}
 
 // -----------------------------------------------------------------------------
 // Main setup() and loop()

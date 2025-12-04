@@ -12,13 +12,13 @@
 #include <sntp.h>
 #include <time.h>
 #include <WiFiClientSecure.h>
+#include <ESP8266mDNS.h>
 
 #include "mfactoryfont.h"   // Custom font
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
-
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
@@ -92,7 +92,6 @@ int sunriseMinute = 0;
 int sunsetHour = 18;
 int sunsetMinute = 0;
 
-
 //Countdown Globals - NEW
 bool countdownEnabled = false;
 time_t countdownTargetTimestamp = 0;  // Unix timestamp
@@ -147,7 +146,7 @@ const unsigned long ntpStatusPrintInterval = 1000;  // Print status every 1 seco
 // Non-blocking IP display globals
 bool showingIp = false;
 int ipDisplayCount = 0;
-const int ipDisplayMax = 2;  // As per working copy for how long IP shows
+const int ipDisplayMax = 1;  // As per working copy for how long IP shows
 String pendingIpToShow = "";
 
 // Countdown display state - NEW
@@ -484,10 +483,10 @@ void connectWiFi() {
       animating = false;  // Exit the connection loop
       break;
     } else if (now - startAttemptTime >= timeout) {
-      Serial.println(F("[WiFi] Failed. Starting AP mode..."));
+      Serial.println(F("[WIFI] Failed. Starting AP mode..."));
       WiFi.mode(WIFI_AP);
       WiFi.softAP(AP_SSID, DEFAULT_AP_PASSWORD);
-      Serial.print(F("[WiFi] AP IP address: "));
+      Serial.print(F("[WIFI] AP IP address: "));
       Serial.println(WiFi.softAPIP());
       dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
       isAPMode = true;
@@ -517,6 +516,21 @@ void connectWiFi() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// mDNS
+// -----------------------------------------------------------------------------
+void setupMDNS() {
+  const char *hostName = "esptimecast";  // your device name
+  bool mdnsStarted = false;
+  mdnsStarted = MDNS.begin(hostName);
+
+  if (mdnsStarted) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.printf("[WIFI] mDNS started: http://%s.local\n", hostName);
+  } else {
+    Serial.println("[WIFI] mDNS failed to start");
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Time / NTP Functions
@@ -1267,6 +1281,11 @@ void setupWebServer() {
         char c = msg[i];
         if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == ':' || c == '!' || c == '\'' || c == '-' || c == '.' || c == ',' || c == '_' || c == '+' || c == '%' || c == '/' || c == '?') {
           filtered += c;
+        }
+        // Check for degree symbol (UTF-8 0xC2 0xB0)
+        else if ((unsigned char)c == 0xC2 && i + 1 < msg.length() && (unsigned char)msg[i + 1] == 0xB0) {
+          filtered += "°";  // add single character
+          i++;              // skip next byte
         }
       }
 
@@ -2199,6 +2218,7 @@ void setup() {
     Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
   }
 
+  setupMDNS();
   setupWebServer();
   Serial.println(F("[SETUP] Webserver setup complete"));
   Serial.println(F("[SETUP] Setup complete"));
@@ -2480,6 +2500,9 @@ void loop() {
     yield();
     return;
   }
+
+  // mDNS update 8266 only
+  MDNS.update();
 
 
   // -----------------------------
