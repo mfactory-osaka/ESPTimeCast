@@ -2665,6 +2665,8 @@ void ensureHtmlFileExists() {
 
 
 
+
+
 // -----------------------------------------------------------------------------
 // Main setup() and loop()
 // -----------------------------------------------------------------------------
@@ -2751,101 +2753,6 @@ void setup() {
   }
 
   setupMDNS();
-  setupWebServer();
-  Serial.println(F("[SETUP] Webserver setup complete"));
-  Serial.println(F("[SETUP] Setup complete"));
-  Serial.println();
-  printConfigToSerial();
-  setupTime();
-  displayMode = 0;
-  lastSwitch = millis() - (clockDuration - 500);
-  lastColonBlink = millis();
-  bootMillis = millis();
-  saveUptime();
-}
-
-// -----------------------------------------------------------------------------
-// Main setup() and loop()
-// -----------------------------------------------------------------------------
-/*
-DisplayMode key:
-  0: Clock
-  1: Weather
-  2: Weather Description
-  3: Countdown
-  4: Nightscout
-  5: Date
-  6: Custom Message
-*/
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println();
-  Serial.println(F("[SETUP] Starting setup..."));
-
-  if (!LittleFS.begin(true)) {
-    Serial.println(F("[ERROR] LittleFS mount failed in setup! Halting."));
-    while (true) {
-      delay(1000);
-      yield();
-    }
-  }
-  Serial.println(F("[SETUP] LittleFS file system mounted successfully."));
-  loadUptime();
-  ensureHtmlFileExists();
-  P.begin();  // Initialize Parola library
-
-  P.setCharSpacing(0);
-  P.setFont(mFactory);
-  loadConfig();  // This function now has internal yields and prints
-
-  P.setIntensity(brightness);
-  P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
-  P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
-
-  Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
-
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(false);
-  #if defined(ESP32)
-    WiFi.setSleep(false);
-
-    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-      const char *name = nullptr;
-      switch (event) {
-        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-          name = "GOT_IP";
-          lastWifiConnectTime = millis();
-          break;
-        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
-        default: return;  // ignore all other events
-      }
-      Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
-    });
-
-  #elif defined(ESP8266)
-    mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
-      Serial.println("[WIFI EVENT] Connected");
-    });
-    mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
-      Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
-    });
-    mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
-      Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
-      lastWifiConnectTime = millis();
-    });
-  #endif
-
-  connectWiFi();
-
-  if (isAPMode) {
-    Serial.println(F("[SETUP] WiFi connection failed. Device is in AP Mode."));
-  } else if (WiFi.status() == WL_CONNECTED) {
-    Serial.println(F("[SETUP] WiFi connected successfully to local network."));
-  } else {
-    Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
-  }
-
   setupWebServer();
   Serial.println(F("[SETUP] Webserver setup complete"));
   Serial.println(F("[SETUP] Setup complete"));
