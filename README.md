@@ -565,6 +565,11 @@ If you need assistance, want to share your build, or discuss new features:
 👉 Join the ESPTimeCast Community on Reddit: [r/ESPTimeCast](https://www.reddit.com/r/ESPTimeCast/)
 &nbsp;  
 &nbsp;
+## 🤝 Contributing
+ESPTimeCast is a personal project, and to keep the codebase simple and focused, I’m not accepting pull requests.  
+However, **forks, custom additions, and experiments are always welcome**. Feel free to build on it in your own fork ;)
+&nbsp;  
+&nbsp;
 ## ❤️ Support this project
 ESPTimeCast is an open-source passion project that blends art, engineering, and design.  
 If you enjoy it, you can help keep the project growing - even something as simple as leaving a ⭐ on GitHub goes a long way.  
@@ -578,6 +583,7 @@ If you'd like to go further, you can also support development through the option
 
 
       
+
 
 
 
