@@ -525,6 +525,7 @@ void connectWiFi() {
 // -----------------------------------------------------------------------------
 void setupMDNS() {
   const char *hostName = "esptimecast";  // your device name
+  MDNS.end();
   bool mdnsStarted = false;
   mdnsStarted = MDNS.begin(hostName);
 
@@ -2193,8 +2194,14 @@ void setup() {
       case ARDUINO_EVENT_WIFI_STA_GOT_IP:
         name = "GOT_IP";
         lastWifiConnectTime = millis();
+        Serial.println("[WIFI EVENT] Re-initializing mDNS due to new IP.");
+        setupMDNS();
         break;
-      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
+      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+        name = "DISCONNECTED";
+        MDNS.end();
+        Serial.println("[WIFI EVENT] mDNS stopped.");
+        break;
       default: return;  // ignore all other events
     }
     Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
@@ -2207,12 +2214,18 @@ void setup() {
   mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
     Serial.println("[WIFI EVENT] Connected");
   });
+
   mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
     Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
+    MDNS.end();
+    Serial.println("[WIFI EVENT] mDNS stopped.");
   });
+
   mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
     Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
     lastWifiConnectTime = millis();
+    Serial.println("[WIFI EVENT] Re-initializing mDNS due to new IP.");
+    setupMDNS();
   });
 #endif
 
