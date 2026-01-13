@@ -1,0 +1,7 @@
+// 0: Clock
+// 1: Weather
+// 2: Weather Description
+// 3: Countdown
+// 4: NIGHTSCOUT
+// 5: Date
+// 6: Custom message

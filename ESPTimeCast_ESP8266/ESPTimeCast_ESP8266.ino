@@ -81,6 +81,7 @@ int currentDisplayCycleCount = 0;
 bool dimmingEnabled = false;
 bool displayOffByDimming = false;
 bool displayOffByBrightness = false;
+bool dimActive = false;
 int dimStartHour = 18;  // 6pm default
 int dimStartMinute = 0;
 int dimEndHour = 8;  // 8am default
@@ -2410,6 +2411,7 @@ void advanceDisplayModeSafe() {
     bool nightscoutConfigured = ntpField.startsWith("https://");
 
     if (displayMode == 0) valid = true;  // Clock always valid
+    else if (dimActive) valid = false;  // Any mode allowed during dimming
     else if (displayMode == 5 && showDate) valid = true;
     else if (displayMode == 1 && weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) valid = true;
     else if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) valid = true;
@@ -2532,7 +2534,6 @@ void loop() {
   // Determine dimming start/end
   // -----------------------------
   int startTotal, endTotal;
-  bool dimActive = false;
 
   if (autoDimmingEnabled) {
     startTotal = sunsetHour * 60 + sunsetMinute;
