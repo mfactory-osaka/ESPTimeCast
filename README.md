@@ -5,6 +5,7 @@
 ![Last Commit](https://img.shields.io/github/last-commit/mfactory-osaka/ESPTimeCast)
 [![Hackaday](https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday&logoColor=white)](https://hackaday.com/2025/10/02/building-a-desk-display-for-time-and-weather-data)
 [![XDA Developers](https://img.shields.io/badge/Featured%20on-XDA%20Developers-blueviolet?logo=android&logoColor=white)](https://www.xda-developers.com/super-sleek-esp32-weather-station)
+[![Hackster](https://img.shields.io/badge/Featured%20on-Hackster-orange?logo=hackster&logoColor=white)](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
 
 🎉 **1,000+ GitHub stars - thank you to the community!**  
 
@@ -26,7 +27,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-375%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-376%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -37,9 +38,10 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 &nbsp;
 ## 📰 Press Mentions
 
-ESPTimeCast has been featured on:  
+ESPTimeCast has been featured on major maker and tech platforms highlighting its design, usability, and open-source community. 
 - [Hackaday](https://hackaday.com/2025/10/02/building-a-desk-display-for-time-and-weather-data)  
 - [XDA Developers](https://www.xda-developers.com/super-sleek-esp32-weather-station)
+- [Hackster.io](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
 
 &nbsp;
 ## ✨ Features
@@ -584,6 +586,7 @@ If you'd like to go further, you can also support development through the option
 
 
       
+
 
 
 
