@@ -2,7 +2,7 @@
 
 ![GitHub stars](https://img.shields.io/github/stars/mfactory-osaka/ESPTimeCast?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/mfactory-osaka/ESPTimeCast?style=social)
-![Last Commit](https://img.shields.io/github/last-commit/mfactory-osaka/ESPTimeCast)
+![Last Commit](https://img.shields.io/github/last-commit/mfactory-osaka/ESPTimeCast)  
 [![Hackaday](https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday&logoColor=white)](https://hackaday.com/2025/10/02/building-a-desk-display-for-time-and-weather-data)
 [![XDA Developers](https://img.shields.io/badge/Featured%20on-XDA%20Developers-blueviolet?logo=android&logoColor=white)](https://www.xda-developers.com/super-sleek-esp32-weather-station)
 [![Hackster](https://img.shields.io/badge/Featured%20on-Hackster-orange?logo=hackster&logoColor=white)](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
@@ -586,6 +586,7 @@ If you'd like to go further, you can also support development through the option
 
 
       
+
 
 
 
