@@ -7,6 +7,9 @@ const char index_html[] PROGMEM = R"rawliteral(
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>ESPTimeCast Settings</title>
 <style>
 
@@ -611,6 +614,15 @@ textarea::placeholder {
 </label>
 
 
+<label label style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.75rem;">
+  <span style="margin-right: 0.5em;">Clock-Only Mode When Dimmed:</span>
+  <span class="toggle-switch">
+    <input type="checkbox" id="clockOnlyDuringDimming">
+    <span class="toggle-slider"></span>
+  </span>
+</label>
+
+
 <div class="form-row two-col">   
   <div>         
     <label for="dimStartTime">Start Time:</label>
@@ -798,15 +810,20 @@ window.onload = function () {
     // Apply initial dimming state
     setDimmingFieldsEnabled();
 
+    // Initialize Clock-only-during-dimming control (depends on dimming fields)
+    initClockOnlyDuringDimming(data);
+
     // Attach listeners (mutually exclusive + API dependency)
     if (apiInputEl) apiInputEl.addEventListener('input', setDimmingFieldsEnabled);
     autoDimmingEl.addEventListener('change', () => {
       if (autoDimmingEl.checked) dimmingEnabledEl.checked = false;
       setDimmingFieldsEnabled();
+      clearClockOnlyIfNoDimming();
     });
     dimmingEnabledEl.addEventListener('change', () => {
       if (dimmingEnabledEl.checked) autoDimmingEl.checked = false;
       setDimmingFieldsEnabled();
+      clearClockOnlyIfNoDimming();
     });
 
     // Set field values from config
@@ -1325,6 +1342,48 @@ function setWeatherUnits(val) {
   });
 }
 
+// --- Clock-only-during-dimming setter (no reboot) ---
+function setClockOnlyDuringDimming(val) {
+  fetch('/set_clock_only_dimming', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  }).catch(e => {
+    console.error('Failed to set clockOnlyDuringDimming:', e);
+  });
+}
+
+// Initialize the checkbox from cfg and wire up immediate save (no reboot)
+function initClockOnlyDuringDimming(cfg) {
+  const el = document.getElementById('clockOnlyDuringDimming');
+  if (!el) return;
+
+  // Set initial checked value from config
+  el.checked = !!cfg.clockOnlyDuringDimming;
+
+  // Determine whether dimming is enabled (auto OR custom)
+  const autoDim = (cfg.autoDimmingEnabled === true || cfg.autoDimmingEnabled === "true" || cfg.autoDimmingEnabled === 1);
+  const manualDim = (cfg.dimmingEnabled === true || cfg.dimmingEnabled === "true" || cfg.dimmingEnabled === 1);
+
+  // Normalize dimBrightness from config (handle "Off" or "-1" string)
+  let db = cfg.dimBrightness;
+  if (typeof db === 'string') {
+    if (db.toLowerCase() === 'off') db = -1;
+    else db = parseInt(db, 10);
+  }
+  const dimBrightnessOk = (typeof db === 'number') ? (db !== -1) : true;
+
+  // Enable only when some dimming mode is active and dimming does not fully turn display off
+  el.disabled = !(autoDim || manualDim) || !dimBrightnessOk;
+
+  // On change, persist immediately (no reboot)
+  el.addEventListener('change', function () {
+    const want = this.checked;
+    setClockOnlyDuringDimming(want);
+    // optimistic UI: leave checkbox as toggled; if server fails we don't roll back here
+  });
+}
+
 // --- Countdown Controls Logic ---
 // NEW: Function to enable/disable countdown specific fields
 function setCountdownFieldsEnabled(enabled) {
@@ -1359,6 +1418,8 @@ function setDimmingFieldsEnabled(enabled) {
   document.getElementById('dimEndTime').disabled = !enabled;
   document.getElementById('dimBrightness').disabled = !enabled;
 }
+
+
 
 async function getLocation() {
   const normalize = v => {
@@ -1610,6 +1671,17 @@ function setDimmingFieldsEnabled() {
   const isCustomDimmingActive = dimmingEnabled.checked;
   const isDimmingActive = isAutoDimmingActive || isCustomDimmingActive; // Brightness slider logic
 
+    // --- Update Clock-only-during-dimming checkbox state (if present) ---
+  const clockOnlyEl = document.getElementById('clockOnlyDuringDimming');
+  if (clockOnlyEl) {
+    // Read current brightness control value (string)
+    const dbEl = document.getElementById('dimBrightness');
+    const dbVal = dbEl ? dbEl.value : null;
+    const dbOk = (dbVal !== null) ? !(String(dbVal).toLowerCase() === 'off' || String(dbVal) === '-1') : true;
+    const currentlyDimEnabled = isAutoDimmingActive || isCustomDimmingActive;
+    clockOnlyEl.disabled = !currentlyDimEnabled || !dbOk;
+  }
+
   // BRIGHTNESS SLIDER: Enabled if EITHER mode is active.
   if (dimBrightness) {
       dimBrightness.disabled = !isDimmingActive;
@@ -1622,6 +1694,31 @@ function setDimmingFieldsEnabled() {
   }
   if (dimEnd) {
       dimEnd.disabled = !isCustomTimeEnabled;
+  }
+
+  clearClockOnlyIfNoDimming();
+
+}
+
+// If both dimming modes are disabled, clear & persist the Clock-only-during-dimming flag
+function clearClockOnlyIfNoDimming() {
+  const autoEl = document.getElementById('autoDimmingEnabled');
+  const dimEl = document.getElementById('dimmingEnabled');
+  const clockEl = document.getElementById('clockOnlyDuringDimming');
+  if (!autoEl || !dimEl || !clockEl) return;
+
+  if (!autoEl.checked && !dimEl.checked) {
+    // if currently checked, uncheck and persist change immediately
+    if (clockEl.checked) {
+      clockEl.checked = false;
+      // persist without reboot
+      fetch('/set_clock_only_dimming', {
+        method: 'POST',
+        body: new URLSearchParams({ value: 'false' })
+      }).catch(e => console.error('Failed to persist clockOnlyDuringDimming clear:', e));
+    }
+    // also ensure it's disabled in the UI
+    clockEl.disabled = true;
   }
 }
 

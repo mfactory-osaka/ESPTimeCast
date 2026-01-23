@@ -91,6 +91,7 @@ int sunriseHour = 6;
 int sunriseMinute = 0;
 int sunsetHour = 18;
 int sunsetMinute = 0;
+bool clockOnlyDuringDimming = false;
 
 //Countdown Globals
 bool countdownEnabled = false;
@@ -251,6 +252,7 @@ void loadConfig() {
     doc[F("sunriseMinute")] = sunriseMinute;
     doc[F("sunsetHour")] = sunsetHour;
     doc[F("sunsetMinute")] = sunsetMinute;
+    doc[F("clockOnlyDuringDimming")] = false;
 
     // Add countdown defaults when creating a new config.json
     JsonObject countdownObj = doc.createNestedObject("countdown");
@@ -285,6 +287,8 @@ void loadConfig() {
     Serial.println(error.f_str());
     return;
   }
+
+  bool configChanged = false;
 
   strlcpy(ssid, doc["ssid"] | "", sizeof(ssid));
   strlcpy(password, doc["password"] | "", sizeof(password));
@@ -393,6 +397,31 @@ void loadConfig() {
     Serial.println(F("[CONFIG] Countdown object not found, defaulting to disabled."));
     countdownFinished = false;
   }
+
+  // --- CLOCK-ONLY-DURING-DIMMING LOADING ---
+  if (doc.containsKey("clockOnlyDuringDimming")) {
+    clockOnlyDuringDimming = doc["clockOnlyDuringDimming"].as<bool>();
+  } else {
+    clockOnlyDuringDimming = false;
+    doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
+    configChanged = true;
+    Serial.println(F("[CONFIG] Migrated: added clockOnlyDuringDimming default."));
+  }
+
+  // --- Save migrated config if needed ---
+  if (configChanged) {
+    Serial.println(F("[CONFIG] Saving migrated config.json"));
+
+    File f = LittleFS.open("/config.json", "w");
+    if (f) {
+      serializeJsonPretty(doc, f);
+      f.close();
+      Serial.println(F("[CONFIG] Migration saved successfully."));
+    } else {
+      Serial.println(F("[ERROR] Failed to save migrated config.json"));
+    }
+  }
+
   Serial.println(F("[CONFIG] Configuration loaded."));
 }
 
@@ -612,6 +641,8 @@ void printConfigToSerial() {
   Serial.println(autoDimmingEnabled ? "Enabled" : "Disabled");
   Serial.print(F("Custom Dimming: "));
   Serial.println(dimmingEnabled ? "Enabled" : "Disabled");
+  Serial.print(F("Clock only during dimming: "));
+  Serial.println(clockOnlyDuringDimming ? "Yes" : "No");
 
   if (autoDimmingEnabled) {
     // --- Automatic (Sunrise/Sunset) dimming mode ---
@@ -676,7 +707,12 @@ void setupWebServer() {
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /"));
-    request->send(LittleFS, "/index.html", "text/html");
+    // Create a response from LittleFS file so we can attach cache-control headers
+    AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/index.html", "text/html");
+    response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    response->addHeader("Pragma", "no-cache");
+    response->addHeader("Expires", "0");
+    request->send(response);
   });
 
   server.on("/generate_204", HTTP_GET, handleCaptivePortal);         // Android
@@ -781,7 +817,9 @@ void setupWebServer() {
         else doc[n] = v.toInt();
       } else if (n == "showWeatherDescription") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "dimmingEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "weatherUnits") doc[n] = v;
+      else if (n == "clockOnlyDuringDimming") {
+        doc[n] = (v == "true" || v == "on" || v == "1");
+      } else if (n == "weatherUnits") doc[n] = v;
 
       else if (n == "password") {
         if (v != "********" && v.length() > 0) {
@@ -1201,6 +1239,85 @@ void setupWebServer() {
 
     Serial.printf("[WEBSERVER] Set Dramatic Countdown to %d\n", isDramaticCountdown);
     request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  // Set Clock-only-during-dimming (no reboot)
+  server.on("/set_clock_only_dimming", HTTP_POST, [](AsyncWebServerRequest *request) {
+    bool enableNow = false;
+    if (request->hasParam("value", true)) {
+      String v = request->getParam("value", true)->value();
+      enableNow = (v == "1" || v == "true" || v == "on");
+    }
+
+    // Update runtime variable immediately
+    clockOnlyDuringDimming = enableNow;
+    Serial.printf("[WEBSERVER] Set clockOnlyDuringDimming to %d (requested)\n", clockOnlyDuringDimming);
+
+    // Read existing config.json (if present)
+    DynamicJsonDocument doc(2048);
+    bool needToWrite = true;
+    File configFile = LittleFS.open("/config.json", "r");
+    if (configFile) {
+      DeserializationError err = deserializeJson(doc, configFile);
+      configFile.close();
+      if (err) {
+        Serial.print(F("[WEBSERVER] Error parsing existing config.json: "));
+        Serial.println(err.f_str());
+        // proceed to write (will create a new doc)
+        doc.clear();
+      } else {
+        // If the key exists and matches the requested value, skip write
+        bool existing = doc["clockOnlyDuringDimming"] | false;
+        if (existing == enableNow) {
+          Serial.println(F("[WEBSERVER] clockOnlyDuringDimming unchanged — skipping write."));
+          // Send immediate OK response without touching FS
+          DynamicJsonDocument okDoc(128);
+          okDoc[F("ok")] = true;
+          okDoc[F("clockOnlyDuringDimming")] = enableNow;
+          String response;
+          serializeJson(okDoc, response);
+          request->send(200, "application/json", response);
+          return;
+        }
+      }
+    } else {
+      // No config file found — doc is empty and we will write
+      doc.clear();
+    }
+
+    // Set/update the key in the JSON doc
+    doc[F("clockOnlyDuringDimming")] = clockOnlyDuringDimming;
+
+    // Backup existing file only if it exists (and only because we're about to replace it)
+    if (LittleFS.exists("/config.json")) {
+      if (!LittleFS.rename("/config.json", "/config.bak")) {
+        Serial.println(F("[WEBSERVER] Warning: failed to create config backup"));
+        // continue anyway
+      }
+    }
+
+    File f = LittleFS.open("/config.json", "w");
+    if (!f) {
+      Serial.println(F("[WEBSERVER] ERROR: Failed to open /config.json for writing"));
+      DynamicJsonDocument errDoc(128);
+      errDoc[F("error")] = "Failed to write config file.";
+      String response;
+      serializeJson(errDoc, response);
+      request->send(500, "application/json", response);
+      return;
+    }
+
+    size_t bytesWritten = serializeJson(doc, f);
+    f.close();
+    Serial.printf("[WEBSERVER] Saved clockOnlyDuringDimming=%d to /config.json (%u bytes written)\n", clockOnlyDuringDimming, bytesWritten);
+
+    // Send immediate response (no reboot)
+    DynamicJsonDocument okDoc(128);
+    okDoc[F("ok")] = true;
+    okDoc[F("clockOnlyDuringDimming")] = clockOnlyDuringDimming;
+    String response;
+    serializeJson(okDoc, response);
+    request->send(200, "application/json", response);
   });
 
   // --- Custom Message Endpoint ---
@@ -2158,6 +2275,11 @@ DisplayMode key:
 void setup() {
   Serial.begin(115200);
   delay(1000);
+#if defined(ARDUINO_USB_MODE) 
+  Serial.setTxTimeoutMs(50);
+  Serial.println("[SERIAL] USB CDC detected — TX timeout enabled");
+  delay(500); 
+#endif
   Serial.println();
   Serial.println(F("[SETUP] Starting setup..."));
 
@@ -2244,7 +2366,9 @@ void setup() {
   Serial.println(F("[SETUP] Webserver setup complete"));
   Serial.println(F("[SETUP] Setup complete"));
   Serial.println();
+#if !defined(ARDUINO_USB_MODE)
   printConfigToSerial();
+#endif
   setupTime();
   displayMode = 0;
   lastSwitch = millis() - (clockDuration - 500);
@@ -2318,6 +2442,39 @@ void ensureHtmlFileExists() {
 }
 
 void advanceDisplayMode() {
+
+  // If user requested clock-only during dimming and we are currently dimmed, stay on clock
+  if (clockOnlyDuringDimming) {
+    time_t now = time(nullptr);
+    struct tm local_tm;
+    localtime_r(&now, &local_tm);
+    int curTotal = local_tm.tm_hour * 60 + local_tm.tm_min;
+
+    int startTotal = -1, endTotal = -1;
+    bool currentlyDimmed = false;
+
+    if (autoDimmingEnabled) {
+      startTotal = sunsetHour * 60 + sunsetMinute;
+      endTotal = sunriseHour * 60 + sunriseMinute;
+      currentlyDimmed = (startTotal < endTotal)
+                          ? (curTotal >= startTotal && curTotal < endTotal)
+                          : (curTotal >= startTotal || curTotal < endTotal);
+    } else if (dimmingEnabled) {
+      startTotal = dimStartHour * 60 + dimStartMinute;
+      endTotal = dimEndHour * 60 + dimEndMinute;
+      currentlyDimmed = (startTotal < endTotal)
+                          ? (curTotal >= startTotal && curTotal < endTotal)
+                          : (curTotal >= startTotal || curTotal < endTotal);
+    }
+
+    if (currentlyDimmed) {
+      displayMode = 0;
+      lastSwitch = millis();
+      Serial.println(F("[DISPLAY] advanceDisplayMode(): Staying in CLOCK because Clock-only-dimming is enabled and dimming is active."));
+      return;
+    }
+  }
+
   prevDisplayMode = displayMode;
   int oldMode = displayMode;
   String ntpField = String(ntpServer2);
@@ -2599,6 +2756,15 @@ void loop() {
     P.setIntensity(targetBrightness);
   }
 
+  // Enforce "Clock only during dimming" if enabled
+  if (clockOnlyDuringDimming && dimActive) {
+    if (displayMode != 0) {
+      prevDisplayMode = displayMode;
+      displayMode = 0;
+      lastSwitch = millis();
+      Serial.println(F("[DISPLAY] Forcing CLOCK because 'Clock only during dimming' is enabled and dimming is active."));
+    }
+  }
 
   // --- IMMEDIATE COUNTDOWN FINISH TRIGGER ---
   if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && now_time >= countdownTargetTimestamp) {
