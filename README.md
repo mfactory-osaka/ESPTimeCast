@@ -117,13 +117,13 @@ This change improves **brightness**, **stability**, and protects the **onboard v
 
 #### 🧩 Board → MAX7219 
 
-| D1 Mini (Micro USB) | D1 Mini (USB C) | D1 Mini (ESP 32) | S2 Mini | MAX7219 |
-|:-----:|:-----:|:-----:|:-----:|:------|
-|  GND  |  GND  |  GND  |  GND  |  GND  |
-|  5V   |  5V/VBUS   |  5V/VBUS   |  5V/VBUS   |  VCC  | 
-|  D5   |  14   |  18   |  7    |  CLK  | 
-|  D7   |  13   |  23   |  11   |  CS   |
-|  D8   |  15   |  5    |  12   |  DIN  |
+| D1 Mini (Micro USB) | D1 Mini (USB C) | D1 Mini (ESP 32) | S2 Mini | C3 Supermini |  MAX7219 |
+|:-----:|:-----:|:-----:|:-----:|:------:|:------|
+|  GND  |  GND  |  GND  |  GND  |  GND  | GND |
+|  5V   |  5V/VBUS   |  5V/VBUS   |  5V/VBUS  | 5V  |  VCC  | 
+|  D5   |  14   |  18   |  7    | 7    |  CLK  | 
+|  D7   |  13   |  23   |  11   | 20   | CS   |
+|  D8   |  15   |  5    |  12   | 8    | DIN  |
 
 
 <img src="assets/wiring3.png" alt="Wiring" width="800" />
@@ -586,6 +586,7 @@ If you'd like to go further, you can also support development through the option
 
 
       
+
 
 
 
