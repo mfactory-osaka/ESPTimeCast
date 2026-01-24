@@ -27,13 +27,31 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-384%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-387%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
     <img src="https://img.shields.io/badge/Cults3D-117%20Downloads-blue?logo=cults3d" width="180">
   </a>
 </p>
+
+&nbsp;
+## 🖼️ Community Builds Gallery
+
+A small selection of ESPTimeCast builds from the community ❤️  
+
+<p align="center">
+<img src="assets/builds/1.png" alt="ESPTimeCast build by Achduka" width="150"/> <img src="assets/builds/2.png" alt="ESPTimeCast build by ChrisBalo_2103728" width="150"/> <img src="assets/builds/3.png" alt="ESPTimeCast build by LeoB_746630" width="150"/> <img src="assets/builds/4.png" alt="ESPTimeCast build by LazyManJoe_199553" width="150"/> <img src="assets/builds/5.png" alt="ESPTimeCast build by Stefan_37395" width="150"/> <img src="assets/builds/6.png" alt="ESPTimeCast build by Purduesi_774301" width="150"/> <img src="assets/builds/7.png" alt="ESPTimeCast build by sardaukar_1942598" width="150"/> <img src="assets/builds/8.png" alt="ESPTimeCast build by Manni0605_464156" width="150"/> <img src="assets/builds/9.png" alt="ESPTimeCast build by T03IAS" width="150"/> <img src="assets/builds/10.png" alt="ESPTimeCast build by rhe_3695705" width="150"/> <img src="assets/builds/11.png" alt="ESPTimeCast build by thirddimensionlabs" width="150"/> <img src="assets/builds/12.png" alt="ESPTimeCast build by sardaukar_1942598" width="150"/>
+</p>
+
+Huge thanks to all the makers on Printables who shared their ESPTimeCast builds featured here:
+
+Achduka, ChrisBalo_2103728, LazyManJoe_199553, LeoB_746630, Manni0605_464156, Purduesi_774301, rhe_3695705, sardaukar_1942598, Stefan_37395, TO3IAS, thirddimensionlabs  
+
+You all made this community showcase possible - thank you! 🙏  
+
+Want your build featured here?  
+Share your photos on [r/ESPTimeCast](https://www.reddit.com/r/ESPTimeCast/comments/1p2vt16/show_your_esptimecast_build_post_your_photos_setup/) - I’d love to showcase more builds! 📸
 
 &nbsp;
 ## 📰 Press Mentions
@@ -569,8 +587,11 @@ If you need assistance, want to share your build, or discuss new features:
 &nbsp;  
 &nbsp;
 ## 🤝 Contributing
-ESPTimeCast is a personal project, and to keep the codebase simple and focused, I’m not accepting pull requests.  
-However, **forks, custom additions, and experiments are always welcome**. Feel free to build on it in your own fork ;)
+ESPTimeCast is a personal project, and to keep the codebase focused, stable, and aligned with the original vision, I’m not accepting pull requests at this time.  
+
+If you have ideas, feature requests, bug reports, or improvements, please open an Issue instead - discussion is always welcome.  
+
+**Forks, custom additions, and personal experiments are absolutely encouraged.** Feel free to build on ESPTimeCast in your own fork and make it your own 😉
 &nbsp;  
 &nbsp;
 ## ❤️ Support this project
@@ -586,6 +607,7 @@ If you'd like to go further, you can also support development through the option
 
 
       
+
 
 
 
