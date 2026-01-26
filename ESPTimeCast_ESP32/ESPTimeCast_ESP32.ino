@@ -43,6 +43,12 @@ int messageScrollSpeed = 85;          // default fallback
 // --- Nightscout setting ---
 const unsigned int NIGHTSCOUT_IDLE_THRESHOLD_MIN = 10;  // minutes before data is considered outdated
 
+// --- Device identity ---
+const char *DEFAULT_HOSTNAME = "esptimecast";
+const char *DEFAULT_AP_PASSWORD = "12345678";
+const char *DEFAULT_AP_SSID = "ESPTimeCast";
+String deviceHostname = DEFAULT_HOSTNAME;
+
 // WiFi and configuration globals
 char ssid[32] = "";
 char password[64] = "";
@@ -427,11 +433,20 @@ void loadConfig() {
 
 
 // -----------------------------------------------------------------------------
+// Network Identity
+// -----------------------------------------------------------------------------
+void setupHostname() {
+#if defined(ESP8266)
+  WiFi.hostname(deviceHostname);
+#elif defined(ESP32)
+  WiFi.setHostname(deviceHostname.c_str());
+#endif
+}
+
+
+// -----------------------------------------------------------------------------
 // WiFi Setup
 // -----------------------------------------------------------------------------
-const char *DEFAULT_AP_PASSWORD = "12345678";
-const char *AP_SSID = "ESPTimeCast";
-
 void connectWiFi() {
   Serial.println(F("[WIFI] Connecting to WiFi..."));
 
@@ -443,11 +458,13 @@ void connectWiFi() {
     WiFi.disconnect(true);
     delay(100);
 
+    setupHostname();
+
     if (strlen(DEFAULT_AP_PASSWORD) < 8) {
-      WiFi.softAP(AP_SSID);
+      WiFi.softAP(DEFAULT_AP_SSID);
       Serial.println(F("[WIFI] AP Mode started (no password, too short)."));
     } else {
-      WiFi.softAP(AP_SSID, DEFAULT_AP_PASSWORD);
+      WiFi.softAP(DEFAULT_AP_SSID, DEFAULT_AP_PASSWORD);
       Serial.println(F("[WIFI] AP Mode started."));
     }
 
@@ -470,10 +487,11 @@ void connectWiFi() {
   }
 
   // If credentials exist, attempt STA connection
+  WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true);
   delay(100);
-
+  setupHostname();
   WiFi.begin(ssid, password);
   unsigned long startAttemptTime = millis();
 
@@ -518,7 +536,8 @@ void connectWiFi() {
     } else if (now - startAttemptTime >= timeout) {
       Serial.println(F("[WIFI] Failed. Starting AP mode..."));
       WiFi.mode(WIFI_AP);
-      WiFi.softAP(AP_SSID, DEFAULT_AP_PASSWORD);
+      setupHostname();
+      WiFi.softAP(DEFAULT_AP_SSID, DEFAULT_AP_PASSWORD);
       Serial.print(F("[WIFI] AP IP address: "));
       Serial.println(WiFi.softAPIP());
       dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
@@ -553,14 +572,13 @@ void connectWiFi() {
 // mDNS
 // -----------------------------------------------------------------------------
 void setupMDNS() {
-  const char *hostName = "esptimecast";  // your device name
   MDNS.end();
-  bool mdnsStarted = false;
-  mdnsStarted = MDNS.begin(hostName);
+
+  bool mdnsStarted = MDNS.begin(deviceHostname.c_str());
 
   if (mdnsStarted) {
     MDNS.addService("http", "tcp", 80);
-    Serial.printf("[WIFI] mDNS started: http://%s.local\n", hostName);
+    Serial.printf("[WIFI] mDNS started: http://%s.local\n", deviceHostname.c_str());
   } else {
     Serial.println("[WIFI] mDNS failed to start");
   }
@@ -1459,6 +1477,29 @@ void setupWebServer() {
     }
   });
 
+  server.on("/ip", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String ip;
+
+    if (WiFi.getMode() == WIFI_AP) {
+      ip = WiFi.softAPIP().toString();  // usually 192.168.4.1
+    } else if (WiFi.isConnected()) {
+      ip = WiFi.localIP().toString();
+    } else {
+      ip = "—";
+    }
+
+    request->send(200, "text/plain", ip);
+  });
+
+  server.on("/hostname", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (WiFi.getMode() == WIFI_AP) {
+      request->send(200, "text/plain", "AP-Mode");
+    } else {
+      String host = deviceHostname + ".local";
+      request->send(200, "text/plain", host);
+    }
+  });
+
   server.on("/uptime", HTTP_GET, [](AsyncWebServerRequest *request) {
     if (!LittleFS.exists("/uptime.dat")) {
       request->send(200, "text/plain", "No uptime recorded yet.");
@@ -2275,10 +2316,10 @@ DisplayMode key:
 void setup() {
   Serial.begin(115200);
   delay(1000);
-#if defined(ARDUINO_USB_MODE) 
+#if defined(ARDUINO_USB_MODE)
   Serial.setTxTimeoutMs(50);
   Serial.println("[SERIAL] USB CDC detected — TX timeout enabled");
-  delay(500); 
+  delay(500);
 #endif
   Serial.println();
   Serial.println(F("[SETUP] Starting setup..."));

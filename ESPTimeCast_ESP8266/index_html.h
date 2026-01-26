@@ -686,7 +686,9 @@ textarea::placeholder {
 
 <div class="footer">
   Project by: <a href="https://www.instagram.com/mfactory.osaka" target="_blank" rel="noopener noreferrer">M-Factory</a><br>
-  Device uptime: <span id="uptimeDisplay">Loading...</span>
+  IP: <span id="ipDisplay">Fetching...</span><br>
+  Host: <span id="hostnameDisplay">Fetching...</span><br>
+  Uptime: <span id="uptimeDisplay">Loading...</span>  
 </div>
 
 <div id="savingMessage"></div>
@@ -1735,6 +1737,33 @@ window.addEventListener('DOMContentLoaded', () => {
   if (dimEl) dimEl.addEventListener('change', setDimmingFieldsEnabled);
 });
 
+document.addEventListener("DOMContentLoaded", () => {
+
+  // --- IP ---
+  fetch('/ip')
+    .then(r => r.text())
+    .then(ip => {
+      const el = document.getElementById('ipDisplay');
+      if (el) el.textContent = ip || "—";
+    })
+    .catch(() => {
+      const el = document.getElementById('ipDisplay');
+      if (el) el.textContent = "—";
+    });
+
+  // --- Hostname ---
+  fetch('/hostname')
+    .then(r => r.text())
+    .then(host => {
+      const el = document.getElementById('hostnameDisplay');
+      if (el) el.textContent = host || "—";
+    })
+    .catch(() => {
+      const el = document.getElementById('hostnameDisplay');
+      if (el) el.textContent = "—";
+    });
+
+});
 </script>
 </body>
 </html>
