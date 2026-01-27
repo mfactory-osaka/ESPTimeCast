@@ -17,6 +17,111 @@ const char index_html[] PROGMEM = R"rawliteral(
   --accent-color: #0075ff;
 }
 
+  .ssid-wrapper {
+    position: relative;
+  }
+
+  .combo-container {
+    display: flex;
+    box-sizing: border-box;
+    width: 100%;
+    border: 1.5px solid rgba(180, 230, 255, 0.08);
+    border-radius: 8px;
+    background-color: rgba(225, 245, 255, 0.07);
+    color: #ffffff;
+    font-size: 1rem;
+    appearance: none;
+  }
+
+  #ssid {
+    border-radius: 8px 0 0 8px;
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+  }
+
+  .icon-btn {
+    width: 40px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    transition: background 0.2s;
+  }
+
+  #arrowBtn {
+    background: transparent;
+    border: none;
+    width: 40px;
+    border-left: 1.5px solid rgba(180, 230, 255, 0.08);
+  }
+
+  #arrowBtn > svg{
+    position: relative;
+    top: 2px;
+    filter: invert(0);
+    opacity: 1;
+  }
+
+  #arrowBtn:disabled > svg{
+    position: relative;
+    top: 2px;
+    opacity: 0.25;
+  }
+
+  #arrowBtn:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 122, 255, 0.35);
+  }
+
+  #arrowBtn:disabled:hover{
+    transform: translateY(0px);
+    box-shadow: none;
+  }
+
+  #arrowBtn:disabled{
+    cursor: not-allowed;
+    background: none;
+    color: rgba(255, 255, 255, 0.250);
+  }
+
+  #scanBtn {
+    border-radius: 0 8px 8px 0;
+    width: 80px;
+  }
+
+  .icon-btn:hover { background: #f5f5f5; }
+  #scanBtn:disabled { background: rgba(255, 255, 255, 0.5); cursor: wait; }
+
+  /* The Dropdown Menu */
+  #ssidList {
+    position: absolute;
+    width: 100%;
+    max-height: 50vh;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+  }
+
+  .ssid-option {
+    padding: 10px 12px;
+    cursor: pointer;
+    color: black;
+  }
+
+  .ssid-option:hover {
+    background-color: var(--accent-color);
+    color: white;
+  }
+
   * { box-sizing: border-box; }
   html{
     background: radial-gradient(ellipse at 70% 0%, #2b425a 0%, #171e23 100%);  
@@ -127,8 +232,8 @@ input[type="time"]::-webkit-calendar-picker-indicator, input[type="date"]::-webk
 
 
   input:-webkit-autofill,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:hover {
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:hover {
   background: rgba(225,245,255,0.07) !important;
   color: #fff !important;
   -webkit-box-shadow: 0 0 0 1000px rgba(225,245,255,0.07) inset !important;
@@ -326,8 +431,17 @@ textarea::placeholder {
     <svg width="450" height="50" viewBox="0 0 119.063 13.229" xml:space="preserve" xmlns="http://www.w3.org/2000/svg"><path style="fill:currentColor;font-variation-settings:&quot;wdth&quot;87,&quot;wght&quot;700;paint-order:markers fill stroke" d="M.75 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 .75 0m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 24.654 0m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 48.558 0m29.987 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 78.545 0M80.5 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M114.4 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 1.955a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .002-1.5m11.952 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m4.126 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .002-1.5m7.826 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m8.039 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m36.069 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m29.986 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498M.75 3.91a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m11.952 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m11.952 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m7.826 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m13.908 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.125 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 5.866a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.5m1.957 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m1.956 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.956 0a.749.749 0 1 0 0 1.497.75.75 0 1 0 0-1.498m8.039 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.957 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.956 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m6.083 0a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.5m1.957 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m1.956 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m1.956 0a.749.749 0 1 0 0 1.497.75.75 0 1 0 0-1.498m9.996 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m8.04 0a.75.75 0 1 0-.003 1.499.75.75 0 0 0 .002-1.5m4.125 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m7.827 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m11.951 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m7.827 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m13.908 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497M.75 7.82a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m19.778 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m15.865 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.5m3.913 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.125 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.5m11.951 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m7.827 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m8.038 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 9.776a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.499m11.952 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m7.826 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.499m15.865 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m8.04 0a.75.75 0 1 0-.003 1.499.75.75 0 0 0 .002-1.499m4.125 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m11.953 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m5.87 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m1.957 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m11.952 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m6.082 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497M.75 11.731a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m15.865 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m3.913 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m9.995 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498"/></svg>
   </div>
   <h2>WiFi Settings</h2>
-  <label for="ssid">SSID</label>
-  <input type="text" id="ssid" name="ssid" required />
+   <label for="ssid">SSID</label>
+<div class="ssid-wrapper">
+  <div class="combo-container">
+    <input type="text" id="ssid" name="ssid" required>
+    <button type="button" id="arrowBtn" title="Show scanned" disabled>
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 0.48 0.48"><g style="opacity:1"><path d="M-24.679 12.619h.48v.48h-.48z" style="font-variation-settings:&quot;wdth&quot;87,&quot;wght&quot;700;fill:none;stroke-width:.0127174;paint-order:markers fill stroke" transform="translate(24.679 -12.62)"/><path d="M-24.661 12.732a.06.06 0 0 0 0 .085l.162.162a.086.086 0 0 0 .12 0l.163-.162a.06.06 0 0 0 0-.085.06.06 0 0 0-.085 0l-.138.138-.137-.138a.06.06 0 0 0-.085 0z" style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#fff;stroke-width:.0600023;stroke-linecap:round;stroke-linejoin:round;enable-background:accumulate;stop-color:#000;stop-opacity:1" transform="translate(24.679 -12.62)"/></g></svg>
+</button>
+    <button type="button" class="primary-button" id="scanBtn">Scan</button>
+  </div>
+  <div id="ssidList"></div>
+</div>
   <label for="password">Password</label>
   <div style="position: relative;">
     <input type="password" id="password" name="password" required />
@@ -1764,6 +1878,95 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
 });
+
+const ssidInput = document.getElementById("ssid");
+const list = document.getElementById("ssidList");
+const scanBtn = document.getElementById("scanBtn");
+const arrowBtn = document.getElementById("arrowBtn");
+
+// Unlock the arrow button UI
+function enableDropdown() {
+  arrowBtn.disabled = false;
+  arrowBtn.style.opacity = "1";
+  arrowBtn.style.cursor = "pointer";
+}
+
+// Show/Hide the dropdown list
+function toggleList(e) {
+  if (e) e.stopPropagation();
+  if (list.children.length > 0) {
+    list.style.display = (list.style.display === "block") ? "none" : "block";
+  }
+}
+
+arrowBtn.onclick = toggleList;
+
+// Close dropdown if user clicks away
+window.onclick = (e) => {
+  if (!e.target.matches('#arrowBtn') && !e.target.matches('#ssid')) {
+    list.style.display = "none";
+  }
+};
+
+scanBtn.onclick = async function() {
+  // 1. Prepare UI
+  arrowBtn.disabled = true;
+  scanBtn.disabled = true;
+  list.style.display = "none";
+
+  // 2. Start Continuous Dot Animation
+  let dotCount = 0;
+  const dotInterval = setInterval(() => {
+    dotCount = (dotCount % 3) + 1;
+    scanBtn.innerText = ".".repeat(dotCount);
+  }, 850);
+
+  // 3. Define the recursive Polling Function
+  const performPolling = async () => {
+    try {
+      const resp = await fetch("/scan");
+      
+      if (resp.status === 202) {
+        // ESP is still busy. Wait 1 second then try again.
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return await performPolling(); 
+      }
+
+      if (resp.status === 200) {
+        const networks = await resp.json();
+        list.innerHTML = "";
+
+        if (networks && networks.length > 0) {
+          networks.forEach(net => {
+            const div = document.createElement("div");
+            div.className = "ssid-option";
+            div.innerText = net.ssid;
+            div.onclick = () => {
+              ssidInput.value = net.ssid;
+              list.style.display = "none";
+            };
+            list.appendChild(div);
+          });
+          enableDropdown();
+          list.style.display = "block";
+        } else {
+          alert("No networks found.");
+        }
+      }
+    } catch (err) {
+      console.error("Scan error:", err);
+      alert("Device connection lost.");
+    }
+  };
+
+  // 4. Run the polling chain
+  await performPolling();
+
+  // 5. Final Cleanup (Runs only AFTER polling is completely finished)
+  clearInterval(dotInterval);
+  scanBtn.disabled = false;
+  scanBtn.innerText = "Scan";
+};
 </script>
 </body>
 </html>

@@ -729,11 +729,6 @@ void setupWebServer() {
     request->send(response);
   });
 
-  server.on("/generate_204", HTTP_GET, handleCaptivePortal);         // Android
-  server.on("/fwlink", HTTP_GET, handleCaptivePortal);               // Windows
-  server.on("/hotspot-detect.html", HTTP_GET, handleCaptivePortal);  // iOS/macOS
-  server.on("/ncsi.txt", HTTP_GET, handleCaptivePortal);             // Windows NCSI (variation)
-  server.on("/cp/success.txt", HTTP_GET, handleCaptivePortal);       // Android/Generic Success Check
   server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(204);  // 204 No Content response
   });
@@ -1473,6 +1468,35 @@ void setupWebServer() {
     }
   });
 
+  server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request) {
+    int scanStatus = WiFi.scanComplete();
+
+    // -2 means scan not triggered, -1 means scan in progress
+    if (scanStatus < -1 || scanStatus == WIFI_SCAN_FAILED) {
+      // Start the asynchronous scan
+      WiFi.scanNetworks(true);
+      request->send(202, "application/json", "{\"status\":\"processing\"}");
+    } else if (scanStatus == -1) {
+      // Scan is currently running
+      request->send(202, "application/json", "{\"status\":\"processing\"}");
+    } else {
+      // Scan finished (scanStatus >= 0)
+      String json = "[";
+      for (int i = 0; i < scanStatus; ++i) {
+        json += "{";
+        json += "\"ssid\":\"" + WiFi.SSID(i) + "\",";
+        json += "\"rssi\":" + String(WiFi.RSSI(i));
+        json += "}";
+        if (i < scanStatus - 1) json += ",";
+      }
+      json += "]";
+
+      // Clean up scan results from memory
+      WiFi.scanDelete();
+      request->send(200, "application/json", json);
+    }
+  });
+
   server.on("/ip", HTTP_GET, [](AsyncWebServerRequest *request) {
     String ip;
 
@@ -1772,23 +1796,35 @@ void setupWebServer() {
 void handleCaptivePortal(AsyncWebServerRequest *request) {
   String uri = request->url();
 
-  // Filter out system-generated probe requests
-  if (!uri.endsWith("/204") && !uri.endsWith("/ipv6check") && !uri.endsWith("connecttest.txt") && !uri.endsWith("/generate_204") && !uri.endsWith("/fwlink") && !uri.endsWith("/hotspot-detect.html")) {
-
-    Serial.print(F("[WEBSERVER] Captive Portal triggered for URL: "));
-    Serial.println(uri);
+  // Never interfere with real UI or API
+  if (
+    uri == "/" || uri == "/index.html" || uri.startsWith("/config") || uri.startsWith("/hostname") || uri.startsWith("/ip") || uri.endsWith(".json") || uri.endsWith(".js") || uri.endsWith(".css") || uri.endsWith(".png") || uri.endsWith(".ico")) {
+    return;  // let normal handlers serve it
   }
 
+  // Known captive portal probes → redirect
+  if (
+    uri == "/generate_204" || uri == "/gen_204" || uri == "/fwlink" || uri == "/hotspot-detect.html" || uri == "/ncsi.txt" || uri == "/cp/success.txt" || uri == "/library/test/success.html") {
+    if (isAPMode) {
+      IPAddress apIP = WiFi.softAPIP();
+      String redirectUrl = "http://" + apIP.toString() + "/";
+      //Serial.printf("[WEBSERVER] Captive probe %s → redirect\n", uri.c_str());
+      request->redirect(redirectUrl);
+      return;
+    }
+  }
+
+  // Unknown URLs in AP mode → redirect (helps odd OSes like /chat)
   if (isAPMode) {
     IPAddress apIP = WiFi.softAPIP();
     String redirectUrl = "http://" + apIP.toString() + "/";
-    Serial.print(F("[WEBSERVER] Redirecting to captive portal: "));
-    Serial.println(redirectUrl);
+    Serial.printf("[WEBSERVER] Captive fallback redirect: %s\n", uri.c_str());
     request->redirect(redirectUrl);
-  } else {
-    Serial.println(F("[WEBSERVER] Not in AP mode — sending 404"));
-    request->send(404, "text/plain", "Not found");
+    return;
   }
+
+  // STA mode fallback
+  request->send(404, "text/plain", "Not found");
 }
 
 String normalizeWeatherDescription(String str) {
@@ -2387,8 +2423,9 @@ void setup() {
   } else {
     Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
   }
-
-  setupMDNS();
+  if (!isAPMode && WiFi.status() == WL_CONNECTED) {
+    setupMDNS();
+  }
   setupWebServer();
   Serial.println(F("[SETUP] Webserver setup complete"));
   Serial.println(F("[SETUP] Setup complete"));
