@@ -245,7 +245,7 @@ Follow these steps to prepare your Arduino IDE for ESP8266 development:
 2.  **Select Your Board:**
     * Go to `Tools > Board` and select your specific board, e.g., **Wemos D1 Mini** (or your ESP8266 variant).
 3.  **Configure Flash Size:**
-    * Under `Tools`, select `Flash Size "4MB FS:2MB OTA:~1019KB"`. This ensures enough space for the sketch and LittleFS data.
+    * Under `Tools`, select `Flash Size "4MB FS:2MB OTA:~1019KB"` or `Flash Size "Mapping defined by Hardware and Sketch"`. This ensures enough space for the sketch and LittleFS data.
 4.  **Install Libraries:**
     * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
         * `ArduinoJson` by Benoit Blanchon
@@ -607,6 +607,7 @@ If you'd like to go further, you can also support development through the option
 
 
       
+
 
 
 
