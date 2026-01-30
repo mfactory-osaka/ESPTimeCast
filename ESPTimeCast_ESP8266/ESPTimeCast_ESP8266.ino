@@ -2706,10 +2706,20 @@ void loop() {
   }
 
 
-  // Only advance mode by timer for clock/weather, not description!
-  unsigned long displayDuration = (displayMode == 0) ? clockDuration : weatherDuration;
-  if ((displayMode == 0 || displayMode == 1) && millis() - lastSwitch > displayDuration) {
-    advanceDisplayMode();
+  if (dimActive && (displayMode == 0))
+  {
+    // Stay in clock mode when dimming is active
+  }
+  else
+  {
+    // Only advance mode by timer for clock/weather, not description!
+    unsigned long displayDuration = (displayMode == 0) ? clockDuration : weatherDuration;
+    if (displayMode == 0 || displayMode == 1)
+    {
+      if (millis() - lastSwitch > displayDuration) {
+        advanceDisplayMode();
+      }
+    } 
   }
 
 
