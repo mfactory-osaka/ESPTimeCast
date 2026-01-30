@@ -1,0 +1,6 @@
+{
+    "recommendations": [
+        "platformio.platformio-ide",
+        "ms-vscode.cpptools-extension-pack"
+    ]
+}

@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "260113-205206-nodemcuv2",
+			"path": "../../PlatformIO/Projects/260113-205206-nodemcuv2"
+		}
+	],
+	"settings": {},
+	"files.exclude": {
+		"**/.vscode/**": true,
+		"**/.pio/**": true,
+		"**/.git/**": true
+	}
+}
