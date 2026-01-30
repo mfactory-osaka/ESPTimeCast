@@ -1990,7 +1990,11 @@ bool isFiveDigitZip(const char *str) {
 // Weather Fetching and API settings
 // -----------------------------------------------------------------------------
 String buildWeatherURL() {
+#if defined(ESP8266)
+  String base = "http://api.openweathermap.org/data/2.5/weather?";
+#else
   String base = "https://api.openweathermap.org/data/2.5/weather?";
+#endif
 
   float lat = atof(openWeatherCity);
   float lon = atof(openWeatherCountry);
@@ -2051,15 +2055,28 @@ void fetchWeather() {
 
   Serial.println(F("[WEATHER] Connecting to OpenWeatherMap..."));
   String url = buildWeatherURL();
-  Serial.println(F("[WEATHER] URL: ") + url);
+  Serial.print(F("[WEATHER] URL: "));  // Use F() with Serial.print
+  Serial.println(url);
 
-  WiFiClientSecure client;  // use secure client for HTTPS
-  client.stop();            // ensure previous session closed
-  yield();                  // Allow OS to process socket closure
-  client.setInsecure();     // no cert validation
-  HTTPClient http;          // Create an HTTPClient object
-  http.begin(client, url);  // Pass the WiFiClient object and the URL
-  client.setBufferSizes(512, 512);
+  HTTPClient http;  // Create an HTTPClient object
+
+#if defined(ESP8266)
+  // ===== ESP8266 → HTTP =====
+  WiFiClient client;
+  client.stop();
+  yield();
+
+  http.begin(client, url);
+#else
+  // ===== ESP32 → HTTPS =====
+  WiFiClientSecure client;
+  client.stop();
+  client.setInsecure();  // no cert validation
+  yield();
+
+  http.begin(client, url);
+#endif
+
   http.setTimeout(10000);  // Sets both connection and stream timeout to 10 seconds
 
   Serial.println(F("[WEATHER] Sending GET request..."));
