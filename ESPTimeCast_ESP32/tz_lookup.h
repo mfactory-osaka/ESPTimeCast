@@ -50,6 +50,7 @@ const TimeZoneMapping tz_mappings[] = {
     {"Asia/Ulaanbaatar", "ULAT-8"},
     {"Asia/Yekaterinburg", "YEKT-5"},
     {"Atlantic/Azores", "AZOT1AZOST,M3.5.0/0,M10.5.0/0"},
+    {"Atlantic/Canary", "WET0WEST,M3.5.0/1,M10.5.0"},
     {"Atlantic/Reykjavik", "GMT0"},
     {"Australia/Adelaide", "ACST-9:30ACDT,M10.1.0,M4.1.0"},
     {"Australia/Brisbane", "AEST-10"},
