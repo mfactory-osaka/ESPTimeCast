@@ -27,7 +27,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-409%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-411%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -93,60 +93,36 @@ ESPTimeCast has been featured on major maker and tech platforms highlighting its
   - **Optional:** Export and Upload settings via `device-ip/export` and `device-ip/upload` endpoints
 
 &nbsp;
-## 🪛 Wiring - OCT 17 - Important Hardware Update ⚠️ ⚠️ ⚠️
+## 🪛 Wiring your ESPTimeCast
 
-**Pin assignments have been standardized across all Wemos D1 Mini and S2 Mini boards!**  
-Check your board version and make sure **your sketch matches the new pin layout**, especially note that **`CLK` is now on `D5` (was `D6`)**.
+ESPTimeCast uses a **single, recommended wiring layout** across all supported boards to ensure consistent behavior, stable power delivery, and reliable brightness.
 
-After testing, we found that powering the MAX7219 matrix from the **D1 Mini’s 3.3V pin** can cause **overheating and unstable display behavior**, so we’re now officially powering the display from the **5V USB rail** instead.  
-This change improves **brightness**, **stability**, and protects the **onboard voltage regulator** from long-term damage.
+&nbsp;
+### 📌 Current Pin Assignment
 
-> **Note:** Pin positions on the header remain the same, but ensure your sketch uses the correct pin definitions.
+| Board                  | CLK | CS | DIN | VCC | GND |
+|------------------------|-----|----|-----|-----|-----|
+| D1 Mini (Micro USB)    | D5  | D7 | D8  | 5V  | GND |
+| D1 Mini (USB-C)        | 14  | 13 | 15  | 5V  | GND |
+| D1 Mini (ESP32)        | 18  | 23 | 5   | 5V  | GND |
+| S2 Mini                | 7   | 11 | 12  | 5V  | GND |
+| ESP32-C3 SuperMini     | 7   | 20 | 8   | 5V  | GND |
 
-#### What’s Changing
+&nbsp;
+### 🧩 Wiring Diagram
 
-- **Before:** Display VCC was connected to the **3.3V** pin on the ESP board  
-- **Now:** Display VCC connects to the **5V** pin (direct from USB power)  
-- **CLK:** moved from **D6 → D5**
+<img src="assets/wiring3.png" alt="ESPTimeCast Wiring Diagram" width="800" />
 
-#### Why This Change Is Needed
+> **Tip:** Double-check the pin order on your MAX7219 module — labeling and orientation can vary between manufacturers.
 
-- Standardized pin assignment across all Wemos D1 Mini and S2 Mini boards  
-- The **MAX7219** LED matrix is designed for **5V operation**  
-- The **AMS1117 3.3V regulator** on most D1 Minis has limited current (~800 mA max, often less)  
-- High-brightness displays (especially green/yellow) can overload it, causing:
-  - Overheating  
-  - Voltage drop  
-  - Regulator failure (some users saw only **2.4 V** output after damage)
+&nbsp;
+### 🔄 Upgrading from an older build?
 
-#### Benefits of Using 5V
+If your device was wired before **Oct 17, 2025**, please verify the following:
 
-- Brighter and more stable display output  
-- Reduced heat load on the ESP board  
-- Prevents long-term regulator damage  
-- No level shifters required — **MAX7219 works fine with 3.3V logic signals**
-
-
-#### Next Steps
-
-- Double-check your board wiring before powering on  
-- Update your sketch pin definitions if you’re upgrading from an older build  
-- Reference the diagram below for correct wiring (coming next)
-
-#### 🧩 Board → MAX7219 
-
-| D1 Mini (Micro USB) | D1 Mini (USB C) | D1 Mini (ESP 32) | S2 Mini | ESP32 C3 Supermini | MAX7219 |
-|:-------------------:|:---------------:|:----------------:|:-------:|:------------------:|:-------:|
-| GND                 | GND             | GND              | GND     | GND                | GND     |
-| 5V                  | 5V/VBUS         | 5V/VBUS          | 5V/VBUS | 5V/VBUS            | VCC     |
-| D5                  | 14              | 18               | 7       | 7                  | CLK     |
-| D7                  | 13              | 23               | 11      | 20                 | CS      |
-| D8                  | 15              | 5                | 12      | 8                  | DIN     |
-
-
-<img src="assets/wiring3.png" alt="Wiring" width="800" />
-
-> **Tip:** Always double-check that VCC (5V), GND, and DIN/CS/CLK match your MAX7219 module’s pin order — different modules sometimes label them differently.
+- **CLK** is connected to **D5**  
+- **VCC** is connected to **5V** (not 3.3V)  
+- Flashing via the web installer automatically applies the correct defaults
 
 
 &nbsp;
@@ -608,6 +584,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
