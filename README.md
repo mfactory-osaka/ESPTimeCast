@@ -100,13 +100,19 @@ ESPTimeCast uses a **single, recommended wiring layout** across all supported bo
 &nbsp;
 ### 📌 Current Pin Assignment
 
-| Board                  | CLK | CS | DIN | VCC | GND |
-|------------------------|-----|----|-----|-----|-----|
-| D1 Mini (Micro USB)    | D5  | D7 | D8  | 5V  | GND |
-| D1 Mini (USB-C)        | 14  | 13 | 15  | 5V  | GND |
-| D1 Mini (ESP32)        | 18  | 23 | 5   | 5V  | GND |
-| S2 Mini                | 7   | 11 | 12  | 5V  | GND |
-| ESP32-C3 SuperMini     | 7   | 20 | 8   | 5V  | GND |
+| Chip       | Board / Module                     | CLK | CS | DIN | VCC | GND |
+|------------|------------------------------------|:---:|:--:|:---:|:---:|:---:|
+| ESP8266    | D1 Mini (USB-C / Micro-USB)        | 14  | 13 | 15  | 5V  | GND |
+| ESP32      | D1 Mini (ESP32)                    | 18  | 23 | 5   | 5V  | GND |
+| ESP32-S2   | S2 Mini                            | 7   | 11 | 12  | 5V  | GND |
+| ESP32-C3   | SuperMini                          | 7   | 20 | 8   | 5V  | GND |
+| ESP32-S3   | WROOM-1 (Camera / SD board)        | 14  | 15 | 13  | 5V  | GND |
+
+
+> The table lists **raw GPIO numbers**.  
+> MAX7219 modules are typically powered at **5V** but accept **3.3V logic** on DIN / CLK / CS.  
+> All ESP32 boards listed above have been **tested successfully** with this wiring.  
+> ESP8266 D1 Mini boards are often labeled using **D-pins** (D5 = GPIO14, D7 = GPIO13, D8 = GPIO15).
 
 &nbsp;
 ### 🧩 Wiring Diagram
@@ -584,6 +590,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
