@@ -22,9 +22,9 @@
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
-#define CLK_PIN 7   //D5
-#define CS_PIN 11   // D7
-#define DATA_PIN 12  //D8
+#define CLK_PIN 7
+#define CS_PIN 11
+#define DATA_PIN 12
 
 #ifdef ESP8266
 WiFiEventHandler mConnectHandler;
@@ -1997,7 +1997,7 @@ bool isFiveDigitZip(const char *str) {
 // Weather Fetching and API settings
 // -----------------------------------------------------------------------------
 String buildWeatherURL() {
-#if defined(ESP8266)
+#if defined(ESP8266) || defined(CONFIG_IDF_TARGET_ESP32S2)
   String base = "http://api.openweathermap.org/data/2.5/weather?";
 #else
   String base = "https://api.openweathermap.org/data/2.5/weather?";
@@ -2067,7 +2067,7 @@ void fetchWeather() {
 
   HTTPClient http;  // Create an HTTPClient object
 
-#if defined(ESP8266)
+#if defined(ESP8266) || defined(CONFIG_IDF_TARGET_ESP32S2)
   // ===== ESP8266 → HTTP =====
   WiFiClient client;
   client.stop();
