@@ -169,7 +169,7 @@ mDNS / Bonjour - Works on macOS, iOS, Windows with Bonjour, and most modern brow
 
 &nbsp;
 ## UI Example:
-<img src="assets/webui9.png" alt="Web Interface" width="640">
+<img src="assets/webui10.png" alt="Web Interface" width="640">
 
 &nbsp;
 ## ⚙️ Advanced Settings
@@ -632,6 +632,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
