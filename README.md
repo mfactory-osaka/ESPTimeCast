@@ -9,7 +9,7 @@
 
 🎉 **1,000+ GitHub stars - thank you to the community!**  
 
-**ESPTimeCast** is a sleek, WiFi-connected LED matrix clock and weather display built on **ESP8266/ESP32** and **MAX7219**.
+**ESPTimeCast™** is a sleek, WiFi-connected LED matrix clock and weather display built on **ESP8266/ESP32** and **MAX7219**.
 It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern web-based configuration interface — all in one compact design.
 
 
@@ -18,7 +18,7 @@ It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern w
 &nbsp;
 ## 📦 3D Printable Case
 
-To help support the project’s development, the official **ESPTimeCast** case design is available as a **paid STL download** (see links below).  
+To help support the project’s development, the official **ESPTimeCast™** case design is available as a **paid STL download** (see links below).  
 
 If you prefer a free option, there are many compatible **MAX7219 LED matrix enclosures** shared by the community - you can find plenty by searching for “MAX7219 case” on Printables, Cults3D, or similar sites.
 
@@ -27,7 +27,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-411%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-417%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -38,13 +38,13 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 &nbsp;
 ## 🖼️ Community Builds Gallery
 
-A small selection of ESPTimeCast builds from the community ❤️  
+A small selection of ESPTimeCast™ builds from the community ❤️  
 
 <p align="center">
 <img src="assets/builds/1.png" alt="ESPTimeCast build by Achduka" width="150"/> <img src="assets/builds/2.png" alt="ESPTimeCast build by ChrisBalo_2103728" width="150"/> <img src="assets/builds/3.png" alt="ESPTimeCast build by LeoB_746630" width="150"/> <img src="assets/builds/4.png" alt="ESPTimeCast build by LazyManJoe_199553" width="150"/> <img src="assets/builds/5.png" alt="ESPTimeCast build by Stefan_37395" width="150"/> <img src="assets/builds/6.png" alt="ESPTimeCast build by Purduesi_774301" width="150"/> <img src="assets/builds/7.png" alt="ESPTimeCast build by sardaukar_1942598" width="150"/> <img src="assets/builds/8.png" alt="ESPTimeCast build by Manni0605_464156" width="150"/> <img src="assets/builds/9.png" alt="ESPTimeCast build by T03IAS" width="150"/> <img src="assets/builds/10.png" alt="ESPTimeCast build by rhe_3695705" width="150"/> <img src="assets/builds/11.png" alt="ESPTimeCast build by thirddimensionlabs" width="150"/> <img src="assets/builds/12.png" alt="ESPTimeCast build by sardaukar_1942598" width="150"/>
 </p>
 
-Huge thanks to all the makers on Printables who shared their ESPTimeCast builds featured here:
+Huge thanks to all the makers on Printables who shared their ESPTimeCast™ builds featured here:
 
 Achduka, ChrisBalo_2103728, LazyManJoe_199553, LeoB_746630, Manni0605_464156, Purduesi_774301, rhe_3695705, sardaukar_1942598, Stefan_37395, TO3IAS, thirddimensionlabs  
 
@@ -56,7 +56,7 @@ Share your photos on [r/ESPTimeCast](https://www.reddit.com/r/ESPTimeCast/commen
 &nbsp;
 ## 📰 Press Mentions
 
-ESPTimeCast has been featured on major maker and tech platforms highlighting its design, usability, and open-source community. 
+ESPTimeCast™ has been featured on major maker and tech platforms highlighting its design, usability, and open-source community. 
 - [Hackaday](https://hackaday.com/2025/10/02/building-a-desk-display-for-time-and-weather-data)  
 - [XDA Developers](https://www.xda-developers.com/super-sleek-esp32-weather-station)
 - [Hackster.io](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
@@ -214,7 +214,7 @@ Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal e
 &nbsp;
 ## 🚀 Getting Started
 
-This guide will walk you through setting up your environment and uploading the **ESPTimeCast** project to your **ESP8266** or **ESP32** board. Please follow the instructions carefully for your specific board type.
+This guide will walk you through setting up your environment and uploading the **ESPTimeCast™** project to your **ESP8266** or **ESP32** board. Please follow the instructions carefully for your specific board type.
 
 #### ⚙️ ESP8266 Setup
 
@@ -268,7 +268,7 @@ Once your IDE is ready:
 **⚠️ Note for existing users:** If you have previously uploaded /data via LittleFS, you can safely skip that step now — the device will manage config files internally.
 
 &nbsp;
-## 🏠 ESPTimeCast Home Assistant Integration
+## 🏠 ESPTimeCast™ Home Assistant Integration
 
 This guide explains how to integrate **ESPTimeCast** with **Home Assistant** to send custom messages to your LED display.
 
@@ -471,7 +471,7 @@ curl -X POST -d "value=10" "http://<device_ip>/set_brightness"
 &nbsp;
 ## 🧩 Hidden & Advanced Features
 
-ESPTimeCast includes a few optional “power-user” features that aren’t visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
+ESPTimeCast™ includes a few optional “power-user” features that aren’t visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
 
 #### ⚙️ /factory_reset
 Erases all saved configuration data, Wi-Fi credentials, and uptime history.
@@ -531,7 +531,7 @@ In this mode:
 &nbsp;
 ## 📺 Display Behavior
 
-**ESPTimeCast** automatically switches between two display modes: Clock and Weather.
+**ESPTimeCast™** automatically switches between two display modes: Clock and Weather.
 If "Show Weather Description" is enabled, a third mode (Description) will display with a duration of 3 seconds, if the description is too long to fit on the display the description will scroll from right to left once.
 
 What you see on the LED matrix depends on whether the device has successfully fetched the current time (via NTP) and weather (via OpenWeatherMap).  
@@ -576,6 +576,48 @@ If you have ideas, feature requests, bug reports, or improvements, please open a
 **Forks, custom additions, and personal experiments are absolutely encouraged.** Feel free to build on ESPTimeCast in your own fork and make it your own 😉
 &nbsp;  
 &nbsp;
+## 🛡️ ESPTimeCast™ Branding & Visual Policy
+
+**ESPTimeCast™** is a project and brand created by M-Factory. The name, logo, and official firmware visuals are protected.
+
+#### Using ESPTimeCast™ Firmware
+
+**You may:**
+- Build compatible hardware  
+- Modify the firmware for personal, educational, or hobby use  
+- Share your own builds publicly, as long as you do **not** imply affiliation or endorsement by ESPTimeCast™  
+
+**You may not:**
+- Use the ESPTimeCast™ name, logo, or official firmware screenshots in product marketing or sales listings  
+- Present your product as “official ESPTimeCast™ hardware”  
+
+**Recommended Wording for Community Builds:**  
+> “ESPTimeCast™ firmware compatible – unofficial build”  
+
+This ensures that your hardware is clearly independent of the official project.
+
+#### Firmware Visuals
+
+The ESPTimeCast™ firmware interface (including custom splash screens, fonts, and display layout styling) is the intellectual property of ESPTimeCast™.
+
+- You may modify it for personal or educational projects  
+- You may **not** use official visuals in commercial marketing or product photos without permission  
+
+This helps prevent confusion between official ESPTimeCast™ products and community builds.
+
+#### Why This Matters
+
+Because the firmware has a unique and recognizable look, photos of your product running it can easily be mistaken for ESPTimeCast™ official products. Following this policy ensures:
+
+- Your brand identity remains clear  
+- Community makers can still create and share builds without causing confusion
+
+#### License Note
+
+- The ESPTimeCast™ firmware code is licensed under [GPL-3.0](LICENSE)    
+- Code license does **not** grant rights to use ESPTimeCast™ branding or official firmware visuals for commercial purposes
+&nbsp;
+&nbsp;
 ## ❤️ Support this project
 ESPTimeCast is an open-source passion project that blends art, engineering, and design.  
 If you enjoy it, you can help keep the project growing - even something as simple as leaving a ⭐ on GitHub goes a long way.  
@@ -590,6 +632,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
