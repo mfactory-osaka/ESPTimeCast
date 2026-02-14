@@ -396,15 +396,18 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       .geo-disabled {
-        opacity: 0.5;
-        background: transparent;
-        border: 0.1rem white solid;
-        cursor: not-allowed;
+opacity: 0.5;
+    background: none !important;
+    color: white !important;
+    border: 0.1rem white solid;
+    cursor: not-allowed;
       }
 
       .geo-disabled:hover {
         transform: none;
         box-shadow: none;
+        background-color: none;
+        background: none;
       }
 
       .button-row {
@@ -1467,7 +1470,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <div class="footer">
       ESPTimeCast<span class="tm">™</span> by
       <a
-        href="https://www.instagram.com/mfactory.osaka"
+        href="https://github.com/mfactory-osaka/ESPTimeCast"
         target="_blank"
         rel="noopener noreferrer"
         >M-Factory</a
