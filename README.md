@@ -27,7 +27,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-417%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-418%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -106,7 +106,7 @@ ESPTimeCast uses a **single, recommended wiring layout** across all supported bo
 | ESP32      | D1 Mini (ESP32)                    | 18  | 23 | 5   | 5V  | GND |
 | ESP32-S2   | S2 Mini                            | 7   | 11 | 12  | 5V  | GND |
 | ESP32-C3   | SuperMini                          | 7   | 20 | 8   | 5V  | GND |
-| ESP32-S3   | WROOM-1 (Camera / SD board)        | 14  | 15 | 13  | 5V  | GND |
+| ESP32-S3   | WROOM-1 (Camera / SD board)        | 18 | 16 | 17  | 5V  | GND |
 
 
 > The table lists **raw GPIO numbers**.  
@@ -632,6 +632,8 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
+
 
 
 
