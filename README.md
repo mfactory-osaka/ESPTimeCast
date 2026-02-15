@@ -16,6 +16,33 @@ It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern w
 <video src="https://github.com/user-attachments/assets/78b6525d-8dcd-43fc-875e-28805e0f4fab"></video>
 
 &nbsp;
+## 🚀 Install in Under a Minute (Recommended)
+
+Flash ESPTimeCast directly from your browser — no Arduino IDE, no drivers setup, no manual configuration.
+
+👉 **Web Installer:**  
+https://esptimecast.github.io
+
+<img src="assets/webinstaller.png" alt="ESPTimeCast Web Installer" width="640" />
+
+Works with:
+- ESP8266  
+- ESP32  
+- ESP32-S2  
+- ESP32-C3  
+- ESP32-S3  
+
+📌 **Wiring guide:**  
+See the [hardware connection table](https://github.com/mfactory-osaka/ESPTimeCast#-wiring-your-esptimecast).
+
+
+🔄 **About Updates:**  
+The browser-based update feature is designed for installations originally flashed using the Web Installer.  
+If you installed ESPTimeCast manually via Arduino IDE, the web update function may not work reliably.
+
+> Requires Chrome, Edge, or Brave (Web Serial support).
+
+&nbsp;
 ## 📦 3D Printable Case
 
 To help support the project’s development, the official **ESPTimeCast™** case design is available as a **paid STL download** (see links below).  
@@ -214,7 +241,14 @@ Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal e
 &nbsp;
 ## 🚀 Getting Started
 
-This guide will walk you through setting up your environment and uploading the **ESPTimeCast™** project to your **ESP8266** or **ESP32** board. Please follow the instructions carefully for your specific board type.
+There are two ways to install ESPTimeCast:
+
+### 🥇 Recommended: Web Installer (Fastest)
+Flash directly from your browser in under a minute:
+https://esptimecast.github.io
+
+### 🛠 Manual Installation (Arduino IDE)
+If you prefer compiling and uploading manually, follow the instructions below.
 
 #### ⚙️ ESP8266 Setup
 
@@ -632,6 +666,8 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
+
 
 
 
