@@ -23,7 +23,7 @@ Flash ESPTimeCast directly from your browser — no Arduino IDE, no drivers setu
 👉 **Web Installer:**  
 https://esptimecast.github.io
 
-![ESPTimeCast Web Installer](assets/webinstaller.png)
+<img src="assets/webinstaller.png" alt="ESPTimeCast Web Installer" width="640" />
 
 Works with:
 - ESP8266  
@@ -666,6 +666,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
