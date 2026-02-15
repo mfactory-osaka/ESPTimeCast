@@ -25,6 +25,8 @@ https://esptimecast.github.io
 
 <img src="assets/webinstaller.png" alt="ESPTimeCast Web Installer" width="640" />
 
+> After flashing, connect to the ESPTimeCast WiFi access point to complete setup.
+
 Works with:
 - ESP8266  
 - ESP32  
@@ -666,6 +668,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
