@@ -841,9 +841,13 @@ void setupWebServer() {
           Serial.println(F("[SAVE] Password unchanged."));
           // do nothing, keep the one already in doc
         }
-      }
-
-      else if (n == "openWeatherApiKey") {
+      } else if (n == "ssid") {
+        if (v != "********" && v.length() > 0) {
+          doc[n] = v;
+        } else {
+          Serial.println(F("[SAVE] SSID unchanged."));
+        }
+      } else if (n == "openWeatherApiKey") {
         if (v != "********************************") {  // ignore mask only
           doc[n] = v;                                   // save new key (even if empty)
           Serial.print(F("[SAVE] API key updated: "));
@@ -1589,44 +1593,54 @@ void setupWebServer() {
   server.on("/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
     String html = R"rawliteral(
     <!DOCTYPE html>
-    <html style="background: radial-gradient(ellipse at 70% 0%, #2b425a 0%, #171e23 100%); height: 100%;">
+    <html>
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-            color: #FFFFFF;
-            transition: opacity 0.6s cubic-bezier(.4, 0, .2, 1);
-            line-height: 1.5;
-            max-width: 300px;
-            margin: 3rem auto;
-            background: linear-gradient(120deg, rgba(45, 65, 90, 0.72) 0%, rgba(53, 133, 183, 0.38) 100%);
-            padding: 1.5rem;
-            border-radius: 24px;
-            box-shadow: 0 10px 36px 0 rgba(40, 170, 255, 0.11), 0 2px 8px 0 rgba(44, 70, 110, 0.08);
-            border: 1.5px solid rgba(180, 230, 255, 0.10);
-            text-align: center;
-            }
-          
-          h3 {
-            margin-top: 0;
+         <style>
+            html{
+                background: linear-gradient(135deg, #081f56 0%, #110f2e 50%, #441a65 100%);
+                height: 100%;
             }
 
-          input::file-selector-button {
-            background: linear-gradient(90deg, #3e99bc, #47add4 85%);
-            color: white;
-            padding: 0.9rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            text-align: center;
-            transition: background 0.25s, transform 0.15s 
-            ease-in-out;
+            body {
+                border: solid 1px rgba(255, 255, 255, 0.12);
+                transition: opacity 0.6s cubic-bezier(.4, 0, .2, 1);
+                max-width: 300px;
+                margin: 4rem auto;
+                background: rgba(255, 255, 255, 0.04);
+                border-radius: 24px;
+                text-align: center;
+                font-family: Roboto, system-ui;
+                /* margin: 0; */
+                padding: 2rem 1rem;
+                color: #ffffff;
+                background-repeat: no-repeat, repeat, repeat;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                box-shadow: 0 10px 36px 0 rgba(40, 170, 255, 0.11), 0 2px 8px 0 rgba(44, 70, 110, 0.08);
+              }
+            
+            h3 {
+              margin-top: 0;
+              }
+
+            input::file-selector-button {
+              background: #0ea5e9;
+              color: white;
+              padding: 0.9rem 1.8rem;
+              font-size: 1rem;
+              font-weight: 600;
+              border: none;
+              border-radius: 999px;
+              cursor: pointer;
+              text-align: center;
+              transition: background 0.25s, transform 0.15s 
+              ease-in-out;
+              margin-right: 0.5rem;
             }
-        </style>
+          </style>
       </head>
       <body>
         <h3>Upload config.json</h3>
@@ -1643,26 +1657,35 @@ void setupWebServer() {
     "/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
       String html = R"rawliteral(
       <!DOCTYPE html>
-      <html style="background: radial-gradient(ellipse at 70% 0%, #2b425a 0%, #171e23 100%); height: 100%;">
+      <html>
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>Upload Successful</title>
           <meta http-equiv="refresh" content="1; url=/" />
           <style>
+            html{
+                background: linear-gradient(135deg, #081f56 0%, #110f2e 50%, #441a65 100%);
+                height: 100%;
+            }
+
             body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-              color: #FFFFFF;
-              transition: opacity 0.6s cubic-bezier(.4, 0, .2, 1);
-              line-height: 1.5;
-              max-width: 300px;
-              margin: 3rem auto;
-              background: linear-gradient(120deg, rgba(45, 65, 90, 0.72) 0%, rgba(53, 133, 183, 0.38) 100%);
-              padding: 1.5rem;
-              border-radius: 24px;
-              box-shadow: 0 10px 36px 0 rgba(40, 170, 255, 0.11), 0 2px 8px 0 rgba(44, 70, 110, 0.08);
-              border: 1.5px solid rgba(180, 230, 255, 0.10);
-              text-align: center;
+                border: solid 1px rgba(255, 255, 255, 0.12);
+                transition: opacity 0.6s cubic-bezier(.4, 0, .2, 1);
+                max-width: 300px;
+                margin: 4rem auto;
+                background: rgba(255, 255, 255, 0.04);
+                border-radius: 24px;
+                text-align: center;
+                font-family: Roboto, system-ui;
+                /* margin: 0; */
+                padding: 2rem 1rem;
+                color: #ffffff;
+                background-repeat: no-repeat, repeat, repeat;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                box-shadow: 0 10px 36px 0 rgba(40, 170, 255, 0.11), 0 2px 8px 0 rgba(44, 70, 110, 0.08);
               }
             
             h3 {
@@ -1670,18 +1693,19 @@ void setupWebServer() {
               }
 
             input::file-selector-button {
-              background: linear-gradient(90deg, #3e99bc, #47add4 85%);
+              background: #0ea5e9;
               color: white;
-              padding: 0.9rem;
+              padding: 0.9rem 1.8rem;
               font-size: 1rem;
               font-weight: 600;
               border: none;
-              border-radius: 8px;
+              border-radius: 999px;
               cursor: pointer;
               text-align: center;
               transition: background 0.25s, transform 0.15s 
               ease-in-out;
-              }
+              margin-right: 0.5rem;
+            }
           </style>
         </head>
         <body>
@@ -1715,25 +1739,36 @@ void setupWebServer() {
     }
     const char *FACTORY_RESET_HTML = R"rawliteral(
       <!DOCTYPE html>
-      <html style="background: radial-gradient(ellipse at 70% 0%, #2b425a 0%, #171e23 100%); height: 100%;">
+      <html>
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>Resetting Device</title>
           <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-              color: #FFFFFF;
-              line-height: 1.5;
-              max-width: 300px;
-              margin: 3rem auto;
-              background: linear-gradient(120deg, rgba(144, 45, 45, 0.72) 0%, rgba(183, 53, 53, 0.38) 100%);
-              padding: 1.5rem;
-              border-radius: 24px;
-              box-shadow: 0 10px 36px 0 rgba(255, 40, 40, 0.11), 0 2px 8px 0 rgba(110, 44, 44, 0.08);
-              border: 1.5px solid rgba(255, 180, 180, 0.10);
-              text-align: center;
+            html{
+                background: linear-gradient(135deg, #081f56 0%, #110f2e 50%, #441a65 100%);
+                height: 100%;
             }
+
+            body {
+                border: solid 1px rgba(255, 255, 255, 0.12);
+                transition: opacity 0.6s cubic-bezier(.4, 0, .2, 1);
+                max-width: 300px;
+                margin: 4rem auto;
+                background: rgba(255, 255, 255, 0.04);
+                border-radius: 24px;
+                text-align: center;
+                font-family: Roboto, system-ui;
+                /* margin: 0; */
+                padding: 2rem 1rem;
+                color: #ffffff;
+                background-repeat: no-repeat, repeat, repeat;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                box-shadow: 0 10px 36px 0 rgba(40, 170, 255, 0.11), 0 2px 8px 0 rgba(44, 70, 110, 0.08);
+              }
+
             h3 { margin-top: 0; color: #ff9999; }
             p { font-size: 1.1em; }
             .warning { font-size: 1.2em; font-weight: bold; color: #fff; margin-top: 15px; }
@@ -2738,6 +2773,22 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
 void loop() {
   if (isAPMode) {
     dnsServer.processNextRequest();
+    // AP Mode animation
+    static unsigned long apAnimTimer = 0;
+    static int apAnimFrame = 0;
+    unsigned long now = millis();
+    if (now - apAnimTimer > 750) {
+      apAnimTimer = now;
+      apAnimFrame++;
+    }
+    P.setTextAlignment(PA_CENTER);
+    switch (apAnimFrame % 3) {
+      case 0: P.print(F("= ©")); break;
+      case 1: P.print(F("= ª")); break;
+      case 2: P.print(F("= «")); break;
+    }
+    yield();
+    return;
   }
 
   static bool colonVisible = true;
@@ -2753,26 +2804,6 @@ void loop() {
 
   static unsigned long lastFetch = 0;
   const unsigned long fetchInterval = 300000;  // 5 minutes
-
-
-  // AP Mode animation
-  static unsigned long apAnimTimer = 0;
-  static int apAnimFrame = 0;
-  if (isAPMode) {
-    unsigned long now = millis();
-    if (now - apAnimTimer > 750) {
-      apAnimTimer = now;
-      apAnimFrame++;
-    }
-    P.setTextAlignment(PA_CENTER);
-    switch (apAnimFrame % 3) {
-      case 0: P.print(F("= ©")); break;
-      case 1: P.print(F("= ª")); break;
-      case 2: P.print(F("= «")); break;
-    }
-    yield();
-    return;
-  }
 
 
   // -----------------------------

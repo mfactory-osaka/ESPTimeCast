@@ -1449,7 +1449,7 @@ opacity: 0.5;
         <div class="sub-collapsible-content" aria-hidden="true">
           <div class="content-wrapper">
             <div class="toggle-padding device-info">
-              <span>Firmware: v1.0.0</span><br><br>
+              <span>Firmware: v1.0.1</span><br><br>
               <span>IP: 
                 <span id="ipDisplay">Fetching...</span>
               </span><br><br>
