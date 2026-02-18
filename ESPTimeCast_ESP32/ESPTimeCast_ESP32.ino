@@ -20,11 +20,39 @@
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
 
-#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
-#define MAX_DEVICES 4
+// ============================
+// Board-specific MAX7219 pin mapping
+// ============================
+#if defined(CONFIG_IDF_TARGET_ESP32S2)
+// ESP32-S2 Mini
 #define CLK_PIN 7
 #define CS_PIN 11
 #define DATA_PIN 12
+
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+// ESP32-S3 WROOM / Camera board
+#define CLK_PIN 18
+#define CS_PIN 16
+#define DATA_PIN 17
+
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+// ESP32-C3 Super Mini
+#define CLK_PIN 7
+#define CS_PIN 20
+#define DATA_PIN 8
+
+#elif defined(ESP32)
+// Default ESP32 boards (DevKit, WROOM, etc)
+#define CLK_PIN 18
+#define CS_PIN 23
+#define DATA_PIN 5
+
+#else
+#error "Unsupported board!"
+#endif
+
+#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
+#define MAX_DEVICES 4
 
 #ifdef ESP8266
 WiFiEventHandler mConnectHandler;
@@ -2406,9 +2434,9 @@ void setup() {
   esp_log_level_set("esp_littlefs", ESP_LOG_NONE);
   Serial.println();
   Serial.println(F("[SETUP] Starting setup..."));
-#if defined(ARDUINO_USB_MODE)
+#if defined(ARDUINO_USB_MODE) || defined(USB_SERIAL)
   Serial.setTxTimeoutMs(50);
-  Serial.println("[SERIAL] USB CDC detected — TX timeout enabled");
+  Serial.println(F("[SERIAL] USB CDC detected — TX timeout enabled"));
   delay(500);
 #endif
   Serial.println(F("[FS] Mounting LittleFS (auto-format enabled)..."));
@@ -2520,17 +2548,37 @@ void ensureHtmlFileExists() {
     if (!f) {
       Serial.println(F("[FS] ERROR: /index.html exists but failed to open! Will rewrite."));
     } else {
-      size_t actualSize = f.size();
-      f.close();
 
-      if (actualSize == expectedSize) {
-        Serial.printf("[FS] /index.html found (size OK: %u bytes). Using file system version.\n", actualSize);
-        return;  // STOP HERE — file is good
+      bool identical = true;
+
+      for (size_t i = 0; i < expectedSize; i++) {
+        if (!f.available()) {
+          identical = false;
+          break;
+        }
+
+        char fileChar = f.read();
+        char progChar = pgm_read_byte_near(index_html + i);
+
+        if (fileChar != progChar) {
+          identical = false;
+          break;
+        }
       }
 
-      Serial.printf(
-        "[FS] /index.html size mismatch! Expected %u bytes, found %u. Rewriting...\n",
-        expectedSize, actualSize);
+      // Also check if file has extra trailing bytes
+      if (f.available()) {
+        identical = false;
+      }
+
+      f.close();
+
+      if (identical) {
+        Serial.printf("[FS] /index.html content identical (%u bytes). Using file system version.\n", expectedSize);
+        return;
+      }
+
+      Serial.println(F("[FS] /index.html content differs. Rewriting..."));
     }
   } else {
     Serial.println(F("[FS] /index.html NOT found. Writing embedded content to LittleFS..."));

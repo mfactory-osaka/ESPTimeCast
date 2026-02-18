@@ -2503,17 +2503,37 @@ void ensureHtmlFileExists() {
     if (!f) {
       Serial.println(F("[FS] ERROR: /index.html exists but failed to open! Will rewrite."));
     } else {
-      size_t actualSize = f.size();
-      f.close();
 
-      if (actualSize == expectedSize) {
-        Serial.printf("[FS] /index.html found (size OK: %u bytes). Using file system version.\n", actualSize);
-        return;  // STOP HERE — file is good
+      bool identical = true;
+
+      for (size_t i = 0; i < expectedSize; i++) {
+        if (!f.available()) {
+          identical = false;
+          break;
+        }
+
+        char fileChar = f.read();
+        char progChar = pgm_read_byte_near(index_html + i);
+
+        if (fileChar != progChar) {
+          identical = false;
+          break;
+        }
       }
 
-      Serial.printf(
-        "[FS] /index.html size mismatch! Expected %u bytes, found %u. Rewriting...\n",
-        expectedSize, actualSize);
+      // Also check if file has extra trailing bytes
+      if (f.available()) {
+        identical = false;
+      }
+
+      f.close();
+
+      if (identical) {
+        Serial.printf("[FS] /index.html content identical (%u bytes). Using file system version.\n", expectedSize);
+        return;
+      }
+
+      Serial.println(F("[FS] /index.html content differs. Rewriting..."));
     }
   } else {
     Serial.println(F("[FS] /index.html NOT found. Writing embedded content to LittleFS..."));

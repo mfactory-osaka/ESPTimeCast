@@ -535,6 +535,8 @@ opacity: 0.5;
         user-select: none;
         margin-top: 6rem;
         text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
       }
 
       .collapsible-toggle .icon-area {
