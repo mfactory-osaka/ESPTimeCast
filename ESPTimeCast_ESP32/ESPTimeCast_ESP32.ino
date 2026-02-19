@@ -51,6 +51,7 @@
 #error "Unsupported board!"
 #endif
 
+#define FIRMWARE_VERSION "1.0.1"
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
 
@@ -1557,23 +1558,23 @@ void setupWebServer() {
   });
 
   server.on("/uptime", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (!LittleFS.exists("/uptime.dat")) {
-      request->send(200, "text/plain", "No uptime recorded yet.");
-      return;
+    unsigned long seconds = 0;
+    String formatted = "No uptime recorded yet.";
+    if (LittleFS.exists("/uptime.dat")) {
+      File f = LittleFS.open("/uptime.dat", "r");
+      if (f) {
+        String content = f.readString();
+        seconds = content.toInt();
+        formatted = formatUptime(seconds);
+        f.close();
+      }
     }
-
-    File f = LittleFS.open("/uptime.dat", "r");
-    if (!f) {
-      request->send(500, "text/plain", "Error reading uptime file.");
-      return;
-    }
-
-    String content = f.readString();
-    f.close();
-
-    unsigned long seconds = content.toInt();
-    String formatted = formatUptime(seconds);
-    request->send(200, "text/plain", formatted);
+    String json = "{";
+    json += "\"uptime_seconds\":" + String(seconds) + ",";
+    json += "\"uptime_formatted\":\"" + formatted + "\",";
+    json += "\"version\":\"" FIRMWARE_VERSION "\"";
+    json += "}";
+    request->send(200, "application/json", json);
   });
 
   server.on("/export", HTTP_GET, [](AsyncWebServerRequest *request) {

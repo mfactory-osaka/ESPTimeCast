@@ -1451,7 +1451,7 @@ opacity: 0.5;
         <div class="sub-collapsible-content" aria-hidden="true">
           <div class="content-wrapper">
             <div class="toggle-padding device-info">
-              <span>Firmware: v1.0.1</span><br><br>
+              <span>Firmware: <span id="fwVersion"></span></span><br><br>
               <span>IP: 
                 <span id="ipDisplay">Fetching...</span>
               </span><br><br>
@@ -2512,10 +2512,18 @@ opacity: 0.5;
       // Fetch uptime from ESP
       function fetchUptime() {
         fetch("/uptime")
-          .then((res) => res.text())
-          .then((text) => {
-            uptimeSeconds = parseUptimeToSeconds(text);
+          .then((res) => res.json())
+          .then((data) => {
+            // Get raw seconds from firmware
+            uptimeSeconds = data.uptime_seconds || 0;
+            // Update uptime display immediately
             updateUptimeDisplay();
+            // Update firmware version in UI
+            const versionEl = document.getElementById("fwVersion");
+            if (versionEl) {
+              versionEl.textContent = "v" + data.version;
+            }
+            // Restart local increment timer
             if (uptimeTimer) clearInterval(uptimeTimer);
             uptimeTimer = setInterval(() => {
               uptimeSeconds++;
@@ -2523,23 +2531,6 @@ opacity: 0.5;
             }, 1000);
           })
           .catch((err) => console.error("Error fetching /uptime:", err));
-      }
-
-      // Convert "14:56:54" or "2d 03:12:33" → total seconds
-      function parseUptimeToSeconds(text) {
-        let days = 0,
-          h = 0,
-          m = 0,
-          s = 0;
-        const dayMatch = text.match(/(\d+)\s*(?:d|day)/i);
-        if (dayMatch) days = parseInt(dayMatch[1]);
-        const timeMatch = text.match(/(\d+):(\d+):(\d+)/);
-        if (timeMatch) {
-          h = parseInt(timeMatch[1]);
-          m = parseInt(timeMatch[2]);
-          s = parseInt(timeMatch[3]);
-        }
-        return days * 86400 + h * 3600 + m * 60 + s;
       }
 
       // Format seconds → "2 days 04:09:31", "1 day 03:05:12", or "03:05:12"
