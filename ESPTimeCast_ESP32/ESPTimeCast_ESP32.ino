@@ -51,7 +51,7 @@
 #error "Unsupported board!"
 #endif
 
-#define FIRMWARE_VERSION "1.0.1"
+#define FIRMWARE_VERSION "1.1.0"
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
 
@@ -71,6 +71,11 @@ int messageScrollSpeed = 85;          // default fallback
 
 // --- Nightscout setting ---
 const unsigned int NIGHTSCOUT_IDLE_THRESHOLD_MIN = 10;  // minutes before data is considered outdated
+unsigned long lastNightscoutFetchTime = 0;
+const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
+int currentGlucose = -1;
+String currentDirection = "?";
+time_t lastGlucoseTime = 0;  // store timestamp from JSON
 
 // --- Device identity ---
 const char *DEFAULT_HOSTNAME = "esptimecast";
@@ -127,6 +132,9 @@ int sunriseMinute = 0;
 int sunsetHour = 18;
 int sunsetMinute = 0;
 bool clockOnlyDuringDimming = false;
+bool configDirty = false;
+unsigned long lastBrightnessChange = 0;
+const unsigned long saveDelay = 1200;  // 1.2 seconds
 
 //Countdown Globals
 bool countdownEnabled = false;
@@ -344,6 +352,7 @@ void loadConfig() {
   }
 
   brightness = doc["brightness"] | 7;
+  displayOff = doc["displayOff"] | false;
   flipDisplay = doc["flipDisplay"] | false;
   twelveHourToggle = doc["twelveHourToggle"] | false;
   showDayOfWeek = doc["showDayOfWeek"] | true;
@@ -1078,6 +1087,8 @@ void setupWebServer() {
       P.displayShutdown(true);
       P.displayClear();
       displayOff = true;
+      configDirty = true;
+      lastBrightnessChange = millis();
 
       Serial.printf("[BRIGHTNESS] Display OFF via %s\n",
                     isFromUI ? "UI" : "HA");
@@ -1091,19 +1102,28 @@ void setupWebServer() {
 
     if (displayOff) {
       // Wake from OFF
-      P.setIntensity(newBrightness);
+      if (brightness != newBrightness) {
+        brightness = newBrightness;
+        configDirty = true;
+        lastBrightnessChange = millis();
+      }
+
+      P.setIntensity(brightness);
       advanceDisplayModeSafe();
       P.displayShutdown(false);
-      brightness = newBrightness;
       displayOff = false;
 
       Serial.printf("[BRIGHTNESS] Display woke from OFF via %s → %d\n",
                     isFromUI ? "UI" : "HA",
-                    newBrightness);
+                    brightness);
     } else {
       // Display already ON
-      brightness = newBrightness;
-      P.setIntensity(brightness);
+      if (brightness != newBrightness) {
+        brightness = newBrightness;
+        P.setIntensity(brightness);
+        configDirty = true;
+        lastBrightnessChange = millis();
+      }
 
       Serial.printf("[BRIGHTNESS] Set to %d via %s\n",
                     brightness,
@@ -1575,6 +1595,148 @@ void setupWebServer() {
     json += "\"version\":\"" FIRMWARE_VERSION "\"";
     json += "}";
     request->send(200, "application/json", json);
+  });
+
+  server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    DynamicJsonDocument doc(4096);
+
+    // --- Identity ---
+    doc["id"] = deviceHostname;
+    doc["version"] = FIRMWARE_VERSION;
+    doc["hardware"] = "MAX7219_FC16";
+#if defined(ESP32)
+    doc["board"] = "ESP32";
+#elif defined(ESP8266)
+      doc["board"] = "ESP8266";
+#else
+      doc["board"] = "unknown";
+#endif
+
+    // --- Display & Mode ---
+    doc["displayMode"] = displayMode;
+
+    switch (displayMode) {
+      case 0: doc["mode"] = "clock"; break;
+      case 1: doc["mode"] = "weather"; break;
+      case 2: doc["mode"] = "weather_desc"; break;
+      case 3: doc["mode"] = "countdown"; break;
+      case 4: doc["mode"] = "nightscout"; break;
+      case 5: doc["mode"] = "date"; break;
+      case 6: doc["mode"] = "message"; break;
+      default: doc["mode"] = "cycling"; break;
+    }
+
+    doc["message"] = (strlen(customMessage) > 0) ? customMessage : "";
+    doc["displayOff"] = displayOff;
+    doc["brightness"] = brightness;
+
+    // --- Runtime ---
+    doc["device_runtime"] = formatTotalRuntime();
+    doc["session_runtime"] = millis() / 1000;
+    doc["wifi_signal"] = WiFi.RSSI();
+    doc["mdns_url"] = String(deviceHostname) + ".local";
+    doc["time_synced"] = ntpSyncSuccessful;
+
+    // --- Local Time & Epoch ---
+    time_t nowTime = time(nullptr);
+    struct tm timeinfo;
+    localtime_r(&nowTime, &timeinfo);
+    char buffer[20];
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+    doc["localTime"] = String(buffer);
+    doc["epochTime"] = static_cast<uint32_t>(nowTime);
+
+    // --- Countdown ---
+    JsonObject cd = doc.createNestedObject("countdown");
+    cd["enabled"] = countdownEnabled;
+    cd["targetTimestamp"] = countdownTargetTimestamp;
+    cd["label"] = String(countdownLabel);
+    cd["isDramatic"] = isDramaticCountdown;
+
+    long long remaining = static_cast<long long>(countdownTargetTimestamp) - static_cast<long long>(nowTime);
+    cd["remaining"] = countdownEnabled ? (remaining > 0 ? remaining : 0) : 0;
+
+    doc["countdownEnabled"] = countdownEnabled;
+    doc["countdownLabel"] = String(countdownLabel);
+
+    // --- Weather ---
+    JsonObject weather = doc.createNestedObject("weather");
+
+    if (weatherAvailable && weatherDescription.length() > 0) {
+      weather["currentTemperature"] = String(currentTemp).toInt();
+      weather["weatherDescription"] = weatherDescription;
+    } else {
+      weather["currentTemperature"] = JsonVariant();
+      weather["weatherDescription"] = JsonVariant();
+    }
+
+    weather["currentHumidity"] = (weatherAvailable && weatherDescription.length() > 0) ? currentHumidity : JsonVariant();
+    weather["sunriseHour"] = weatherAvailable ? sunriseHour : JsonVariant();
+    weather["sunriseMinute"] = weatherAvailable ? sunriseMinute : JsonVariant();
+    weather["sunsetHour"] = weatherAvailable ? sunsetHour : JsonVariant();
+    weather["sunsetMinute"] = weatherAvailable ? sunsetMinute : JsonVariant();
+
+    // --- Nightscout info ---
+#if defined(ESP32) || defined(ESP8266)
+    JsonObject ns = doc.createNestedObject("nightscout");
+    ns["active"] = (displayMode == 4);
+    if (currentGlucose != -1) ns["glucose"] = currentGlucose;
+    else ns["glucose"] = nullptr;
+    if (currentDirection.length() > 0 && currentDirection != "?") ns["trend"] = currentDirection;
+    else ns["trend"] = nullptr;
+
+    if (lastGlucoseTime > 0) {
+      ns["lastReadingEpoch"] = lastGlucoseTime;
+      time_t nowUTC = time(nullptr);
+      int minutes = static_cast<int>(difftime(nowUTC, lastGlucoseTime) / 60.0);
+      ns["minutesSinceReading"] = (minutes > 0) ? minutes : 0;
+      ns["isOutdated"] = (minutes > NIGHTSCOUT_IDLE_THRESHOLD_MIN);
+    } else {
+      ns["lastReadingEpoch"] = nullptr;
+      ns["minutesSinceReading"] = nullptr;
+      ns["isOutdated"] = true;
+    }
+#endif
+
+    // --- Saved Config ---
+    JsonObject config = doc.createNestedObject("config");
+    config["ssid"] = String(ssid);
+    config["openWeatherApiKey"] = (strlen(openWeatherApiKey) > 0) ? "***HIDDEN***" : "";
+    config["openWeatherCity"] = String(openWeatherCity);
+    config["weatherUnits"] = String(weatherUnits);
+    config["clockDuration"] = clockDuration;
+    config["weatherDuration"] = weatherDuration;
+    config["timeZone"] = String(timeZone);
+    config["language"] = String(language);
+    config["flipDisplay"] = flipDisplay;
+    config["twelveHourToggle"] = twelveHourToggle;
+    config["showDate"] = showDate;
+    config["showHumidity"] = showHumidity;
+    config["ntpServer1"] = String(ntpServer1);
+
+    String nsUrl = String(ntpServer2);
+    int tokenIdx = nsUrl.indexOf("token=");
+    if (tokenIdx == -1) tokenIdx = nsUrl.indexOf("api_key=");
+
+    if (tokenIdx != -1) {
+      int keyStart = nsUrl.indexOf('=', tokenIdx) + 1;
+      config["ntpServer2"] = nsUrl.substring(0, keyStart) + "***HIDDEN***";
+    } else {
+      config["ntpServer2"] = nsUrl;
+    }
+
+    // --- Dimming ---
+    JsonObject dimming = doc.createNestedObject("dimming");
+    dimming["dimmingEnabled"] = dimmingEnabled;
+    dimming["dimStartHour"] = dimStartHour;
+    dimming["dimStartMinute"] = dimStartMinute;
+    dimming["dimEndHour"] = dimEndHour;
+    dimming["dimEndMinute"] = dimEndMinute;
+    dimming["autoDimmingEnabled"] = autoDimmingEnabled;
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
   });
 
   server.on("/export", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -2458,6 +2620,12 @@ void setup() {
   loadConfig();  // This function now has internal yields and prints
 
   P.setIntensity(brightness);
+  if (displayOff) {
+    P.displayShutdown(true);
+    Serial.println(F("[SETUP] Display restored as OFF"));
+  } else {
+    P.displayShutdown(false);
+  }
   P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
   P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
 
@@ -2818,6 +2986,47 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
   return true;
 }
 
+bool saveConfigRuntime() {
+
+  DynamicJsonDocument doc(4096);
+
+  File configFile = LittleFS.open("/config.json", "r");
+  if (!configFile) {
+    Serial.println(F("[CONFIG] Failed to open config for reading"));
+    return false;
+  }
+
+  DeserializationError err = deserializeJson(doc, configFile);
+  configFile.close();
+
+  if (err) {
+    Serial.print(F("[CONFIG] JSON parse error: "));
+    Serial.println(err.f_str());
+    return false;
+  }
+
+  // Update only runtime-changing fields
+  doc["brightness"] = brightness;
+  doc["displayOff"] = displayOff;
+  doc["flipDisplay"] = flipDisplay;
+  doc["twelveHourToggle"] = twelveHourToggle;
+  doc["showDayOfWeek"] = showDayOfWeek;
+  doc["showDate"] = showDate;
+  doc["showHumidity"] = showHumidity;
+  doc["colonBlinkEnabled"] = colonBlinkEnabled;
+
+  File configFileWrite = LittleFS.open("/config.json", "w");
+  if (!configFileWrite) {
+    Serial.println(F("[CONFIG] Failed to open config for writing"));
+    return false;
+  }
+
+  serializeJsonPretty(doc, configFileWrite);
+  configFileWrite.close();
+
+  Serial.println(F("[CONFIG] Runtime config saved"));
+  return true;
+}
 
 void loop() {
   if (isAPMode) {
@@ -3621,36 +3830,10 @@ void loop() {
   }  // End of if (displayMode == 3 && ...)
 
 
-  // --- NIGHTSCOUT Display Mode ---
+  // // --- NIGHTSCOUT Display Mode ---
 
   if (displayMode == 4) {
     String ntpField = String(ntpServer2);
-
-    // These static variables will retain their values between calls to this block
-    static unsigned long lastNightscoutFetchTime = 0;
-    const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
-    static int currentGlucose = -1;
-    static String currentDirection = "?";
-    static time_t lastGlucoseTime = 0;  // store timestamp from JSON
-
-    // --- Small helper inside this block ---
-    auto makeTimeUTC = [](struct tm *tm) -> time_t {
-#if defined(ESP32)
-      // ESP32: timegm() is not implemented — emulate correctly
-      struct tm tm_copy = *tm;
-      // mktime() interprets tm as local, but system time is UTC already
-      // so we can safely assume input is UTC
-      return mktime(&tm_copy);
-#elif defined(ESP8266)
-      // ESP8266: timegm() not available either, same logic
-      struct tm tm_copy = *tm;
-      return mktime(&tm_copy);
-#else
-      // Platforms with proper timegm()
-      return timegm(tm);
-#endif
-    };
-    // --------------------------------------
 
     // Check if it's time to fetch new data or if we have no data yet
     if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
@@ -3667,34 +3850,23 @@ void loop() {
         String payload = https.getString();
         StaticJsonDocument<1024> doc;
         DeserializationError error = deserializeJson(doc, payload);
-
         if (!error && doc.is<JsonArray>() && doc.size() > 0) {
           JsonObject firstReading = doc[0].as<JsonObject>();
           currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
           currentDirection = firstReading["direction"] | "?";
-          const char *dateStr = firstReading["dateString"];
-
-          // --- Parse ISO 8601 UTC time ---
-          if (dateStr) {
-            struct tm tm {};
-            if (sscanf(dateStr, "%4d-%2d-%2dT%2d:%2d:%2dZ",
-                       &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
-                       &tm.tm_hour, &tm.tm_min, &tm.tm_sec)
-                == 6) {
-              tm.tm_year -= 1900;
-              tm.tm_mon -= 1;
-              lastGlucoseTime = makeTimeUTC(&tm);
-            }
+          long long dateMs = firstReading["date"] | 0LL;
+          if (dateMs > 0) {
+            lastGlucoseTime = dateMs / 1000;  // ms → seconds (UTC epoch)
           }
-
-          Serial.printf("Nightscout data fetched: %d mg/dL %s\n", currentGlucose, currentDirection.c_str());
+          Serial.printf("Nightscout data fetched: %d mg/dL %s\n",
+                        currentGlucose, currentDirection.c_str());
         } else {
           Serial.println("Failed to parse Nightscout JSON");
         }
       } else {
-        Serial.printf("[HTTPS] GET failed, error: %s\n", https.errorToString(httpCode).c_str());
+        Serial.printf("[HTTPS] GET failed, error: %s\n",
+                      https.errorToString(httpCode).c_str());
       }
-
       https.end();
       lastNightscoutFetchTime = millis();
     }
@@ -3702,10 +3874,7 @@ void loop() {
     // --- Display the data ---
     if (currentGlucose != -1) {
       // Calculate age of reading
-      // Get current UTC time (avoid local timezone offset)
-      time_t nowLocal = time(nullptr);
-      struct tm *gmt = gmtime(&nowLocal);
-      time_t nowUTC = mktime(gmt);
+      time_t nowUTC = time(nullptr);  // already UTC epoch
 
       bool isOutdated = false;
       int ageMinutes = 0;
@@ -3910,13 +4079,15 @@ void loop() {
 
     // --- ADVANCE MODE CHECK (Check if HA parameters are complete) ---
     // If either timer or cycle/scroll count is finished, we clean up the temporary message.
-    if (scrollsComplete || cyclesComplete) {
+    if (timedOut || scrollsComplete || cyclesComplete) {
       Serial.println(F("[MESSAGE] HA-controlled message finished."));
 
       // Reset common counters
       currentScrollCount = 0;
       messageStartTime = 0;
       currentDisplayCycleCount = 0;  // Reset the cycle counter
+      messageDisplaySeconds = 0;     // If this was a temporary HA message, clear its HA parameters
+      messageScrollTimes = 0;
 
       // CRITICAL LOGIC: RESTORE PERSISTENT MESSAGE (Exit Mode 6 Logic)
       if (strlen(lastPersistentMessage) > 0) {
@@ -4030,6 +4201,13 @@ void loop() {
 
   // --- Log and save uptime every 10 minutes ---
   const unsigned long uptimeLogInterval = 600000UL;  // 10 minutes in ms
+
+  // ---- CONFIG AUTO SAVE ----
+  if (configDirty && millis() - lastBrightnessChange > saveDelay) {
+    saveConfigRuntime();
+    configDirty = false;
+    Serial.println("[CONFIG] Auto-saved after brightness change");
+  }
 
   if (currentMillis - lastUptimeLog >= uptimeLogInterval) {
     lastUptimeLog = currentMillis;

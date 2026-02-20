@@ -534,9 +534,10 @@ opacity: 0.5;
         gap: 0.5em;
         user-select: none;
         margin-top: 6rem;
-        text-decoration: underline;
-        text-decoration-thickness: 1px;
-        text-underline-offset: 2px;
+      }
+
+      #configForm > button.collapsible-toggle > span:nth-child(2){
+        border-bottom: solid 1px white;
       }
 
       .collapsible-toggle .icon-area {
@@ -1580,13 +1581,22 @@ opacity: 0.5;
               (data.weatherDuration || 5000) / 1000;
             document.getElementById("language").value = data.language || "";
 
-            // Advanced:
-            document.getElementById("brightnessSlider").value =
-              typeof data.brightness !== "undefined" ? data.brightness : 10;
-            document.getElementById("brightnessValue").textContent =
-              document.getElementById("brightnessSlider").value == -1
-                ? "Off"
-                : document.getElementById("brightnessSlider").value;
+            // --- Advanced: brightness ---
+            const brightnessSlider = document.getElementById("brightnessSlider");
+            const brightnessValue = document.getElementById("brightnessValue");
+
+            // Ensure displayOff is treated as boolean, fallback to false if missing
+            const isDisplayOff = data.displayOff === true;
+
+            // Set slider value: -1 if display is off, else the saved brightness, else default 10
+            brightnessSlider.value = isDisplayOff
+              ? -1
+              : (typeof data.brightness !== "undefined" ? data.brightness : 10);
+
+            // Update the text to show either "Off" or the numeric value
+            brightnessValue.textContent = brightnessSlider.value == -1
+              ? "Off"
+              : brightnessSlider.value;
             document.getElementById("flipDisplay").checked = !!data.flipDisplay;
             document.getElementById("ntpServer1").value = data.ntpServer1 || "";
             document.getElementById("ntpServer2").value = data.ntpServer2 || "";
