@@ -20,7 +20,7 @@
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
 
-#define FIRMWARE_VERSION "1.1.0"
+#define FIRMWARE_VERSION "1.1.1"
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
 #define CLK_PIN 14   //D5
@@ -170,7 +170,7 @@ bool countdownScrolling = false;
 unsigned long countdownScrollEndTime = 0;
 unsigned long countdownStaticStartTime = 0;  // For last-day static display
 
-// --- NEW GLOBAL VARIABLES FOR IMMEDIATE COUNTDOWN FINISH ---
+// --- Inmediate countdown finish ---
 bool countdownFinished = false;                       // Tracks if the countdown has permanently finished
 bool countdownShowFinishedMessage = false;            // Flag to indicate "TIMES UP" message is active
 unsigned long countdownFinishedMessageStartTime = 0;  // Timer for the 10-second message duration
@@ -184,6 +184,9 @@ bool descScrolling = false;
 const unsigned long descriptionDuration = 3000;    // 3s for short text
 static unsigned long descScrollEndTime = 0;        // for post-scroll delay (re-used for scroll timing)
 const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
+
+// Custom message globals
+bool forceMessageRestart = false;
 
 // --- Safe WiFi credential and API getters ---
 const char *getSafeSsid() {
@@ -1474,8 +1477,9 @@ void setupWebServer() {
         Serial.printf("[UI] Persistent message stored: %s (speed=%d)\n",
                       customMessage, messageScrollSpeed);
 
-        // --- Persist to config.json immediately ---
-        saveCustomMessageToConfig(customMessage);
+        // --- NEW: Flag for save instead of saving immediately ---
+        configDirty = true;
+        lastBrightnessChange = millis();  // Reuse this timer to trigger the auto-save loop
       }
 
       // --- Activate display ---
@@ -1483,6 +1487,9 @@ void setupWebServer() {
       prevDisplayMode = 0;
       messageStartTime = millis();  // Start the timer
       currentScrollCount = 0;
+
+      // NEW: Set the restart flag so the main loop can interrupt instantly
+      forceMessageRestart = true;
 
       String response = String(isFromHA ? "OK (HA message, speed=" : "OK (UI message, speed=") + String(localSpeed);
       response += String(", duration=") + String(messageDisplaySeconds) + "s, scrolls=" + String(messageScrollTimes) + ")";
@@ -3306,8 +3313,10 @@ void loop() {
   }
 
 
+
   // --- CLOCK Display Mode ---
   if (displayMode == 0) {
+    if (forceMessageRestart) return;
     P.setCharSpacing(0);
 
     // --- NTP SYNC ---
@@ -3315,6 +3324,7 @@ void loop() {
       if (ntpSyncSuccessful || ntpRetryCount >= maxNtpRetries || millis() - ntpStartTime > ntpTimeout) {
         ntpState = NTP_FAILED;
       } else if (millis() - ntpAnimTimer > 750) {
+        if (forceMessageRestart) return;
         ntpAnimTimer = millis();
         switch (ntpAnimFrame % 3) {
           case 0: P.print(F("S Y N C ®")); break;
@@ -3326,6 +3336,7 @@ void loop() {
     }
     // --- NTP / WEATHER ERROR ---
     else if (!ntpSyncSuccessful) {
+      if (forceMessageRestart) return;
       P.setTextAlignment(PA_CENTER);
       static unsigned long errorAltTimer = 0;
       static bool showNtpError = true;
@@ -3349,6 +3360,7 @@ void loop() {
         timeString.replace(":", " ");
       }
 
+      // --- SCROLL IN ONLY WHEN COMING FROM SPECIFIC MODES OR FIRST BOOT ---
       bool shouldScrollIn = false;
       if (prevDisplayMode == -1 || prevDisplayMode == 3 || prevDisplayMode == 4) {
         shouldScrollIn = true;  // first boot or other special modes
@@ -3368,7 +3380,10 @@ void loop() {
           0,
           inDir,
           PA_NO_EFFECT);
-        while (!P.displayAnimate()) yield();
+        while (!P.displayAnimate()) {
+          if (forceMessageRestart) break;  // Break out of scroll-in animation
+          yield();
+        }
         clockScrollDone = true;  // mark scroll done
       } else {
         P.setTextAlignment(PA_CENTER);
@@ -3388,6 +3403,7 @@ void loop() {
   // --- WEATHER Display Mode ---
   static bool weatherWasAvailable = false;
   if (displayMode == 1) {
+    if (forceMessageRestart) return;
     P.setCharSpacing(1);
     if (weatherAvailable) {
       String weatherDisplay;
@@ -3422,6 +3438,7 @@ void loop() {
 
   // --- WEATHER DESCRIPTION Display Mode ---
   if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
+    if (forceMessageRestart) return;
     String desc = weatherDescription;
 
     // --- Check if humidity is actually visible ---
@@ -3453,6 +3470,7 @@ void loop() {
         }
         // wait small pause after scroll stops
         if (millis() - descScrollEndTime > descriptionScrollPause) {
+          if (forceMessageRestart) return;
           descScrolling = false;
           descScrollEndTime = 0;
           advanceDisplayMode();
@@ -3473,6 +3491,7 @@ void loop() {
         descStartTime = 0;
         advanceDisplayMode();
       }
+      if (forceMessageRestart) return;
       yield();
       return;
     }
@@ -3481,6 +3500,7 @@ void loop() {
 
   // --- Countdown Display Mode ---
   if (displayMode == 3 && countdownEnabled && ntpSyncSuccessful) {
+    if (forceMessageRestart) return;
     static int countdownSegment = 0;
     static unsigned long segmentStartTime = 0;
     const unsigned long SEGMENT_DISPLAY_DURATION = 1500;  // 1.5 seconds for each static segment
@@ -3520,6 +3540,7 @@ void loop() {
         const char *hourglassFrames[] = { "¡", "¢", "£", "¤" };
         for (int repeat = 0; repeat < 3; repeat++) {
           for (int i = 0; i < 4; i++) {
+            if (forceMessageRestart) return;
             P.setTextAlignment(PA_CENTER);
             P.setCharSpacing(0);
             P.print(hourglassFrames[i]);
@@ -3545,7 +3566,8 @@ void loop() {
       // --- Continue Flashing "TIMES UP" for its duration (after initial combined sequence) ---
       // This part runs in subsequent loop iterations after the hourglass has played.
       if (millis() - countdownFinishedMessageStartTime < 15000) {  // Flashing duration
-        if (millis() - lastFlashingSwitch >= 500) {                // Check for flashing interval
+        if (forceMessageRestart) return;
+        if (millis() - lastFlashingSwitch >= 500) {  // Check for flashing interval
           lastFlashingSwitch = millis();
           P.displayClear();
           P.setTextAlignment(PA_CENTER);
@@ -3675,6 +3697,7 @@ void loop() {
                 P.displayScroll(label.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
 
                 while (!P.displayAnimate()) {
+                  if (forceMessageRestart) return;
                   yield();
                 }
                 countdownSegment++;
@@ -3769,6 +3792,7 @@ void loop() {
 
         // Blocking loop to ensure the full message scrolls
         while (!P.displayAnimate()) {
+          if (forceMessageRestart) break;
           yield();
         }
 
@@ -3792,6 +3816,7 @@ void loop() {
   // // --- NIGHTSCOUT Display Mode ---
 
   if (displayMode == 4) {
+    if (forceMessageRestart) return;
     String ntpField = String(ntpServer2);
 
     // Check if it's time to fetch new data or if we have no data yet
@@ -3800,7 +3825,9 @@ void loop() {
       client.setInsecure();
       HTTPClient https;
       https.begin(client, ntpField);
+#ifdef ESP8266
       client.setBufferSizes(512, 512);
+#endif
       https.setTimeout(5000);
 
       Serial.println("[HTTPS] Nightscout fetch initiated...");
@@ -3894,22 +3921,31 @@ void loop() {
 
       P.setTextAlignment(PA_CENTER);
       P.print(displayText.c_str());
-      delay(weatherDuration);
+      unsigned long nightscoutStart = millis();
+      while (millis() - nightscoutStart < weatherDuration) {
+        if (forceMessageRestart) return;  // Kicks out immediately if HA spams
+        yield();
+      }
       advanceDisplayMode();
       return;
     } else {
       P.setTextAlignment(PA_CENTER);
       P.setCharSpacing(0);
-      P.print(F("())"));
-      delay(2000);
+      P.print(F("()"));
+      unsigned long errorStart = millis();
+      while (millis() - errorStart < 2000) {
+        if (forceMessageRestart) return;
+        yield();
+      }
       advanceDisplayMode();
       return;
     }
   }
 
+
   //DATE Display Mode
   else if (displayMode == 5 && showDate) {
-
+    if (forceMessageRestart) return;
     // --- VALID DATE CHECK ---
     if (timeinfo.tm_year < 120 || timeinfo.tm_mday <= 0 || timeinfo.tm_mon < 0 || timeinfo.tm_mon > 11) {
       advanceDisplayMode();
@@ -3994,11 +4030,17 @@ void loop() {
     if (millis() - lastSwitch > weatherDuration) {
       advanceDisplayMode();
     }
+    if (forceMessageRestart) return;
   }
 
 
   // --- Custom Message Display Mode (displayMode == 6) ---
   if (displayMode == 6) {
+    if (forceMessageRestart) {
+      P.displayReset();
+      P.displayClear();
+      forceMessageRestart = false;
+    }
 
     // 1. Initial Check: If message is empty, skip mode 6.
     if (strlen(customMessage) == 0) {
@@ -4038,32 +4080,31 @@ void loop() {
 
     // --- ADVANCE MODE CHECK (Check if HA parameters are complete) ---
     // If either timer or cycle/scroll count is finished, we clean up the temporary message.
-    if (timedOut || scrollsComplete || cyclesComplete) {
-      Serial.println(F("[MESSAGE] HA-controlled message finished."));
+    if (!forceMessageRestart) {
+      if (timedOut || scrollsComplete || cyclesComplete) {
+        Serial.println(F("[MESSAGE] HA-controlled message finished. Returning to rotation."));
 
-      // Reset common counters
-      currentScrollCount = 0;
-      messageStartTime = 0;
-      currentDisplayCycleCount = 0;  // Reset the cycle counter
-      messageDisplaySeconds = 0;     // If this was a temporary HA message, clear its HA parameters
-      messageScrollTimes = 0;
+        // 1. Restore the persistent message variable ONLY
+        if (strlen(lastPersistentMessage) > 0) {
+          strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
+          messageScrollSpeed = GENERAL_SCROLL_SPEED;
+          Serial.printf("[MESSAGE] Restored persistent message to memory: '%s'\n", customMessage);
+        } else {
+          customMessage[0] = '\0';
+        }
 
-      // CRITICAL LOGIC: RESTORE PERSISTENT MESSAGE (Exit Mode 6 Logic)
-      if (strlen(lastPersistentMessage) > 0) {
-        // A persistent message exists, restore it
-        strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
-        messageScrollSpeed = GENERAL_SCROLL_SPEED;
+        // 2. Clear all temporary HA parameters
+        currentScrollCount = 0;
+        messageStartTime = 0;
+        currentDisplayCycleCount = 0;
         messageDisplaySeconds = 0;
         messageScrollTimes = 0;
-        Serial.printf("[MESSAGE] Restored persistent message: '%s'. Staying in mode 6.\n", customMessage);
-      } else {
-        // No persistent message to restore. Clear the temporary HA message and Exit mode 6.
-        customMessage[0] = '\0';
-        Serial.println(F("[MESSAGE] No persistent message to restore. Advancing display mode."));
+
+        // 3. EXIT Mode 6 immediately
         advanceDisplayMode();
+        yield();
+        return;
       }
-      yield();
-      return;
     }
 
     // ----------------------------------------------------------------------
@@ -4088,19 +4129,21 @@ void loop() {
       // Block execution for the specified duration (non-HA uses weatherDuration)
       unsigned long displayUntil = millis() + durationMs;
       while (millis() < displayUntil) {
+        if (forceMessageRestart) break;
         yield();
       }
 
       // --- CYCLE TRACKING FOR SCROLLTIMES ---
       // Increment the counter if the HA message is configured to clear by scroll count.
-      if (messageScrollTimes > 0) {
-        currentDisplayCycleCount++;
-        Serial.printf("[MESSAGE] Short message cycle complete. Count: %d/%d\n", currentDisplayCycleCount, messageScrollTimes);
-      }
+      if (!forceMessageRestart) {
+        if (messageScrollTimes > 0) {
+          currentDisplayCycleCount++;
+          Serial.printf("[MESSAGE] Short message cycle complete. Count: %d/%d\n", currentDisplayCycleCount, messageScrollTimes);
+        }
 
-      // After display, the message content must persist, but the display must cycle.
-      Serial.println(F("[MESSAGE] Short message duration complete. Advancing display mode."));
-      advanceDisplayMode();
+        Serial.println(F("[MESSAGE] Short message duration complete. Advancing display mode."));
+        advanceDisplayMode();
+      }
       yield();
       return;
     }
@@ -4134,12 +4177,18 @@ void loop() {
     P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
 
     // BLOCKING WAIT: Completes 1 full scroll
-    while (!P.displayAnimate()) yield();
+    while (!P.displayAnimate()) {
+      // --- ADD THIS LINE ---
+      if (forceMessageRestart) break;  // This "breaks" the wait so the new message starts NOW
+      yield();
+    }
 
     // SCROLL COUNT INCREMENT
-    if (messageScrollTimes > 0) {
-      currentScrollCount++;
-      Serial.printf("[MESSAGE] Scroll complete. Count: %d/%d\n", currentScrollCount, messageScrollTimes);
+    if (!forceMessageRestart) {
+      if (messageScrollTimes > 0) {
+        currentScrollCount++;
+        Serial.printf("[MESSAGE] Scroll complete. Count: %d/%d\n", currentScrollCount, messageScrollTimes);
+      }
     }
 
     // If no HA parameters are set, this is a persistent/infinite scroll, so advance mode after 1 scroll cycle.
@@ -4148,10 +4197,10 @@ void loop() {
       P.setTextAlignment(PA_CENTER);
       advanceDisplayMode();
     }
-
     yield();
     return;
   }
+
 
   unsigned long currentMillis = millis();
   unsigned long runtimeSeconds = (currentMillis - bootMillis) / 1000;
