@@ -1088,11 +1088,12 @@ opacity: 0.5;
           type="text"
           maxlength="120"
           placeholder="ENTER MESSAGE"
-          pattern="[A-Z0-9 :!'\-.,_\+%\/?]*"
-          title="Only uppercase letters, numbers, space, and : ! ' - . ? , _ + % / ? allowed"
+          pattern="[A-Z0-9 :!'\-.,_\+%\/?\[\]°]*"
+          title="Allowed: A-Z, 0-9, space, brackets [ ], degree symbol °, and : ! ' - . ? , _ + % /"
         />
         <div class="small">
-          Allowed characters: A–Z, 0–9, space, and : ! ' - . ? , _ + % /
+          Allowed characters: A-Z, 0-9, space, [ ], °, and : ! ' - . ? , _ + % / <br>
+          <b>Tip: Use [123] for Big Numbers!</b>
         </div>
       </div>
       <div class="button-row">
@@ -1496,7 +1497,8 @@ opacity: 0.5;
             let before = this.value;
             let after = before
               .toUpperCase()
-              .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, "");
+              // SURGICAL CHANGE: Added ° and \[ \] to the allowed characters
+              .replace(/[^A-Z0-9 :!'\-.,_\+%\/?\[\]°]/g, "");
             if (before !== after) {
               this.value = after;
             }
@@ -2568,12 +2570,24 @@ opacity: 0.5;
 
       function sendCustomMessage() {
         const input = document.getElementById("customMessage");
-        let message = input.value
-          .toUpperCase()
-          .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, "")
+        let rawValue = input.value.toUpperCase();
+
+        // 1. SURGICAL ADDITION: Detect digits in brackets and set flag
+        let useBigNumbers = "0";
+        if (/\[\d+\]/.test(rawValue)) {
+          useBigNumbers = "1";
+          // Remove brackets but keep the numbers inside
+          rawValue = rawValue.replace(/\[(\d+)\]/g, "$1");
+        }
+
+        // 2. CLEAN MESSAGE (using the updated regex)
+        let message = rawValue
+          .replace(/[^A-Z0-9 :!'\-.,_\+%\/?\[\]°]/g, "")
           .replace(/\s+/g, " ")
           .trim()
           .substring(0, 120);
+
+        if (message.length === 0 && input.value.trim().length > 0) return;
 
         fetch("/set_custom_message", {
           method: "POST",
@@ -2581,7 +2595,8 @@ opacity: 0.5;
             "Content-Type": "application/x-www-form-urlencoded",
             "X-Source": "UI",
           },
-          body: "message=" + encodeURIComponent(message),
+          // 3. SURGICAL ADDITION: Append bignumbers to the body string
+          body: "message=" + encodeURIComponent(message) + "&bignumbers=" + useBigNumbers,
         })
           .then((res) => res.text())
           .then((res) => {

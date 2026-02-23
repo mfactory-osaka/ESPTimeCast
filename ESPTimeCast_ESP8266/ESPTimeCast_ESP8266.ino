@@ -48,6 +48,7 @@ const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
 int currentGlucose = -1;
 String currentDirection = "?";
 time_t lastGlucoseTime = 0;  // store timestamp from JSON
+bool isNetworkBusy = false;
 
 // --- Device identity ---
 const char *DEFAULT_HOSTNAME = "esptimecast";
@@ -187,6 +188,7 @@ const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
 
 // Custom message globals
 bool forceMessageRestart = false;
+bool messageBigNumbers = false;
 
 // --- Safe WiFi credential and API getters ---
 const char *getSafeSsid() {
@@ -378,9 +380,9 @@ void loadConfig() {
   strlcpy(ntpServer2, doc["ntpServer2"] | "time.nist.gov", sizeof(ntpServer2));
 
   if (strcmp(weatherUnits, "imperial") == 0)
-    tempSymbol = ']';
+    tempSymbol = '\007';
   else
-    tempSymbol = '[';
+    tempSymbol = '\006';
 
 
   // --- COUNTDOWN CONFIG LOADING ---
@@ -566,9 +568,9 @@ void connectWiFi() {
       animTimer = now;
       P.setTextAlignment(PA_CENTER);
       switch (animFrame % 3) {
-        case 0: P.print(F("# ©")); break;
-        case 1: P.print(F("# ª")); break;
-        case 2: P.print(F("# «")); break;
+        case 0: P.print(F("\003 ©")); break;
+        case 1: P.print(F("\003 ª")); break;
+        case 2: P.print(F("\003 «")); break;
       }
       animFrame++;
     }
@@ -723,6 +725,47 @@ void printConfigToSerial() {
   Serial.println();
 }
 
+void replaceIconTokens(String &msg, int &totalPixelWidth) {
+  struct IconMap {
+    const char *token;
+    const char *glyph;
+    int pixelWidth;
+  };
+
+  static const IconMap icons[] = {
+    { "[UP]", "\x86", 3 },
+    { "[DOWN]", "\x88", 3 },
+    { "[C]", "\x06", 4 },
+    { "[F]", "\x07", 4 },
+    { "[TIMEISUP]", "\x08", 32 },
+    { "[TIMEISUPINVERTED]", "\x09", 32 },
+    { "[INFO]", "\x04", 22 },
+    { "[DATA]", "\x0F", 23 },
+    { "[DEG]", "\xB0", 3 }
+  };
+
+  // 1. Replace all tokens with glyphs first
+  for (const auto &icon : icons) {
+    msg.replace(icon.token, icon.glyph);
+  }
+
+  // 2. Calculate pixel width of the resulting string
+  totalPixelWidth = 0;
+  for (int i = 0; i < msg.length(); i++) {
+    bool isIcon = false;
+    for (const auto &icon : icons) {
+      if (msg[i] == icon.glyph[0]) {
+        totalPixelWidth += icon.pixelWidth;
+        isIcon = true;
+        break;
+      }
+    }
+    if (!isIcon) {
+      // Space is 1px, normal chars (after digit replacement) are 4px
+      totalPixelWidth += (msg[i] == ' ') ? 1 : 4;
+    }
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Web Server and Captive Portal
@@ -1359,6 +1402,10 @@ void setupWebServer() {
 
   // --- Custom Message Endpoint ---
   server.on("/set_custom_message", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (isNetworkBusy) {
+      request->send(503);
+      return;
+    }
     if (request->hasParam("message", true)) {
       String msg = request->getParam("message", true)->value();
       msg.trim();
@@ -1366,6 +1413,11 @@ void setupWebServer() {
       String sourceHeader = request->header("X-Source");
       bool isFromUI = (sourceHeader == "UI");
       bool isFromHA = !isFromUI;
+
+      messageBigNumbers = false;
+      if (request->hasParam("bignumbers", true)) {
+        messageBigNumbers = (request->getParam("bignumbers", true)->value() == "1");
+      }
 
       messageDisplaySeconds = 0;  // Reset
       if (request->hasParam("seconds", true)) {
@@ -1382,7 +1434,6 @@ void setupWebServer() {
       if (request->hasParam("speed", true)) {
         localSpeed = constrain(request->getParam("speed", true)->value().toInt(), 10, 200);
       }
-
 
       // --- CLEAR MESSAGE ---
       if (msg.length() == 0) {
@@ -1437,8 +1488,8 @@ void setupWebServer() {
       String filtered = "";
       for (size_t i = 0; i < msg.length(); i++) {
         char c = msg[i];
-        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == ':' || c == '!' || c == '\'' || c == '-' || c == '.' || c == ',' || c == '_' || c == '+' || c == '%' || c == '/' || c == '?') {
-          filtered += c;
+        if (c >= 32 && c <= 126) {
+          filtered += (char)toupper((unsigned char)c);
         }
         // Check for degree symbol (UTF-8 0xC2 0xB0)
         else if ((unsigned char)c == 0xC2 && i + 1 < msg.length() && (unsigned char)msg[i + 1] == 0xB0) {
@@ -1447,37 +1498,36 @@ void setupWebServer() {
         }
       }
 
-      filtered.toCharArray(customMessage, sizeof(customMessage));
+      // This prevents the garbled characters in Serial logs.
+      if (isFromHA) {
+        Serial.printf("[HA] Message received: '%s' (duration: %ds, scrolls: %d, speed: %d, big: %d)\n",
+                      filtered.c_str(), messageDisplaySeconds, messageScrollTimes, localSpeed, messageBigNumbers);
+      } else {
+        Serial.printf("[UI] Message received: '%s' (big: %d)\n", filtered.c_str(), messageBigNumbers);
+      }
+
+      // --- REPLACE TOKENS (Converts [C] to raw bytes) ---
+      int dummyLen = 0;
+      replaceIconTokens(filtered, dummyLen);
 
       // --- STORE MESSAGE ---
       if (isFromHA) {
         // --- Only backup if lastPersistentMessage exists ---
         if (strlen(lastPersistentMessage) > 0) {
-          Serial.printf("[HA] Will preserve persistent message: '%s'\n", lastPersistentMessage);
-        } else {
-          Serial.println(F("[HA] No persistent message to preserve. HA message is temporary only."));
+          // No log here to save memory
         }
 
         // --- Overwrite customMessage with new temporary HA message ---
         filtered.toCharArray(customMessage, sizeof(customMessage));
         messageScrollSpeed = localSpeed;
 
-        Serial.printf("[HA] Temporary HA message received: '%s' (persistent: '%s', duration: %ds, scrolls: %d, speed: %d)\n",
-                      customMessage,
-                      strlen(lastPersistentMessage) ? lastPersistentMessage : "(none)",
-                      messageDisplaySeconds,  // Added seconds
-                      messageScrollTimes,     // Added scrolltimes
-                      localSpeed);            // Added speed
       } else {
         // --- UI-originated message: permanent ---
         filtered.toCharArray(customMessage, sizeof(customMessage));
         strlcpy(lastPersistentMessage, customMessage, sizeof(lastPersistentMessage));
         messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Always global for UI
 
-        Serial.printf("[UI] Persistent message stored: %s (speed=%d)\n",
-                      customMessage, messageScrollSpeed);
-
-        // --- NEW: Flag for save instead of saving immediately ---
+        // --- Flag for save instead of saving immediately ---
         configDirty = true;
         lastBrightnessChange = millis();  // Reuse this timer to trigger the auto-save loop
       }
@@ -3004,9 +3054,9 @@ void loop() {
     }
     P.setTextAlignment(PA_CENTER);
     switch (apAnimFrame % 3) {
-      case 0: P.print(F("= ©")); break;
-      case 1: P.print(F("= ª")); break;
-      case 2: P.print(F("= «")); break;
+      case 0: P.print(F("\005 ©")); break;
+      case 1: P.print(F("\005 ª")); break;
+      case 2: P.print(F("\005 «")); break;
     }
     yield();
     return;
@@ -3346,11 +3396,16 @@ void loop() {
           errorAltTimer = millis();
           showNtpError = !showNtpError;
         }
-        P.print(showNtpError ? F("(<") : F("(*"));
+        if (showNtpError) {
+          P.write(2);  // NTP error glyph
+        } else {
+          P.write(1);  // Weather error glyph
+        }
+
       } else if (!ntpSyncSuccessful) {
-        P.print(F("(<"));
+        P.write(2);
       } else if (!weatherAvailable) {
-        P.print(F("(*"));
+        P.write(1);
       }
     }
     // --- DISPLAY CLOCK ---
@@ -3428,7 +3483,7 @@ void loop() {
       } else {
         P.setCharSpacing(0);
         P.setTextAlignment(PA_CENTER);
-        P.print(F("(*"));
+        P.write(1);
       }
     }
     yield();
@@ -3525,7 +3580,7 @@ void loop() {
       }
 
       // Define these static variables here if they are not global (or already defined in your loop())
-      static const char *flashFrames[] = { "{|", "}~" };
+      static const char *flashFrames[] = { "\x08", "\x09" };
       static unsigned long lastFlashingSwitch = 0;
       static int flashingMessageFrame = 0;
 
@@ -3821,6 +3876,7 @@ void loop() {
 
     // Check if it's time to fetch new data or if we have no data yet
     if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
+      isNetworkBusy = true;
       WiFiClientSecure client;
       client.setInsecure();
       HTTPClient https;
@@ -3855,6 +3911,7 @@ void loop() {
                       https.errorToString(httpCode).c_str());
       }
       https.end();
+      isNetworkBusy = false;
       lastNightscoutFetchTime = millis();
     }
 
@@ -3931,7 +3988,7 @@ void loop() {
     } else {
       P.setTextAlignment(PA_CENTER);
       P.setCharSpacing(0);
-      P.print(F("()"));
+      P.write(15);
       unsigned long errorStart = millis();
       while (millis() - errorStart < 2000) {
         if (forceMessageRestart) return;
@@ -4036,171 +4093,117 @@ void loop() {
 
   // --- Custom Message Display Mode (displayMode == 6) ---
   if (displayMode == 6) {
+    static int totalPixelWidth = 0;
+
     if (forceMessageRestart) {
       P.displayReset();
       P.displayClear();
+
+      // RESET TIMERS/COUNTERS so new messages start fresh
+      messageStartTime = millis();
+      currentScrollCount = 0;
+      currentDisplayCycleCount = 0;
+
       forceMessageRestart = false;
     }
 
-    // 1. Initial Check: If message is empty, skip mode 6.
     if (strlen(customMessage) == 0) {
       advanceDisplayMode();
       yield();
       return;
     }
 
-    // --- CHARACTER REPLACEMENT AND PADDING (Common to both short and long) ---
-    const size_t MAX_NON_SCROLLING_CHARS = 8;
     String msg = String(customMessage);
+    replaceIconTokens(msg, totalPixelWidth);
 
-    // Replace standard digits 0–9 with your custom font character codes
-    for (int i = 0; i < msg.length(); i++) {
-      if (isDigit(msg[i])) {
-        int num = msg[i] - '0';
-        msg[i] = 145 + ((num + 9) % 10);
-      }
-    }
-
-    // --- CHECK FOR TIMEOUT (Applies to temporary short & long messages) ---
-    bool timedOut = false;
-    // Check if a time limit (messageDisplaySeconds > 0) has been exceeded
-    if (messageDisplaySeconds > 0 && (millis() - messageStartTime) >= (messageDisplaySeconds * 1000UL)) {
-      Serial.printf("[MESSAGE] HA message timed out after %d seconds.\n", messageDisplaySeconds);
-      timedOut = true;
-    }
-
-    // --- CHECK FOR SCROLL/CYCLE LIMIT BEFORE DISPLAYING ---
-    // Scrolls complete applies to long messages.
-    bool scrollsComplete = (messageScrollTimes > 0) && (currentScrollCount >= messageScrollTimes);
-
-    // Cycles complete applies to short messages.
-    extern int currentDisplayCycleCount;  // Use the dedicated short message counter
-    bool cyclesComplete = (messageScrollTimes > 0) && (currentDisplayCycleCount >= messageScrollTimes);
-
-
-    // --- ADVANCE MODE CHECK (Check if HA parameters are complete) ---
-    // If either timer or cycle/scroll count is finished, we clean up the temporary message.
-    if (!forceMessageRestart) {
-      if (timedOut || scrollsComplete || cyclesComplete) {
-        Serial.println(F("[MESSAGE] HA-controlled message finished. Returning to rotation."));
-
-        // 1. Restore the persistent message variable ONLY
-        if (strlen(lastPersistentMessage) > 0) {
-          strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
-          messageScrollSpeed = GENERAL_SCROLL_SPEED;
-          Serial.printf("[MESSAGE] Restored persistent message to memory: '%s'\n", customMessage);
-        } else {
-          customMessage[0] = '\0';
+    if (!messageBigNumbers) {
+      for (int i = 0; i < msg.length(); i++) {
+        if (isDigit(msg[i])) {
+          int num = msg[i] - '0';
+          msg[i] = 145 + ((num + 9) % 10);
         }
-
-        // 2. Clear all temporary HA parameters
-        currentScrollCount = 0;
-        messageStartTime = 0;
-        currentDisplayCycleCount = 0;
-        messageDisplaySeconds = 0;
-        messageScrollTimes = 0;
-
-        // 3. EXIT Mode 6 immediately
-        advanceDisplayMode();
-        yield();
-        return;
       }
     }
 
-    // ----------------------------------------------------------------------
-    // BRANCH A: NON-SCROLLING (Short Message: strlen <= 8)
-    // ----------------------------------------------------------------------
-    if (msg.length() <= MAX_NON_SCROLLING_CHARS) {
+    // --- TIMEOUT & LIMIT CHECKS ---
+    bool timedOut = (messageDisplaySeconds > 0 && (millis() - messageStartTime) >= (messageDisplaySeconds * 1000UL));
+    bool scrollsComplete = (messageScrollTimes > 0 && currentScrollCount >= messageScrollTimes);
+    bool cyclesComplete = (messageScrollTimes > 0 && currentDisplayCycleCount >= messageScrollTimes);
 
-      // Determine the duration: use HA seconds if set, otherwise use weatherDuration.
-      unsigned long durationMs = (messageDisplaySeconds > 0)
-                                   ? (messageDisplaySeconds * 1000UL)
-                                   : weatherDuration;
+    if (timedOut || scrollsComplete || cyclesComplete) {
+      if (strlen(lastPersistentMessage) > 0) {
+        strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
+        messageScrollSpeed = GENERAL_SCROLL_SPEED;
+      } else {
+        customMessage[0] = '\0';
+      }
+      currentScrollCount = 0;
+      messageStartTime = 0;
+      currentDisplayCycleCount = 0;
+      messageDisplaySeconds = 0;
+      messageScrollTimes = 0;
+      prevDisplayMode = 6;  // Set for Clock scroll-in
+      advanceDisplayMode();
+      yield();
+      return;
+    }
 
-      // If HA seconds is set, we use the timedOut check at the top.
-      // If only scrollTimes is set, we still display for weatherDuration before incrementing the cycle count.
+    // --- BRANCH A: STATIC ---
+    if (totalPixelWidth <= 32) {
+      unsigned long durationMs = (messageDisplaySeconds > 0) ? (messageDisplaySeconds * 1000UL) : weatherDuration;
 
-      Serial.printf("[MESSAGE] Displaying timed short message: '%s' for %lu ms. Advancing mode.\n", customMessage, durationMs);
-
+      // We must check if the display is already showing this specific text
+      // to prevent "flicker" on every loop iteration
       P.setTextAlignment(PA_CENTER);
       P.setCharSpacing(1);
       P.print(msg.c_str());
 
-      // Block execution for the specified duration (non-HA uses weatherDuration)
       unsigned long displayUntil = millis() + durationMs;
       while (millis() < displayUntil) {
-        if (forceMessageRestart) break;
+        if (forceMessageRestart) return;  // Exit immediately to top level for reset
         yield();
       }
 
-      // --- CYCLE TRACKING FOR SCROLLTIMES ---
-      // Increment the counter if the HA message is configured to clear by scroll count.
-      if (!forceMessageRestart) {
-        if (messageScrollTimes > 0) {
-          currentDisplayCycleCount++;
-          Serial.printf("[MESSAGE] Short message cycle complete. Count: %d/%d\n", currentDisplayCycleCount, messageScrollTimes);
-        }
-
-        Serial.println(F("[MESSAGE] Short message duration complete. Advancing display mode."));
+      // If we finished naturally
+      if (messageScrollTimes > 0) {
+        currentDisplayCycleCount++;
+      } else {
+        // For standard persistent messages, move to clock after 1 cycle
+        prevDisplayMode = 6;
         advanceDisplayMode();
       }
       yield();
       return;
     }
 
-    // ----------------------------------------------------------------------
-    // BRANCH B: SCROLLING (Long Message: strlen > 8) - (Existing Logic)
-    // ----------------------------------------------------------------------
-
-    // --- Determine if we need left padding based on previous mode ---
+    // --- BRANCH B: SCROLLING ---
     bool addPadding = false;
     bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
+    if (prevDisplayMode == 0 && (showDayOfWeek || colonBlinkEnabled)) addPadding = true;
+    else if (prevDisplayMode == 1 && humidityVisible) addPadding = true;
 
-    // If coming from CLOCK mode
-    if (prevDisplayMode == 0 && (showDayOfWeek || colonBlinkEnabled)) {
-      addPadding = true;
-    } else if (prevDisplayMode == 1 && humidityVisible) {
-      addPadding = true;
-    }
-    // Apply padding (4 spaces) if needed
-    if (addPadding) {
-      msg = "    " + msg;
-    }
+    if (addPadding) msg = "    " + msg;
 
-    // --- Display scrolling message ---
     P.setTextAlignment(PA_LEFT);
     P.setCharSpacing(1);
     textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-    extern int messageScrollSpeed;
 
-    // START SCROLL CYCLE
     P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
 
-    // BLOCKING WAIT: Completes 1 full scroll
     while (!P.displayAnimate()) {
-      // --- ADD THIS LINE ---
-      if (forceMessageRestart) break;  // This "breaks" the wait so the new message starts NOW
+      if (forceMessageRestart) return;  // Exit immediately to top level
       yield();
     }
 
-    // SCROLL COUNT INCREMENT
-    if (!forceMessageRestart) {
-      if (messageScrollTimes > 0) {
-        currentScrollCount++;
-        Serial.printf("[MESSAGE] Scroll complete. Count: %d/%d\n", currentScrollCount, messageScrollTimes);
-      }
-    }
+    currentScrollCount++;
 
-    // If no HA parameters are set, this is a persistent/infinite scroll, so advance mode after 1 scroll cycle.
-    // If HA parameters ARE set, the mode relies on the check at the top to break out.
     if (messageDisplaySeconds == 0 && messageScrollTimes == 0) {
-      P.setTextAlignment(PA_CENTER);
+      prevDisplayMode = 6;
       advanceDisplayMode();
     }
     yield();
     return;
   }
-
 
   unsigned long currentMillis = millis();
   unsigned long runtimeSeconds = (currentMillis - bootMillis) / 1000;

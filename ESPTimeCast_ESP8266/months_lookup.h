@@ -7,35 +7,35 @@ typedef struct {
 } MonthsMapping;
 
 const MonthsMapping months_mappings[] = {
-    { "af", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&e&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&s" } }, // Afrikaans
-    { "cs", { "l&e&d", "u&n&o", "b&r&e", "d&u&b", "k&v&e", "c&e&r", "c&v&c", "s&r&p", "z&a&r", "r&i&j", "l&i&s", "p&r&o" } }, // Czech
-    { "da", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Danish
-    { "de", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&z" } }, // German
-    { "en", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&y", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&c&t", "n&o&v", "d&e&c" } }, // English
-    { "eo", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Esperanto
-    { "es", { "e&n&e", "f&e&b", "m&a&r", "a&b&r", "m&a&y", "j&u&n", "j&u&l", "a&g&o", "s&e&p", "o&c&t", "n&o&v", "d&i&c" } }, // Spanish
-    { "et", { "j&a&n", "v&e&b", "m&a&r", "a&p&r", "m&a&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&t" } }, // Estonian
-    { "fi", { "t&a&m", "h&e&l", "m&a&a", "h&u&h", "t&o&u", "k&e&s", "h&e&i", "e&l&o", "s&y&y", "l&o&k", "m&a&r", "j&o&u" } }, // Finnish
-    { "fr", { "j&a&n", "f&e&v", "m&a&r", "a&v&r", "m&a&i", "j&u&n", "j&u&l", "a&o&u", "s&e&p", "o&c&t", "n&o&v", "d&e&c" } }, // French
-    { "hr", { "s&i&j", "v&e&l", "o&z&u", "t&r&a", "s&v&i", "l&i&p", "s&r&p", "k&o&l", "r&u&j", "l&i&s", "s&t&u", "p&r&o" } }, // Croatian
-    { "hu", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&u&g", "s&z&e", "o&k&t", "n&o&v", "d&e&c" } }, // Hungarian
-    { "it", { "g&e&n", "f&e&b", "m&a&r", "a&p&r", "m&a&g", "g&i&u", "l&u&g", "a&g&o", "s&e&t", "o&t&t", "n&o&v", "d&i&c" } }, // Italian
-    { "ga", { "e&a&n", "f&e&a", "m&a&r", "a&i&b", "b&e&a", "m&e&i", "i&u&i", "l&u&n", "m&e&a", "d&e&i", "s&a&m", "n&o&l" } }, // Irish
+    { "af", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016e\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016s" } }, // Afrikaans
+    { "cs", { "l\016e\016d", "u\016n\016o", "b\016r\016e", "d\016u\016b", "k\016v\016e", "c\016e\016r", "c\016v\016c", "s\016r\016p", "z\016a\016r", "r\016i\016j", "l\016i\016s", "p\016r\016o" } }, // Czech
+    { "da", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Danish
+    { "de", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016z" } }, // German
+    { "en", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016y", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016e\016c" } }, // English
+    { "eo", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Esperanto
+    { "es", { "e\016n\016e", "f\016e\016b", "m\016a\016r", "a\016b\016r", "m\016a\016y", "j\016u\016n", "j\016u\016l", "a\016g\016o", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016i\016c" } }, // Spanish
+    { "et", { "j\016a\016n", "v\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016t" } }, // Estonian
+    { "fi", { "t\016a\016m", "h\016e\016l", "m\016a\016a", "h\016u\016h", "t\016o\016u", "k\016e\016s", "h\016e\016i", "e\016l\016o", "s\016y\016y", "l\016o\016k", "m\016a\016r", "j\016o\016u" } }, // Finnish
+    { "fr", { "j\016a\016n", "f\016e\016v", "m\016a\016r", "a\016v\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016o\016u", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016e\016c" } }, // French
+    { "hr", { "s\016i\016j", "v\016e\016l", "o\016z\016u", "t\016r\016a", "s\016v\016i", "l\016i\016p", "s\016r\016p", "k\016o\016l", "r\016u\016j", "l\016i\016s", "s\016t\016u", "p\016r\016o" } }, // Croatian
+    { "hu", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016z\016e", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Hungarian
+    { "it", { "g\016e\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016g", "g\016i\016u", "l\016u\016g", "a\016g\016o", "s\016e\016t", "o\016t\016t", "n\016o\016v", "d\016i\016c" } }, // Italian
+    { "ga", { "e\016a\016n", "f\016e\016a", "m\016a\016r", "a\016i\016b", "b\016e\016a", "m\016e\016i", "i\016u\016i", "l\016u\016n", "m\016e\016a", "d\016e\016i", "s\016a\016m", "n\016o\016l" } }, // Irish
     { "ja", { "1 ²", "2 ²", "3 ²", "4 ²", "5 ²", "6 ²", "7 ²", "8 ²", "9 ²", "10 ²", "11 ²", "12 ²" } }, // Japanese
-    { "lt", { "s&a&u", "v&a&s", "k&o&v", "b&a&l", "g&e&g", "b&i&r", "l&i&e", "r&u&g", "s&w&e", "s&p&a", "l&a&p", "g&r&u" } }, // Lithuanian
-    { "lv", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Latvian
-    { "nl", { "j&a&n", "f&e&b", "m&a&a", "a&p&r", "m&e&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Dutch
-    { "no", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&i", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&s" } }, // Norwegian
-    { "pl", { "s&t&y", "l&u&t", "m&a&r", "k&w&i", "m&a&j", "c&z&e", "l&i&p", "s&i&e", "w&r&z", "p&a&z", "l&i&s", "g&r&u" } }, // Polish
-    { "pt", { "j&a&n", "f&e&v", "m&a&r", "a&b&r", "m&a&i", "j&u&n", "j&u&l", "a&g&o", "s&e&t", "o&u&t", "n&o&v", "d&e&z" } }, // Portuguese
-    { "ro", { "i&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&i", "i&u&n", "i&u&l", "a&u&g", "s&e&p", "o&c&t", "n&o&v", "d&e&c" } }, // Romanian
-    { "ru", { "i&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&i", "i&u&n", "i&u&l", "a&u&g", "s&e&p", "o&c&t", "n&o&i", "d&e&c" } }, // Russian
-    { "sk", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Slovak
-    { "sl", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&v&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Slovenian
-    { "sr", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&v&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Serbian
-    { "sv", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&a&j", "j&u&n", "j&u&l", "a&u&g", "s&e&p", "o&k&t", "n&o&v", "d&e&c" } }, // Swedish
-    { "sw", { "j&a&n", "f&e&b", "m&a&r", "a&p&r", "m&e&i", "j&u&n", "j&u&l", "a&g&o", "s&e&p", "o&k&t", "n&o&v", "d&e&s" } }, // Swahili
-    { "tr", { "o&c&a", "s&u&b", "m&a&r", "n&i&s", "m&a&y", "h&a&z", "t&e&m", "a&g&u", "e&y&l", "e&k&i", "k&a&s", "a&r&a" } }  // Turkish
+    { "lt", { "s\016a\016u", "v\016a\016s", "k\016o\016v", "b\016a\016l", "g\016e\016g", "b\016i\016r", "l\016i\016e", "r\016u\016g", "s\016w\016e", "s\016p\016a", "l\016a\016p", "g\016r\016u" } }, // Lithuanian
+    { "lv", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Latvian
+    { "nl", { "j\016a\016n", "f\016e\016b", "m\016a\016a", "a\016p\016r", "m\016e\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Dutch
+    { "no", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016s" } }, // Norwegian
+    { "pl", { "s\016t\016y", "l\016u\016t", "m\016a\016r", "k\016w\016i", "m\016a\016j", "c\016z\016e", "l\016i\016p", "s\016i\016e", "w\016r\016z", "p\016a\016z", "l\016i\016s", "g\016r\016u" } }, // Polish
+    { "pt", { "j\016a\016n", "f\016e\016v", "m\016a\016r", "a\016b\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016g\016o", "s\016e\016t", "o\016u\016t", "n\016o\016v", "d\016e\016z" } }, // Portuguese
+    { "ro", { "i\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "i\016u\016n", "i\016u\016l", "a\016u\016g", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016e\016c" } }, // Romanian
+    { "ru", { "i\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "i\016u\016n", "i\016u\016l", "a\016u\016g", "s\016e\016p", "o\016c\016t", "n\016o\016i", "d\016e\016c" } }, // Russian
+    { "sk", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Slovak
+    { "sl", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016v\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Slovenian
+    { "sr", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016v\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Serbian
+    { "sv", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Swedish
+    { "sw", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016e\016i", "j\016u\016n", "j\016u\016l", "a\016g\016o", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016s" } }, // Swahili
+    { "tr", { "o\016c\016a", "s\016u\016b", "m\016a\016r", "n\016i\016s", "m\016a\016y", "h\016a\016z", "t\016e\016m", "a\016g\016u", "e\016y\016l", "e\016k\016i", "k\016a\016s", "a\016r\016a" } }  // Turkish
 };
 
 #define MONTHS_MAPPINGS_COUNT (sizeof(months_mappings)/sizeof(months_mappings[0]))
