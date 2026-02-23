@@ -339,6 +339,7 @@ POST http://<device_ip>/set_custom_message
 | Parameter | Type | Required | Description |
 |------------|------|-----------|-------------|
 | `message` | string | Yes | Message text to display. Send an empty string (`""`) to clear messages. |
+| `bignumbers` | integer | Optional	| Set to 1 to use the Large Numbers Font. (WEB UI Shortcut: Wrap numbers in brackets, e.g., [123]).|
 | `speed` | integer | Optional | Scrolling speed (range **10–200**). Lower values = **faster** scroll. |
 | `seconds` | integer | Optional | Maximum display duration in seconds (range **0–3600**). If set to **0**, `Weather Duration` will be used. |
 | `scrolltimes` | integer | Optional | Maximum number of full scroll cycles (**range 0–100**). Set to **0** for infinite scrolls. |
@@ -668,6 +669,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
