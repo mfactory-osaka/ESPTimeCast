@@ -20,7 +20,7 @@
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
 
-#define FIRMWARE_VERSION "1.2.0"
+#define FIRMWARE_VERSION "1.2.1"
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
 #define CLK_PIN 14   //D5
@@ -134,7 +134,7 @@ bool weatherAvailable = false;
 bool weatherFetched = false;
 bool weatherFetchInitiated = false;
 bool isAPMode = false;
-char tempSymbol = '[';
+char tempSymbol = '\006';
 bool shouldFetchWeatherNow = false;
 
 unsigned long lastSwitch = 0;
@@ -189,6 +189,9 @@ const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
 // Custom message globals
 bool forceMessageRestart = false;
 bool messageBigNumbers = false;
+
+// Custom font for days and months
+bool useCustomFont = true;
 
 // --- Safe WiFi credential and API getters ---
 const char *getSafeSsid() {
@@ -1257,10 +1260,10 @@ void setupWebServer() {
       String v = request->getParam("value", true)->value();
       if (v == "1" || v == "true" || v == "on") {
         strcpy(weatherUnits, "imperial");
-        tempSymbol = ']';
+        tempSymbol = '\007';
       } else {
         strcpy(weatherUnits, "metric");
-        tempSymbol = '[';
+        tempSymbol = '\006';
       }
       Serial.printf("[WEBSERVER] Set weatherUnits to %s\n", weatherUnits);
       shouldFetchWeatherNow = true;
@@ -2920,7 +2923,6 @@ void advanceDisplayMode() {
   lastSwitch = millis();
 }
 
-
 void advanceDisplayModeSafe() {
   int attempts = 0;
   const int MAX_ATTEMPTS = 7;  // Number of possible modes + 1
@@ -3039,6 +3041,46 @@ bool saveConfigRuntime() {
 
   Serial.println(F("[CONFIG] Runtime config saved"));
   return true;
+}
+
+//Custom font format for days and months
+String getFormattedDateText(const char *rawText) {
+  String input = String(rawText);
+  String output = "";
+
+  // 1. Detect if it's Japanese/Multi-byte
+  bool isMultiByte = false;
+  for (int i = 0; i < input.length(); i++) {
+    if ((uint8_t)input[i] > 127) {
+      isMultiByte = true;
+      break;
+    }
+  }
+
+  if (isMultiByte) {
+    // Keep Japanese symbols as they are (e.g., "³")
+    output = input;
+  } else {
+    // Determine the separator: \016 for custom, " " for standard
+    String separator = useCustomFont ? "\016" : " ";
+
+    // If standard font, convert to uppercase first (e.g., "tue" -> "TUE")
+    if (!useCustomFont) {
+      input.toUpperCase();
+    }
+
+    // 2. Inject the separator between characters
+    for (int i = 0; i < input.length(); i++) {
+      output += input[i];
+      if (i < input.length() - 1) {
+        output += separator;
+      }
+    }
+  }
+
+  // 3. Add the trailing spaces (M\016O\016N   or T U E  )
+  output += "  ";
+  return output;
 }
 
 void loop() {
@@ -3307,7 +3349,8 @@ void loop() {
 
 
   const char *const *daysOfTheWeek = getDaysOfWeek(language);
-  const char *daySymbol = daysOfTheWeek[timeinfo.tm_wday];
+  // Call our new formatting function
+  String daySymbol = getFormattedDateText(daysOfTheWeek[timeinfo.tm_wday]);
 
   // build base HH:MM first ---
   char baseTime[9];
@@ -3344,7 +3387,9 @@ void loop() {
   // build final string ---
   String formattedTime;
   if (showDayOfWeek) {
-    formattedTime = String(daySymbol) + "   " + String(timeSpacedStr);
+    // daySymbol now has either "t\016u\016e  " or "T U E  "
+    // In both cases, the padding is already inside daySymbol.
+    formattedTime = daySymbol + String(timeSpacedStr);
   } else {
     formattedTime = String(timeSpacedStr);
   }
@@ -3361,7 +3406,6 @@ void loop() {
   if ((displayMode == 0 || displayMode == 1) && (millis() - lastSwitch > currentDisplayDuration)) {
     advanceDisplayMode();
   }
-
 
 
   // --- CLOCK Display Mode ---
@@ -4000,94 +4044,61 @@ void loop() {
   }
 
 
-  //DATE Display Mode
+  // DATE Display Mode
   else if (displayMode == 5 && showDate) {
     if (forceMessageRestart) return;
-    // --- VALID DATE CHECK ---
+
     if (timeinfo.tm_year < 120 || timeinfo.tm_mday <= 0 || timeinfo.tm_mon < 0 || timeinfo.tm_mon > 11) {
       advanceDisplayMode();
-      return;  // skip drawing
+      return;
     }
-    // -------------------------
-    String dateString;
 
-    // Get localized month names
+    // 1. Month uses the custom font logic (lowercase + \016)
     const char *const *months = getMonthsOfYear(language);
-    String monthAbbr = String(months[timeinfo.tm_mon]).substring(0, 5);
-    monthAbbr.toLowerCase();
+    String monthAbbr = getFormattedDateText(months[timeinfo.tm_mon]);
 
-    // Add spaces between day digits
+    // 2. Day digits ALWAYS use standard spaces (" "), never the custom \016
     String dayString = String(timeinfo.tm_mday);
     String spacedDay = "";
     for (size_t i = 0; i < dayString.length(); i++) {
       spacedDay += dayString[i];
-      if (i < dayString.length() - 1) spacedDay += " ";
+      if (i < dayString.length() - 1) {
+        spacedDay += " ";  // Hardcoded standard space
+      }
     }
 
-    // Function to check if day should come first for given language
-    auto isDayFirst = [](const String &lang) {
-      // Languages with DD-MM order
-      const char *dayFirstLangs[] = {
-        "af",  // Afrikaans
-        "cs",  // Czech
-        "da",  // Danish
-        "de",  // German
-        "eo",  // Esperanto
-        "es",  // Spanish
-        "et",  // Estonian
-        "fi",  // Finnish
-        "fr",  // French
-        "ga",  // Irish
-        "hr",  // Croatian
-        "hu",  // Hungarian
-        "it",  // Italian
-        "lt",  // Lithuanian
-        "lv",  // Latvian
-        "nl",  // Dutch
-        "no",  // Norwegian
-        "pl",  // Polish
-        "pt",  // Portuguese
-        "ro",  // Romanian
-        "ru",  // Russian
-        "sk",  // Slovak
-        "sl",  // Slovenian
-        "sr",  // Serbian
-        "sv",  // Swedish
-        "sw",  // Swahili
-        "tr"   // Turkish
-      };
-      for (auto lf : dayFirstLangs) {
-        if (lang.equalsIgnoreCase(lf)) {
-          return true;
-        }
-      }
-      return false;
-    };
+    String dateString;
+    String langStr = String(language);
 
-    String langForDate = String(language);
-
-    if (langForDate == "ja") {
-      // Japanese: month number (spaced digits) + day + symbol
-      String spacedMonth = "";
-      String monthNum = String(timeinfo.tm_mon + 1);
-      dateString = monthAbbr + "  " + spacedDay + " ±";
-
+    if (langStr == "ja") {
+      // Japanese: "1 ²  2 4 ±"
+      dateString = monthAbbr + spacedDay + " ±";
     } else {
-      if (isDayFirst(language)) {
-        dateString = spacedDay + "   " + monthAbbr;
+      auto isDayFirst = [](const String &lang) {
+        const char *dayFirstLangs[] = { "af", "cs", "da", "de", "eo", "es", "et", "fi", "fr", "ga", "hr", "hu", "it", "lt", "lv", "nl", "no", "pl", "pt", "ro", "ru", "sk", "sl", "sr", "sv", "sw", "tr" };
+        for (auto lf : dayFirstLangs) {
+          if (lang.equalsIgnoreCase(lf)) return true;
+        }
+        return false;
+      };
+
+      // monthAbbr already has trailing "  " from your function
+      if (isDayFirst(langStr)) {
+        // Result: "2 4  f\016e\016b  "
+        dateString = spacedDay + "  " + monthAbbr;
       } else {
-        dateString = monthAbbr + "   " + spacedDay;
+        // Result: "f\016e\016b  2 4"
+        dateString = monthAbbr + spacedDay;
       }
     }
 
     P.setTextAlignment(PA_CENTER);
     P.setCharSpacing(0);
-    P.print(dateString);
+    P.print(dateString.c_str());
 
     if (millis() - lastSwitch > weatherDuration) {
       advanceDisplayMode();
     }
-    if (forceMessageRestart) return;
   }
 
 

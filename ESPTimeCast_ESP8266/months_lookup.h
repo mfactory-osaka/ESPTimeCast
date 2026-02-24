@@ -7,35 +7,35 @@ typedef struct {
 } MonthsMapping;
 
 const MonthsMapping months_mappings[] = {
-    { "af", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016e\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016s" } }, // Afrikaans
-    { "cs", { "l\016e\016d", "u\016n\016o", "b\016r\016e", "d\016u\016b", "k\016v\016e", "c\016e\016r", "c\016v\016c", "s\016r\016p", "z\016a\016r", "r\016i\016j", "l\016i\016s", "p\016r\016o" } }, // Czech
-    { "da", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Danish
-    { "de", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016z" } }, // German
-    { "en", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016y", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016e\016c" } }, // English
-    { "eo", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Esperanto
-    { "es", { "e\016n\016e", "f\016e\016b", "m\016a\016r", "a\016b\016r", "m\016a\016y", "j\016u\016n", "j\016u\016l", "a\016g\016o", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016i\016c" } }, // Spanish
-    { "et", { "j\016a\016n", "v\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016t" } }, // Estonian
-    { "fi", { "t\016a\016m", "h\016e\016l", "m\016a\016a", "h\016u\016h", "t\016o\016u", "k\016e\016s", "h\016e\016i", "e\016l\016o", "s\016y\016y", "l\016o\016k", "m\016a\016r", "j\016o\016u" } }, // Finnish
-    { "fr", { "j\016a\016n", "f\016e\016v", "m\016a\016r", "a\016v\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016o\016u", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016e\016c" } }, // French
-    { "hr", { "s\016i\016j", "v\016e\016l", "o\016z\016u", "t\016r\016a", "s\016v\016i", "l\016i\016p", "s\016r\016p", "k\016o\016l", "r\016u\016j", "l\016i\016s", "s\016t\016u", "p\016r\016o" } }, // Croatian
-    { "hu", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016z\016e", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Hungarian
-    { "it", { "g\016e\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016g", "g\016i\016u", "l\016u\016g", "a\016g\016o", "s\016e\016t", "o\016t\016t", "n\016o\016v", "d\016i\016c" } }, // Italian
-    { "ga", { "e\016a\016n", "f\016e\016a", "m\016a\016r", "a\016i\016b", "b\016e\016a", "m\016e\016i", "i\016u\016i", "l\016u\016n", "m\016e\016a", "d\016e\016i", "s\016a\016m", "n\016o\016l" } }, // Irish
+    { "af", { "jan", "feb", "mar", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "des" } }, // Afrikaans
+    { "cs", { "led", "uno", "bre", "dub", "kve", "cer", "cvc", "srp", "zar", "rij", "lis", "pro" } }, // Czech
+    { "da", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Danish
+    { "de", { "jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez" } }, // German
+    { "en", { "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec" } }, // English
+    { "eo", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Esperanto
+    { "es", { "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic" } }, // Spanish
+    { "et", { "jan", "veb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "det" } }, // Estonian
+    { "fi", { "tam", "hel", "maa", "huh", "tou", "kes", "hei", "elo", "syy", "lok", "mar", "jou" } }, // Finnish
+    { "fr", { "jan", "fev", "mar", "avr", "mai", "jun", "jul", "aou", "sep", "oct", "nov", "dec" } }, // French
+    { "hr", { "sij", "vel", "ozu", "tra", "svi", "lip", "srp", "kol", "ruj", "lis", "stu", "pro" } }, // Croatian
+    { "hu", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sze", "okt", "nov", "dec" } }, // Hungarian
+    { "it", { "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic" } }, // Italian
+    { "ga", { "ean", "fea", "mar", "aib", "bea", "mei", "iui", "lun", "mea", "dei", "sam", "nol" } }, // Irish
     { "ja", { "1 ²", "2 ²", "3 ²", "4 ²", "5 ²", "6 ²", "7 ²", "8 ²", "9 ²", "10 ²", "11 ²", "12 ²" } }, // Japanese
-    { "lt", { "s\016a\016u", "v\016a\016s", "k\016o\016v", "b\016a\016l", "g\016e\016g", "b\016i\016r", "l\016i\016e", "r\016u\016g", "s\016w\016e", "s\016p\016a", "l\016a\016p", "g\016r\016u" } }, // Lithuanian
-    { "lv", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Latvian
-    { "nl", { "j\016a\016n", "f\016e\016b", "m\016a\016a", "a\016p\016r", "m\016e\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Dutch
-    { "no", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016s" } }, // Norwegian
-    { "pl", { "s\016t\016y", "l\016u\016t", "m\016a\016r", "k\016w\016i", "m\016a\016j", "c\016z\016e", "l\016i\016p", "s\016i\016e", "w\016r\016z", "p\016a\016z", "l\016i\016s", "g\016r\016u" } }, // Polish
-    { "pt", { "j\016a\016n", "f\016e\016v", "m\016a\016r", "a\016b\016r", "m\016a\016i", "j\016u\016n", "j\016u\016l", "a\016g\016o", "s\016e\016t", "o\016u\016t", "n\016o\016v", "d\016e\016z" } }, // Portuguese
-    { "ro", { "i\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "i\016u\016n", "i\016u\016l", "a\016u\016g", "s\016e\016p", "o\016c\016t", "n\016o\016v", "d\016e\016c" } }, // Romanian
-    { "ru", { "i\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016i", "i\016u\016n", "i\016u\016l", "a\016u\016g", "s\016e\016p", "o\016c\016t", "n\016o\016i", "d\016e\016c" } }, // Russian
-    { "sk", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Slovak
-    { "sl", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016v\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Slovenian
-    { "sr", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016v\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Serbian
-    { "sv", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016a\016j", "j\016u\016n", "j\016u\016l", "a\016u\016g", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016c" } }, // Swedish
-    { "sw", { "j\016a\016n", "f\016e\016b", "m\016a\016r", "a\016p\016r", "m\016e\016i", "j\016u\016n", "j\016u\016l", "a\016g\016o", "s\016e\016p", "o\016k\016t", "n\016o\016v", "d\016e\016s" } }, // Swahili
-    { "tr", { "o\016c\016a", "s\016u\016b", "m\016a\016r", "n\016i\016s", "m\016a\016y", "h\016a\016z", "t\016e\016m", "a\016g\016u", "e\016y\016l", "e\016k\016i", "k\016a\016s", "a\016r\016a" } }  // Turkish
+    { "lt", { "sau", "vas", "kov", "bal", "geg", "bir", "lie", "rug", "swe", "spa", "lap", "gru" } }, // Lithuanian
+    { "lv", { "jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Latvian
+    { "nl", { "jan", "feb", "maa", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Dutch
+    { "no", { "jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des" } }, // Norwegian
+    { "pl", { "sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paz", "lis", "gru" } }, // Polish
+    { "pt", { "jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez" } }, // Portuguese
+    { "ro", { "ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "nov", "dec" } }, // Romanian
+    { "ru", { "ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "noi", "dec" } }, // Russian
+    { "sk", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Slovak
+    { "sl", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "avg", "sep", "okt", "nov", "dec" } }, // Slovenian
+    { "sr", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "avg", "sep", "okt", "nov", "dec" } }, // Serbian
+    { "sv", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Swedish
+    { "sw", { "jan", "feb", "mar", "apr", "mei", "jun", "jul", "ago", "sep", "okt", "nov", "des" } }, // Swahili
+    { "tr", { "oca", "sub", "mar", "nis", "may", "haz", "tem", "agu", "eyl", "eki", "kas", "ara" } }  // Turkish
 };
 
 #define MONTHS_MAPPINGS_COUNT (sizeof(months_mappings)/sizeof(months_mappings[0]))
