@@ -20,7 +20,7 @@
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
 
-#define FIRMWARE_VERSION "1.1.1"
+#define FIRMWARE_VERSION "1.2.0"
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
 #define CLK_PIN 14   //D5
