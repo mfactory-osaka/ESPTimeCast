@@ -297,7 +297,20 @@ Once your IDE is ready:
    * **ESP8266:** Open the `ESPTimeCast_ESP8266` folder and open `ESPTimeCast_ESP8266.ino`.
    * **ESP32:** Open the `ESPTimeCast_ESP32` folder and open `ESPTimeCast_ESP32.ino`.
 
-2. **Upload the Sketch**
+2. **Recommended: Add the mfactoryfont.h for Full Visuals**
+
+   * To use the official **mfactoryfont.h** (custom font + icons), download it from:  
+  [https://esptimecast.github.io/mfactoryfont/mfactoryfont.h](https://esptimecast.github.io/mfactoryfont/mfactoryfont.h)  
+      * (Right-click the link and choose “Save As…” to download the file.)  
+   * Place `mfactoryfont.h` **in the same folder** as your sketch.  
+   * If the font is detected, the firmware will use it automatically.  
+   * If not, the firmware will fall back to the **Basic Font**, which is fully functional but simpler.  
+
+> Note: The mfactoryfont.h is now hosted separately for licensing clarity.  
+> For background and context, see this Reddit post explaining the change:  
+> [Weird Font Displaying? Here’s Why & How to Fix It](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)
+
+3. **Upload the Sketch**
    * Click the **Upload** button (right arrow icon) in the Arduino IDE toolbar. This will compile and upload the sketch to your board.
    * **No separate LittleFS upload is needed.** All web UI files are embedded in the sketch.
   
@@ -669,6 +682,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
