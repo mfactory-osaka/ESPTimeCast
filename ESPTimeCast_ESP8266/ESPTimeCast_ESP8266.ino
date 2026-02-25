@@ -14,7 +14,16 @@
 #include <WiFiClientSecure.h>
 #include <ESP8266mDNS.h>
 
-#include "mfactoryfont.h"   // Custom font
+// --- FONT HANDLING ---
+#if __has_include("mfactoryfont.h")
+#include "mfactoryfont.h"
+#define USE_CUSTOM_FONT
+#pragma message("ESPTimeCast™: Building with mfactoryfont")
+#else
+#include "basic_font.h"
+#pragma message("ESPTimeCast™: Using Basic Font (fallback)")
+#endif
+
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
@@ -1095,57 +1104,45 @@ void setupWebServer() {
 
     String sourceHeader = request->header("X-Source");
     bool isFromUI = (sourceHeader == "UI");
-    bool isFromHA = !isFromUI;
-
     int newBrightness = request->getParam("value", true)->value().toInt();
 
-    // Handle OFF request
+    // --- CASE 1: Turn Display OFF ---
     if (newBrightness == -1) {
-      P.displayShutdown(true);
-      P.displayClear();
-      displayOff = true;
-      configDirty = true;
-      lastBrightnessChange = millis();
+      if (!displayOff) {
+        P.displayShutdown(true);
+        P.displayClear();
+        displayOff = true;
+        brightness = -1;
+        configDirty = true;
+        lastBrightnessChange = millis();
 
-      Serial.printf("[BRIGHTNESS] Display OFF via %s\n",
-                    isFromUI ? "UI" : "HA");
-
+        Serial.printf("[BRIGHTNESS] Display turned OFF via %s\n", isFromUI ? "UI" : "HA");
+      }
       request->send(200, "application/json", "{\"ok\":true, \"display\":\"off\"}");
       return;
     }
 
-    // Clamp brightness range (0–15)
+    // --- CASE 2: Turn Display ON or Adjust ---
     newBrightness = constrain(newBrightness, 0, 15);
 
-    if (displayOff) {
-      // Wake from OFF
-      if (brightness != newBrightness) {
-        brightness = newBrightness;
-        configDirty = true;
-        lastBrightnessChange = millis();
-      }
+    if (newBrightness != brightness || displayOff) {
+      bool wakingUp = displayOff;
+      brightness = newBrightness;
+      configDirty = true;
+      lastBrightnessChange = millis();
 
       P.setIntensity(brightness);
-      advanceDisplayModeSafe();
-      P.displayShutdown(false);
-      displayOff = false;
 
-      Serial.printf("[BRIGHTNESS] Display woke from OFF via %s → %d\n",
-                    isFromUI ? "UI" : "HA",
-                    brightness);
-    } else {
-      // Display already ON
-      if (brightness != newBrightness) {
-        brightness = newBrightness;
-        P.setIntensity(brightness);
-        configDirty = true;
-        lastBrightnessChange = millis();
+      if (wakingUp) {
+        advanceDisplayModeSafe();
+        P.displayShutdown(false);
+        displayOff = false;
+        Serial.printf("[BRIGHTNESS] Display woke from OFF via %s to %d\n", isFromUI ? "UI" : "HA", brightness);
+      } else {
+        Serial.printf("[BRIGHTNESS] Intensity set to %d via %s\n", brightness, isFromUI ? "UI" : "HA");
       }
-
-      Serial.printf("[BRIGHTNESS] Set to %d via %s\n",
-                    brightness,
-                    isFromUI ? "UI" : "HA");
     }
+
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -2634,7 +2631,11 @@ void setup() {
   P.begin();  // Initialize Parola library
 
   P.setCharSpacing(0);
-  P.setFont(mFactory);
+#ifdef USE_CUSTOM_FONT
+  P.setFont(mFactory);  // Using the variable name from your private header
+#else
+  P.setFont(newFont);  // Using the variable name from basic_font.h
+#endif
   loadConfig();  // This function now has internal yields and prints
 
   P.setIntensity(brightness);
