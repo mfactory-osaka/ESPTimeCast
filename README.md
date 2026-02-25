@@ -377,6 +377,34 @@ POST http://<device_ip>/set_custom_message
 - Always scroll.
 - If sent from HA, scrolling stops when **scrolltimes** limit is reached or manually clered when sent without parameter.
 
+  
+&nbsp;
+#### 🎨 Using mfactoryfont.h Icons (v1.2.3)
+
+ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
+
+- **Home Assistant messages** – send temporary or scrollable messages with visual icons.  
+- **Web UI custom messages** – include icons in persistent or scrolling text.  
+
+<img src="assets/icons.png" alt="ESPTimeCast mfactoryfont.h Icon Set Preview" width="640"/>
+
+**Full Icons List**  
+[NOTEMP][NONTP][WIFI][INFO][AP]  
+[C][F][TIMEISUP][TIMEISUPINVERTED][SUNNY]  
+[CLOUDY][NODATA][RAINY][THUNDER][SNOWY][WINDY][CLOCK]  
+[ALARM][UPDATE][BATTERYEMPTY][BATTERY33][BATTERY66][BATTERYFULL][BOLT][HOUSE][TEMP]  
+[MUSICNOTE][PLAY][SPACE][PAUSE][EURO][SPEAKER][SPEAKEROFF][RED][UP][DOWN][RIGHT][LEFT]  
+[TALK][HEART][CHECK][INSTA][TV][YOUTUBE][BELL][LOCK][PERSON][HOURGLASS]  
+[HOURGLASS25][HOURGLASS75][HOURGLASSFULL][CAR][SIGNAL1][SIGNAL2]  
+[SIGNAL3][DEG][SUNDAYJP][MONDAYJP][TUESDAYJP][WEDNESDAYJP][THURSDAYJP][FRIDAYJP][SATURDAYJP]
+
+**How to use icons:**  
+- Wrap the icon name in **brackets**: `[SUNNY] [YOUTUBE]`  
+- Short messages (≤8 chars) = static & centered; longer = scrolling  
+- Requires `mfactoryfont.h`; otherwise firmware falls back to Basic Font  
+> For context, see: [Weird_font_displaying?_Heres_why_how_to_fix_it](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)  
+
+&nbsp;
 #### ⚙️ Example Automations
 
 #### 1. Send a Temporary HA Message with Duration
@@ -682,6 +710,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
