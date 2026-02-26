@@ -27,12 +27,27 @@ https://esptimecast.github.io
 
 > After flashing, connect to the ESPTimeCast WiFi access point to complete setup.
 
-Works with:
-- ESP8266  
-- ESP32  
-- ESP32-S2  
-- ESP32-C3  
-- ESP32-S3  
+### ✅ Officially Tested Boards
+
+- Wemos D1 Mini (ESP8266)
+- ESP32 Dev Module
+- ESP32-C3 SuperMini
+- Wemos S2 Mini (ESP32-S2)
+- ESP32-S3 WROOM-1 (Camera/SD board)
+
+
+### Compatible Chip Families
+
+ESPTimeCast supports the following chip families:
+
+- ESP8266
+- ESP32
+- ESP32-S2
+- ESP32-C3
+- ESP32-S3 
+
+Other development boards using these chips may work,  
+but pin mapping and USB behavior can vary.
 
 📌 **Wiring guide:**  
 See the [hardware connection table](https://github.com/mfactory-osaka/ESPTimeCast#-wiring-your-esptimecast).
@@ -124,15 +139,19 @@ ESPTimeCast™ has been featured on major maker and tech platforms highlighting 
 &nbsp;
 ## 🪛 Wiring your ESPTimeCast
 
-ESPTimeCast uses a **single, recommended wiring layout** across all supported boards to ensure consistent behavior, stable power delivery, and reliable brightness.
+ESPTimeCast uses **board-specific recommended SPI pin mappings** 
+to ensure consistent behavior, stable power delivery, and reliable brightness.
 
 &nbsp;
 ### 📌 Current Pin Assignment
 
+The following pin mappings correspond to the official Web Installer builds.
+If you are compiling manually, ensure your pin definitions match this table.
+
 | Chip       | Board / Module                     | CLK | CS | DIN | VCC | GND |
 |------------|------------------------------------|:---:|:--:|:---:|:---:|:---:|
 | ESP8266    | D1 Mini (USB-C / Micro-USB)        | 14  | 13 | 15  | 5V  | GND |
-| ESP32      | D1 Mini (ESP32)                    | 18  | 23 | 5   | 5V  | GND |
+| ESP32      | ESP32 Dev Module / D1 Mini ESP32 (not ESP8266) | 18 | 23 | 5 | 5V | GND |
 | ESP32-S2   | S2 Mini                            | 7   | 11 | 12  | 5V  | GND |
 | ESP32-C3   | SuperMini                          | 7   | 20 | 8   | 5V  | GND |
 | ESP32-S3   | WROOM-1 (Camera / SD board)        | 18 | 16 | 17  | 5V  | GND |
@@ -142,6 +161,7 @@ ESPTimeCast uses a **single, recommended wiring layout** across all supported bo
 > MAX7219 modules are typically powered at **5V** but accept **3.3V logic** on DIN / CLK / CS.  
 > All ESP32 boards listed above have been **tested successfully** with this wiring.  
 > ESP8266 D1 Mini boards are often labeled using **D-pins** (D5 = GPIO14, D7 = GPIO13, D8 = GPIO15).
+> Other boards using the same chip families may work, but SPI pins may differ depending on the manufacturer layout.
 
 &nbsp;
 ### 🧩 Wiring Diagram
@@ -710,6 +730,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
