@@ -13,6 +13,7 @@
 #include <time.h>
 #include <WiFiClientSecure.h>
 #include <ESP8266mDNS.h>
+#include "version.h"
 
 // --- FONT HANDLING ---
 #if __has_include("mfactoryfont.h")
@@ -29,7 +30,6 @@
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
 
-#define FIRMWARE_VERSION "1.2.3"
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
 #define CLK_PIN 14   //D5
@@ -47,7 +47,7 @@ AsyncWebServer server(80);
 
 // --- Global Scroll Speed Settings ---
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
-const int IP_SCROLL_SPEED = 115;      // Default: Adjust this for the IP Address display (slower for readability)
+int IP_SCROLL_SPEED = 115;      // Default: Adjust this for the IP Address display (slower for readability)
 int messageScrollSpeed = 85;          // default fallback
 
 // --- Nightscout setting ---
@@ -129,6 +129,11 @@ unsigned long bootMillis = 0;                      // Stores millis() at boot
 unsigned long lastUptimeLog = 0;                   // Timer for hourly logging
 const unsigned long uptimeLogInterval = 600000UL;  // 10 minutes in ms
 unsigned long totalUptimeSeconds = 0;              // Persistent accumulated uptime in seconds
+
+// Unified OTA Control Variables
+bool isUpdating = false;         // When true, all background tasks (Weather, NTP, Scroll) stop
+bool pendingRestart = false;     // Flag to trigger a safe reboot in the loop
+unsigned long restartTimer = 0;  // Timer to give the WebServer time to send the final "OK"
 
 // State management
 bool weatherCycleStarted = false;
@@ -537,19 +542,26 @@ void connectWiFi() {
                                                                    : "UNKNOWN");
 
       // --- IP Display initiation ---
-      pendingIpToShow = WiFi.localIP().toString();
-
-      // Replace all dots with your custom font code 184
-      for (int i = 0; i < pendingIpToShow.length(); i++) {
-        if (pendingIpToShow[i] == '.') {
-          pendingIpToShow[i] = 184;
+      if (LittleFS.exists("/update_success.txt")) {
+        // Use (char) to force the raw font glyphs and avoid the newline bug
+        pendingIpToShow = String((char)10) + (char)11 + (char)32 + (char)173 + String(FIRMWARE_VERSION);
+        LittleFS.remove("/update_success.txt");
+        IP_SCROLL_SPEED = 70;
+      } else {
+        pendingIpToShow = WiFi.localIP().toString();
+        IP_SCROLL_SPEED = 115;
+        // Replace all dots with your custom font code 184
+        for (int i = 0; i < pendingIpToShow.length(); i++) {
+          if (pendingIpToShow[i] == '.') {
+            pendingIpToShow[i] = 184;
+          }
         }
       }
 
       showingIp = true;
-      ipDisplayCount = 0;  // Reset count for IP display
+      ipDisplayCount = 0;
       P.displayClear();
-      P.setCharSpacing(1);  // Set spacing for IP scroll
+      P.setCharSpacing(1);
       textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
       P.displayScroll(pendingIpToShow.c_str(), PA_CENTER, actualScrollDirection, IP_SCROLL_SPEED);
       // --- END IP Display initiation ---
@@ -773,8 +785,8 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[TEMP]", "\x1D", 8 },
     { "[MUSICNOTE]", "\x1E", 7 },
     { "[PLAY]", "\x1F", 4 },
-    { "[SPACE]",   "\x20", 0 },
-    { "[PAUSE]",  "\x7F", 5 },
+    { "[SPACE]", "\x20", 0 },
+    { "[PAUSE]", "\x7F", 5 },
     { "[EURO]", "\x80", 5 },
     { "[SPEAKER]", "\x81", 8 },
     { "[SPEAKEROFF]", "\x82", 8 },
@@ -2003,6 +2015,72 @@ void setupWebServer() {
       if (final) f.close();       // finish file
     });
 
+  server.on("/get_version", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String json = "{";
+    json += "\"version\":\"" + String(FIRMWARE_VERSION) + "\",";
+    json += "\"board\":\"" + String(BOARD_TYPE) + "\"";
+    json += "}";
+    request->send(200, "application/json", json);
+  });
+
+  server.on("/perform_update", HTTP_GET, [](AsyncWebServerRequest *request) {
+    isUpdating = true;
+
+    // Immediate UI Feedback
+    P.displayClear();
+    P.print((char)172);  // Show your download/update icon
+
+    request->send(200, "application/json", "{\"status\":\"ready\"}");
+  });
+
+  server.on(
+    "/upload_ota", HTTP_POST, [](AsyncWebServerRequest *request) {
+      if (!Update.hasError()) {
+        request->send(200, "text/plain", "OK");
+        // Set flags to reboot in the main loop
+        pendingRestart = true;
+        restartTimer = millis();
+      } else {
+        request->send(200, "text/plain", "FAIL");
+      }
+    },
+    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+      // This runs for every chunk of data received
+      if (!index) {
+        Serial.printf("[OTA] Start: %s\n", filename.c_str());
+
+#ifdef ESP8266
+        Update.runAsync(true);  // Critical: Prevent __yield panic on ESP8266
+#endif
+
+        // Calculate max available space for the firmware
+        uint32_t maxSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+        if (!Update.begin(maxSpace, U_FLASH)) {
+          Update.printError(Serial);
+        }
+      }
+
+      if (!Update.hasError()) {
+        if (Update.write(data, len) != len) {
+          Update.printError(Serial);
+        }
+      }
+
+      if (final) {
+        if (Update.end(true)) {
+          Serial.printf("[OTA] Finished: %u bytes\n", index + len);
+          // CREATE THE "SUCCESS" FLAG
+          File f = LittleFS.open("/update_success.txt", "w");
+          if (f) {
+            f.print("1");
+            f.close();
+          }
+        } else {
+          Update.printError(Serial);
+        }
+      }
+    });
+
   server.on("/factory_reset", HTTP_GET, [](AsyncWebServerRequest *request) {
     // If not in AP mode, block and return a 403 response
     if (!isAPMode) {
@@ -3142,6 +3220,16 @@ String getFormattedDateText(const char *rawText) {
 }
 
 void loop() {
+  // 1. REBOOT HANDLER: Execute the restart outside of the Async callback
+  if (pendingRestart && (millis() - restartTimer > 2000)) {
+    Serial.println(F("[SYSTEM] Rebooting now..."));
+    ESP.restart();
+  }
+  // 2. OTA LOCK: If updating, yield to WiFi and stop everything else
+  if (isUpdating) {
+    yield();
+    return;
+  }
   if (isAPMode) {
     dnsServer.processNextRequest();
     // AP Mode animation
