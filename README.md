@@ -294,13 +294,23 @@ Follow these steps to prepare your Arduino IDE for ESP8266 development:
 #### ⚙️ ESP32 Setup
 
 Follow these steps to prepare your Arduino IDE for ESP32 development:
-
 1.  **Install ESP32 Board Package:**
     * Go to `Tools > Board > Boards Manager...`. Search for `esp32` by `Espressif Systems` and click "Install".
 2.  **Select Your Board:**
     * Go to `Tools > Board` and select your specific board, e.g., **LOLIN S2 Mini** (or your ESP32 variant).
 3.  **Configure Partition Scheme:**
-    * Under `Tools`, select `Partition Scheme "No OTA (2MB APP/2MB SPIFFS) or No OTA (LARGE APP)"`. This ensures enough space for the sketch and LittleFS data.
+    * Go to `Tools > Partition Scheme` and choose one of the following:
+        * **For OTA support (recommended):**  
+          `Minimal SPIFFS (1.9MB APP with OTA / 128KB SPIFFS)`  
+          This enables wireless firmware updates via the built-in web interface.
+        * **Without OTA support:**  
+          `No OTA (2MB APP / 2MB SPIFFS)` or `No OTA (LARGE APP)`  
+          These provide a larger filesystem but do not support OTA updates.        
+&nbsp;
+    > **Note:** OTA works out of the box with the official Web Installer build.  
+    > Manual builds are fully supported as well - just make sure you're using the recommended pinout for your specific board as documented in this repository.  
+    > **Important:** If the `Minimal SPIFFS` option does not appear, make sure you have selected **Dev Module** for your specific ESP32 chip family (e.g., ESP32 Dev Module, ESP32-S2 Dev Module, ESP32-C3 Dev Module).  
+
 4.  **Install Libraries:**
     * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
         * `ArduinoJson` by Benoit Blanchon
@@ -730,6 +740,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
