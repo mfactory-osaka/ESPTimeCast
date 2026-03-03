@@ -3048,6 +3048,24 @@ opacity: 0.5;
             updateSavingModal("❌ <b>Update Error</b><br>" + e.message, false);
         }
       } 
+
+      document.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+          const activeElem = document.activeElement;
+
+          // SCENARIO 1: User is typing a Custom Message
+          if (activeElem.id === "customMessage") {
+            event.preventDefault();
+            sendCustomMessage();
+          } 
+          // SCENARIO 2: User is in any other input field (NTP, Brightness, etc.)
+          else if (activeElem.tagName === "INPUT" || activeElem.tagName === "SELECT") {
+            event.preventDefault();
+            // Manually trigger the form submit or click the Save button
+            document.querySelector('input[type="submit"]').click();
+          }
+        }
+      });
     </script>
   </body>
 </html>

@@ -47,7 +47,7 @@ AsyncWebServer server(80);
 
 // --- Global Scroll Speed Settings ---
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
-int IP_SCROLL_SPEED = 115;      // Default: Adjust this for the IP Address display (slower for readability)
+int IP_SCROLL_SPEED = 115;            // Default: Adjust this for the IP Address display (slower for readability)
 int messageScrollSpeed = 85;          // default fallback
 
 // --- Nightscout setting ---
@@ -517,13 +517,22 @@ void connectWiFi() {
   // If credentials exist, attempt STA connection
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true);
-  delay(100);
+  WiFi.setAutoReconnect(true);
+#ifdef ESP8266
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
+#endif
+#ifdef ESP32
+  WiFi.setSleep(false);
+#endif
   setupHostname();
+  WiFi.disconnect(true);  // Ensure a clean slate
+  delay(100);             // The "Radio Breathing Room"
   WiFi.begin(ssid, password);
   unsigned long startAttemptTime = millis();
 
   const unsigned long timeout = 30000;
+  const int maxRetries = 3;
+  int retryCount = 0;
   unsigned long animTimer = 0;
   int animFrame = 0;
   bool animating = true;
@@ -569,24 +578,36 @@ void connectWiFi() {
       animating = false;  // Exit the connection loop
       break;
     } else if (now - startAttemptTime >= timeout) {
-      Serial.println(F("[WIFI] Failed. Starting AP mode..."));
-      WiFi.mode(WIFI_AP);
-      WiFi.softAP(DEFAULT_AP_SSID, DEFAULT_AP_PASSWORD);
-      Serial.print(F("[WIFI] AP IP address: "));
-      Serial.println(WiFi.softAPIP());
-      dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
-      isAPMode = true;
 
-      WiFiMode_t mode = WiFi.getMode();
-      Serial.printf("[WIFI] WiFi mode after STA failure and setting AP: %s\n",
-                    mode == WIFI_OFF ? "OFF" : mode == WIFI_STA    ? "STA ONLY"
-                                             : mode == WIFI_AP     ? "AP ONLY"
-                                             : mode == WIFI_AP_STA ? "AP + STA (Error!)"
-                                                                   : "UNKNOWN");
+      if (retryCount < maxRetries - 1) {
+        retryCount++;
+        Serial.printf("[WIFI] Attempt failed. Retrying (%d/%d)...\n", retryCount + 1, maxRetries);
 
-      animating = false;
-      Serial.println(F("[WIFI] AP Mode Started"));
-      break;
+        WiFi.disconnect();
+        delay(500);
+        WiFi.begin(ssid, password);
+        startAttemptTime = millis();  // reset timeout timer
+      } else {
+        Serial.println(F("[WIFI] All attempts failed. Starting AP mode..."));
+
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(DEFAULT_AP_SSID, DEFAULT_AP_PASSWORD);
+        Serial.print(F("[WIFI] AP IP address: "));
+        Serial.println(WiFi.softAPIP());
+        dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+        isAPMode = true;
+
+        WiFiMode_t mode = WiFi.getMode();
+        Serial.printf("[WIFI] WiFi mode after STA failure and setting AP: %s\n",
+                      mode == WIFI_OFF ? "OFF" : mode == WIFI_STA    ? "STA ONLY"
+                                               : mode == WIFI_AP     ? "AP ONLY"
+                                               : mode == WIFI_AP_STA ? "AP + STA (Error!)"
+                                                                     : "UNKNOWN");
+
+        animating = false;
+        Serial.println(F("[WIFI] AP Mode Started"));
+        break;
+      }
     }
     if (now - animTimer > 750) {
       animTimer = now;
@@ -785,7 +806,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[TEMP]", "\x1D", 8 },
     { "[MUSICNOTE]", "\x1E", 7 },
     { "[PLAY]", "\x1F", 4 },
-    { "[SPACE]", "\x20", 0 },
+    { "[SPACE]", "\x20", 1 },
     { "[PAUSE]", "\x7F", 5 },
     { "[EURO]", "\x80", 5 },
     { "[SPEAKER]", "\x81", 8 },
@@ -832,20 +853,94 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
 
   // 2. Calculate pixel width of the resulting string
   totalPixelWidth = 0;
-  for (int i = 0; i < msg.length(); i++) {
+  Serial.println(F("--- Pixel Counting Start ---"));
+
+  for (int i = 0; i < (int)msg.length(); i++) {
     bool isIcon = false;
+    int charWidth = 0;
+    unsigned char c = (unsigned char)msg[i];
+
+    // Check for icons
     for (const auto &icon : icons) {
-      if (msg[i] == icon.glyph[0]) {
-        totalPixelWidth += icon.pixelWidth;
+      if (c == (unsigned char)icon.glyph[0]) {
+        charWidth = icon.pixelWidth;
         isIcon = true;
         break;
       }
     }
+
     if (!isIcon) {
-      // Space is 1px, normal chars (after digit replacement) are 4px
-      totalPixelWidth += (msg[i] == ' ') ? 1 : 4;
+      switch (c) {
+        // --- 1 Pixel Wide ---
+        case 32:  // Space
+        case '!':
+        case '.':
+        case ':':
+        case '\'':  // Single quote
+        case '|':
+        case 73:   // Capital 'I'
+        case 184:  // Custom Dot (IP display)
+          charWidth = 1;
+          break;
+
+        // --- 2 Pixels Wide ---
+        case 40:  // (
+        case 41:  // )
+        case 59:  // ;
+        case 91:  // [
+        case 93:  // ]
+        case ',':
+          charWidth = 2;
+          break;
+
+        // --- 3 Pixels Wide ---
+        case 34:
+        case '?':
+        case '-':
+        case '_':  // Underscore
+        case '/':
+          charWidth = 3;
+          break;
+
+        // --- 4 Pixels Wide ---
+        case 176:  // Degree symbol (Standard °)
+          charWidth = 4;
+          break;
+
+        // --- 5 Pixels Wide ---
+        case '#':
+        case '&':
+        case '$':
+        case '+':  // Moved here: 5px
+          charWidth = 5;
+          break;
+
+        // --- 6 Pixels Wide ---
+        case 37:  // %
+          charWidth = 6;
+          break;
+
+        // --- Default (Caps & Numbers) ---
+        default:
+          charWidth = 3;
+          break;
+      }
     }
+
+    totalPixelWidth += charWidth;
+
+    // Add 1px gap between characters/icons (except the last one)
+    if (i < (int)msg.length() - 1) {
+      totalPixelWidth += 1;
+    }
+
+    // LOGGING
+    Serial.printf("Char[%d]: Index %d | Width: %d | Total so far: %d\n", i, c, charWidth, totalPixelWidth);
   }
+
+  // LOGIC CHANGE: We removed the "32 to 33 bump" so 32px icons fit perfectly.
+  // The display will only scroll if the final count is 33 or higher.
+  Serial.printf("--- Final Pixel Count: %d ---\n", totalPixelWidth);
 }
 
 // -----------------------------------------------------------------------------
@@ -1478,6 +1573,10 @@ void setupWebServer() {
     if (request->hasParam("message", true)) {
       String msg = request->getParam("message", true)->value();
       msg.trim();
+      // --- 1. CLEAN & NORMALIZE (The Master Cleaner) ---
+      // This handles Serbian, Spanish, Uppercase, and strips Japanese Kanji/etc.
+      // Call your renamed function here:
+      String filtered = cleanTextForDisplay(msg);
 
       String sourceHeader = request->header("X-Source");
       bool isFromUI = (sourceHeader == "UI");
@@ -1552,21 +1651,6 @@ void setupWebServer() {
         return;
       }
 
-      // --- SANITIZE MESSAGE ---
-      msg.toUpperCase();
-      String filtered = "";
-      for (size_t i = 0; i < msg.length(); i++) {
-        char c = msg[i];
-        if (c >= 32 && c <= 126) {
-          filtered += (char)toupper((unsigned char)c);
-        }
-        // Check for degree symbol (UTF-8 0xC2 0xB0)
-        else if ((unsigned char)c == 0xC2 && i + 1 < msg.length() && (unsigned char)msg[i + 1] == 0xB0) {
-          filtered += "°";  // add single character
-          i++;              // skip next byte
-        }
-      }
-
       // This prevents the garbled characters in Serial logs.
       if (isFromHA) {
         Serial.printf("[HA] Message received: '%s' (duration: %ds, scrolls: %d, speed: %d, big: %d)\n",
@@ -1608,6 +1692,7 @@ void setupWebServer() {
       currentScrollCount = 0;
 
       // NEW: Set the restart flag so the main loop can interrupt instantly
+      clockScrollDone = false;
       forceMessageRestart = true;
 
       String response = String(isFromHA ? "OK (HA message, speed=" : "OK (UI message, speed=") + String(localSpeed);
@@ -2217,7 +2302,7 @@ void handleCaptivePortal(AsyncWebServerRequest *request) {
   request->send(404, "text/plain", "Not found");
 }
 
-String normalizeWeatherDescription(String str) {
+String cleanTextForDisplay(String str) {
   // Serbian Cyrillic → Latin
   str.replace("а", "a");
   str.replace("б", "b");
@@ -2352,12 +2437,15 @@ String normalizeWeatherDescription(String str) {
 
   String result = "";
   for (unsigned int i = 0; i < str.length(); i++) {
-    char c = str.charAt(i);
-    if ((c >= 'A' && c <= 'Z') || c == ' ') {
-      result += c;
+    unsigned char c = (unsigned char)str.charAt(i);  // Use unsigned for safety
+
+    // MASTER FILTER: Matches Allowed characters from Web UI
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == ' ' || c == '!' || c == '.' || c == ':' || c == '?' || c == ',' || c == '\'' || c == 34 || c == '-' || c == '_' || c == '+' || c == '%' || c == '/' || c == '[' || c == ']' || c == '(' || c == ')' || c == '#' || c == '&' || c == '$' || c == ';' || c == 176 || c == 124 || c < 32) {
+
+      result += (char)c;
     }
   }
-  return result;
+  return result;  // Return the cleaned string
 }
 
 bool isNumber(const char *str) {
@@ -2519,7 +2607,7 @@ void fetchWeather() {
       Serial.println(F("[WEATHER] Weather description not found in JSON payload"));
     }
 
-    weatherDescription = normalizeWeatherDescription(detailedDesc);
+    weatherDescription = cleanTextForDisplay(detailedDesc);
     Serial.printf("[WEATHER] Description used: %s\n", weatherDescription.c_str());
 
     // -----------------------------------------
@@ -3048,6 +3136,7 @@ void advanceDisplayMode() {
     Serial.println(F("[DISPLAY] Switching to display mode: CUSTOM MESSAGE (from Nightscout)"));
   } else if (displayMode == 6) {  // Custom Message -> Clock
     displayMode = 0;
+    clockScrollDone = false;
     Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Custom Message)"));
   }
 
@@ -3626,10 +3715,15 @@ void loop() {
           inDir,
           PA_NO_EFFECT);
         while (!P.displayAnimate()) {
-          if (forceMessageRestart) break;  // Break out of scroll-in animation
+          if (forceMessageRestart) {
+            // We are interrupting the scroll, so it is NOT done.
+            clockScrollDone = false;
+            return;  // Exit the clock function immediately
+          }
           yield();
         }
-        clockScrollDone = true;  // mark scroll done
+        // Only if we finish the while loop naturally do we mark it done
+        clockScrollDone = true;
       } else {
         P.setTextAlignment(PA_CENTER);
         P.print(timeString);
@@ -4305,27 +4399,37 @@ void loop() {
       return;
     }
 
-    // --- BRANCH A: STATIC ---
+    // --- BRANCH A: STATIC (0-32 pixels) ---
     if (totalPixelWidth <= 32) {
       unsigned long durationMs = (messageDisplaySeconds > 0) ? (messageDisplaySeconds * 1000UL) : weatherDuration;
 
-      // We must check if the display is already showing this specific text
-      // to prevent "flicker" on every loop iteration
+      // 1. Initial Centered Display
       P.setTextAlignment(PA_CENTER);
       P.setCharSpacing(1);
       P.print(msg.c_str());
 
       unsigned long displayUntil = millis() + durationMs;
       while (millis() < displayUntil) {
-        if (forceMessageRestart) return;  // Exit immediately to top level for reset
+        if (forceMessageRestart) return;
         yield();
       }
 
-      // If we finished naturally
+      // 2. THE MANUAL SHIFT (Create 4-5px of pure black)
+      if (totalPixelWidth >= 27) {
+        // Shift the internal pixel buffer to the left 5 times
+        for (uint8_t i = 0; i < 5; i++) {
+          // TSL = Transform Shift Left.
+          // This moves the actual dots on the screen.
+          P.getGraphicObject()->transform(MD_MAX72XX::TSL);
+
+          delay(messageScrollSpeed);
+        }
+      }
+
+      // 3. Handover to Clock
       if (messageScrollTimes > 0) {
         currentDisplayCycleCount++;
       } else {
-        // For standard persistent messages, move to clock after 1 cycle
         prevDisplayMode = 6;
         advanceDisplayMode();
       }
