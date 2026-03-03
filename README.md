@@ -23,7 +23,7 @@ Flash ESPTimeCast directly from your browser — no Arduino IDE, no drivers setu
 👉 **Web Installer:**  
 https://esptimecast.github.io
 
-<img src="assets/webinstaller.png" alt="ESPTimeCast Web Installer" width="640" />
+<img src="assets/webinstaller2.png" alt="ESPTimeCast Web Installer" width="640" />
 
 > After flashing, connect to the ESPTimeCast WiFi access point to complete setup.
 
@@ -71,11 +71,11 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-444%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-446%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
-    <img src="https://img.shields.io/badge/Cults3D-134%20Downloads-blue?logo=cults3d" width="180">
+    <img src="https://img.shields.io/badge/Cults3D-135%20Downloads-blue?logo=cults3d" width="180">
   </a>
 </p>
 
@@ -218,7 +218,7 @@ mDNS / Bonjour - Works on macOS, iOS, Windows with Bonjour, and most modern brow
 
 &nbsp;
 ## UI Example:
-<img src="assets/webui10.png" alt="Web Interface" width="640">
+<img src="assets/webui11.png" alt="Web Interface" width="640">
 
 &nbsp;
 ## ⚙️ Advanced Settings
@@ -740,6 +740,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
