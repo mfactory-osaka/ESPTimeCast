@@ -16,12 +16,10 @@ const char index_html[] PROGMEM = R"rawliteral(
     <title>ESPTimeCast Settings</title>
     <style>
       :root {
-        --bg-gradient: linear-gradient(
-          135deg,
-          #081f56 0%,
-          #110f2e 50%,
-          #441a65 100%
-        );
+        --bg-gradient: linear-gradient(135deg,
+            #081f56 0%,
+            #110f2e 50%,
+            #441a65 100%);
         --accent-color: #0ea5e9;
         --glass-bg: rgba(255, 255, 255, 0.04);
         --glass-border: rgba(255, 255, 255, 0.12);
@@ -70,14 +68,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         border-left: 1.5px solid rgba(180, 230, 255, 0.08);
       }
 
-      #arrowBtn > svg {
+      #arrowBtn>svg {
         position: relative;
         top: 2px;
         filter: invert(0);
         opacity: 1;
       }
 
-      #arrowBtn:disabled > svg {
+      #arrowBtn:disabled>svg {
         position: relative;
         top: 2px;
         opacity: 0.25;
@@ -110,12 +108,12 @@ const char index_html[] PROGMEM = R"rawliteral(
       .icon-btn:hover {
         background: #f5f5f5;
       }
+
       #scanBtn:disabled {
         background: rgba(255, 255, 255, 0.5);
         cursor: wait;
       }
 
-      /* The Dropdown Menu */
       #ssidList {
         position: absolute;
         width: 100%;
@@ -186,11 +184,11 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-bottom: 0;
       }
 
-      form:first-of-type > h2:first-of-type{
+      form:first-of-type>h2:first-of-type {
         margin-top: 1.5rem;
       }
 
-      .logo{
+      .logo {
         display: flex;
         justify-content: center;
       }
@@ -266,30 +264,30 @@ const char index_html[] PROGMEM = R"rawliteral(
         filter: invert(100%);
       }
 
-      /* Enabled & checked toggle */
-      .toggle-switch input[type="checkbox"]:checked + .toggle-slider {
+      .toggle-switch input[type="checkbox"]:checked+.toggle-slider {
         background-color: var(--accent-color);
       }
 
-      .toggle-switch input[type="checkbox"]:disabled + .toggle-slider::before {
+      .toggle-switch input[type="checkbox"]:disabled+.toggle-slider::before {
         background-color: rgba(204, 204, 204, 0.5);
       }
 
       input:-webkit-autofill,
+      input:-webkit-autofill:hover,
       input:-webkit-autofill:focus,
-      input:-webkit-autofill:hover {
-        background: rgba(225, 245, 255, 0.07) !important;
-        color: #fff !important;
-        -webkit-box-shadow: 0 0 0 1000px rgba(225, 245, 255, 0.07) inset !important;
-        box-shadow: 0 0 0 1000px rgba(225, 245, 255, 0.07) inset !important;
-        -webkit-text-fill-color: #fff !important;
-        transition: background 9999s ease-in-out 0s;
+      input:-webkit-autofill:active {
+
+        -webkit-text-fill-color: white !important;
+        -webkit-box-shadow: 0 0 0px 1000px rgba(225, 245, 255, 0.07) inset !important;
+        box-shadow: 0 0 0px 1000px rgba(225, 245, 255, 0.07) inset !important;
+        transition: background-color 5000000s ease-in-out 0s, color 5000000s ease-in-out 0s;
+        caret-color: white;
       }
 
       input::placeholder,
       textarea::placeholder {
-        color: hwb(0 100% 0% / 0.39); /* Example: light blue */
-        opacity: 1; /* Make sure it's not semi-transparent */
+        color: hwb(0 100% 0% / 0.39);
+        opacity: 1;
       }
 
       .form-row {
@@ -300,9 +298,11 @@ const char index_html[] PROGMEM = R"rawliteral(
       .form-row.two-col {
         flex-direction: column;
       }
-      .form-row.two-col > div {
+
+      .form-row.two-col>div {
         flex: 1;
       }
+
       .primary-button {
         background: var(--accent-color);
         color: white;
@@ -315,9 +315,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         text-align: center;
         align-self: center;
         width: fit-content;
-        transition:
-          background 0.25s,
-          transform 0.15s ease-in-out;
+        transition: background 0.25s, transform 0.15s ease-in-out;
       }
 
       .primary-button:hover {
@@ -396,11 +394,11 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       .geo-disabled {
-opacity: 0.5;
-    background: none !important;
-    color: white !important;
-    border: 0.1rem white solid;
-    cursor: not-allowed;
+        opacity: 0.5;
+        background: none !important;
+        color: white !important;
+        border: 0.1rem white solid;
+        cursor: not-allowed;
       }
 
       .geo-disabled:hover {
@@ -422,6 +420,7 @@ opacity: 0.5;
         0% {
           transform: rotate(0deg);
         }
+
         100% {
           transform: rotate(360deg);
         }
@@ -447,12 +446,6 @@ opacity: 0.5;
         }
       }
 
-      /* Make sure .details-content is visible only when open */
-      .animated-details[open] .details-content {
-        /* JS will animate the height */
-      }
-
-      /* Toggle Switch Styling for Flip Display */
       .toggle-switch {
         display: inline-flex;
         align-items: center;
@@ -461,7 +454,6 @@ opacity: 0.5;
         position: relative;
       }
 
-      /* Hide default checkbox */
       .toggle-switch input {
         opacity: 0;
         width: 0;
@@ -469,7 +461,6 @@ opacity: 0.5;
         position: absolute;
       }
 
-      /* Track */
       .toggle-slider {
         position: relative;
         width: 48px;
@@ -477,12 +468,10 @@ opacity: 0.5;
         border-radius: 999px;
         transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 
-        /* OFF state (dark UI optimized) */
         background: rgba(255, 255, 255, 0.2);
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
       }
 
-      /* Knob */
       .toggle-slider::before {
         content: "";
         position: absolute;
@@ -496,19 +485,16 @@ opacity: 0.5;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
       }
 
-      /* ON state */
-      .toggle-switch input:checked + .toggle-slider {
+      .toggle-switch input:checked+.toggle-slider {
         background: var(--accent);
         box-shadow: 0 0 10px rgba(0, 191, 255, 0.35);
       }
 
-      /* Slide knob */
-      .toggle-switch input:checked + .toggle-slider::before {
+      .toggle-switch input:checked+.toggle-slider::before {
         transform: translateX(24px);
       }
 
-      /* Disabled */
-      .toggle-switch input:disabled + .toggle-slider {
+      .toggle-switch input:disabled+.toggle-slider {
         opacity: 0.6;
         cursor: not-allowed;
         border: none;
@@ -536,7 +522,7 @@ opacity: 0.5;
         margin-top: 6rem;
       }
 
-      #configForm > button.collapsible-toggle > span:nth-child(2){
+      #configForm>button.collapsible-toggle>span:nth-child(2) {
         border-bottom: solid 1px white;
       }
 
@@ -551,7 +537,7 @@ opacity: 0.5;
 
       .collapsible-content {
         overflow: hidden;
-        height: 0;
+        height: none;
         transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         color: #fff;
         margin-bottom: 3rem;
@@ -569,14 +555,12 @@ opacity: 0.5;
         cursor: pointer;
       }
 
-      /* Track (Chrome, Safari, Edge) */
       input[type="range"]::-webkit-slider-runnable-track {
         height: 6px;
         background: rgba(255, 255, 255, 0.2);
         border-radius: 6px;
       }
 
-      /* Thumb (Chrome, Safari, Edge) */
       input[type="range"]::-webkit-slider-thumb {
         -webkit-appearance: none;
         width: 18px;
@@ -584,7 +568,7 @@ opacity: 0.5;
         border-radius: 50%;
         background: var(--accent-color);
         border: none;
-        margin-top: -6px; /* center thumb */
+        margin-top: -6px;
         box-shadow: 0 0 10px var(--accent-color);
         transition: transform 0.15s ease;
       }
@@ -593,14 +577,12 @@ opacity: 0.5;
         transform: scale(1.1);
       }
 
-      /* Track (Firefox) */
       input[type="range"]::-moz-range-track {
         height: 6px;
         background: rgba(255, 255, 255, 0.2);
         border-radius: 6px;
       }
 
-      /* Thumb (Firefox) */
       input[type="range"]::-moz-range-thumb {
         width: 18px;
         height: 18px;
@@ -610,13 +592,11 @@ opacity: 0.5;
         box-shadow: 0 0 10px var(--accent-color);
       }
 
-      /* Disabled base */
       input[type="range"]:disabled {
         cursor: not-allowed;
         opacity: 0.6;
       }
 
-      /* Disabled track */
       input[type="range"]:disabled::-webkit-slider-runnable-track {
         background: rgba(255, 255, 255, 0.08);
       }
@@ -625,7 +605,6 @@ opacity: 0.5;
         background: rgba(255, 255, 255, 0.08);
       }
 
-      /* Disabled thumb */
       input[type="range"]:disabled::-webkit-slider-thumb {
         background: #777;
         box-shadow: none;
@@ -671,7 +650,7 @@ opacity: 0.5;
         margin-bottom: 2rem;
       }
 
-      .sub-collapsible[aria-expanded="true"] + .sub-collapsible-content {
+      .sub-collapsible[aria-expanded="true"]+.sub-collapsible-content {
         display: block;
       }
 
@@ -688,12 +667,13 @@ opacity: 0.5;
         transform: translateY(-0.1rem) rotate(90deg);
         opacity: 1;
       }
-      .content-wrapper > label:nth-child(1) {
+
+      .content-wrapper>label:nth-child(1) {
         margin-top: 0;
       }
 
-      .content-wrapper > .toggle-padding > label:nth-child(1),
-      .content-wrapper > .form-group:nth-child(1) > label:nth-child(1) {
+      .content-wrapper>.toggle-padding>label:nth-child(1),
+      .content-wrapper>.form-group:nth-child(1)>label:nth-child(1) {
         margin-top: 0.75rem;
       }
 
@@ -710,14 +690,12 @@ opacity: 0.5;
         opacity: 0.75;
       }
 
-      /* Shared flex toggle row */
       .toggle-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
       }
 
-      /* Same toggle rows that also had 1.75rem top margin */
       .toggle-row-lg {
         display: flex;
         align-items: center;
@@ -725,7 +703,6 @@ opacity: 0.5;
         margin-top: 1.75rem;
       }
 
-      /* Toggle rows with 0.75rem margin */
       .toggle-row-sm {
         display: flex;
         align-items: center;
@@ -733,41 +710,27 @@ opacity: 0.5;
         margin-top: 0.75rem;
       }
 
-      /* Span label spacing */
       .label-text {
         margin-right: 0.5em;
       }
 
-      /* Slider full width */
       .range-full {
         width: 100%;
       }
 
-      /* Top margin 1.75rem (used for labels) */
       .mt-lg {
         margin-top: 1.75rem;
       }
 
-      #configForm > div.collapsible-content > div:nth-child(2) > div > div {
+      #configForm>div.collapsible-content>div:nth-child(2)>div>div {
         margin-top: 2rem;
       }
 
-      #configForm
-        > div.collapsible-content
-        > div:nth-child(8)
-        > div
-        > div.toggle-padding
-        > div:nth-child(1)
-        > label {
+      #configForm>div.collapsible-content>div:nth-child(8)>div>div.toggle-padding>div:nth-child(1)>label {
         margin-top: 0.75rem;
       }
 
-      #configForm
-        > div.collapsible-content
-        > div:nth-child(6)
-        > div
-        > div.toggle-padding
-        > label:nth-child(4) {
+      #configForm>div.collapsible-content>div:nth-child(6)>div>div.toggle-padding>label:nth-child(4) {
         position: relative;
       }
 
@@ -791,11 +754,11 @@ opacity: 0.5;
         color: white;
       }
 
-      .device-info{
+      .device-info {
         margin-top: 0.75rem;
       }
 
-      hr{
+      hr {
         margin: 1.5rem 0;
         border: 0;
         border-top: 1px solid var(--glass-border);
@@ -1150,7 +1113,7 @@ opacity: 0.5;
         <span>Advanced Settings</span>
       </button>
       <div class="collapsible-content" aria-hidden="true">
-        <button type="button" class="sub-collapsible" aria-expanded="false">
+        <button type="button" class="sub-collapsible active" aria-expanded="false">
           Time & Date
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1227,7 +1190,7 @@ opacity: 0.5;
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible" aria-expanded="false">
+        <button type="button" class="sub-collapsible active" aria-expanded="false">
           Weather
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1275,7 +1238,7 @@ opacity: 0.5;
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible" aria-expanded="false">
+        <button type="button" class="sub-collapsible active" aria-expanded="false">
           Display & Brightness
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1378,7 +1341,7 @@ opacity: 0.5;
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible" aria-expanded="false">
+        <button type="button" class="sub-collapsible active" aria-expanded="false">
           Countdown
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1453,7 +1416,7 @@ opacity: 0.5;
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible" aria-expanded="false">
+        <button type="button" class="sub-collapsible active" aria-expanded="false">
           Device information
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1552,7 +1515,7 @@ opacity: 0.5;
         }
       };
 
-      window.onload = function () {
+window.onload = function () {
         fetch("/config.json")
           .then((response) => response.json())
           .then((data) => {
@@ -1600,15 +1563,12 @@ opacity: 0.5;
             const brightnessSlider = document.getElementById("brightnessSlider");
             const brightnessValue = document.getElementById("brightnessValue");
 
-            // Ensure displayOff is treated as boolean, fallback to false if missing
             const isDisplayOff = data.displayOff === true;
 
-            // Set slider value: -1 if display is off, else the saved brightness, else default 10
             brightnessSlider.value = isDisplayOff
               ? -1
               : (typeof data.brightness !== "undefined" ? data.brightness : 10);
 
-            // Update the text to show either "Off" or the numeric value
             brightnessValue.textContent = brightnessSlider.value == -1
               ? "Off"
               : brightnessSlider.value;
@@ -1632,7 +1592,6 @@ opacity: 0.5;
             const dimmingEnabledEl = document.getElementById("dimmingEnabled");
             const apiInputEl = document.getElementById("openWeatherApiKey");
 
-            // Evaluate flags from config.json
             const isAutoDimming =
               data.autoDimmingEnabled === true ||
               data.autoDimmingEnabled === "true" ||
@@ -1642,17 +1601,13 @@ opacity: 0.5;
               data.dimmingEnabled === "true" ||
               data.dimmingEnabled === 1;
 
-            // Set toggle states
             autoDimmingEl.checked = isAutoDimming;
             dimmingEnabledEl.checked = isCustomDimming;
 
-            // Apply initial dimming state
             setDimmingFieldsEnabled();
 
-            // Initialize Clock-only-during-dimming control (depends on dimming fields)
             initClockOnlyDuringDimming(data);
 
-            // Attach listeners (mutually exclusive + API dependency)
             if (apiInputEl)
               apiInputEl.addEventListener("input", setDimmingFieldsEnabled);
             autoDimmingEl.addEventListener("change", () => {
@@ -1666,7 +1621,6 @@ opacity: 0.5;
               clearClockOnlyIfNoDimming();
             });
 
-            // Set field values from config
             document.getElementById("dimStartTime").value =
               (data.dimStartHour !== undefined
                 ? String(data.dimStartHour).padStart(2, "0")
@@ -1697,7 +1651,7 @@ opacity: 0.5;
               data.countdown && data.countdown.isDramaticCountdown
             );
             const countdownEnabledEl =
-              document.getElementById("countdownEnabled"); // Get reference
+              document.getElementById("countdownEnabled");
             countdownEnabledEl.checked = !!(
               data.countdown && data.countdown.enabled
             );
@@ -1724,7 +1678,6 @@ opacity: 0.5;
               document.getElementById("countdownTime").value = "";
             }
 
-            // Countdown Label Input Validation
             const countdownLabelInput =
               document.getElementById("countdownLabel");
             countdownLabelInput.addEventListener("input", function () {
@@ -1740,7 +1693,6 @@ opacity: 0.5;
               countdownLabelInput.value = "";
             }
 
-            // Countdown Toggle Event Listener & Field Enabling
             countdownEnabledEl.addEventListener("change", function () {
               setCountdownEnabled(this.checked);
               setCountdownFieldsEnabled(this.checked);
@@ -1758,7 +1710,6 @@ opacity: 0.5;
                 data.customMessage;
             }
 
-            // Auto-detect browser's timezone if not set in config
             if (!data.timeZone) {
               try {
                 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1778,12 +1729,25 @@ opacity: 0.5;
             } else {
               document.getElementById("timeZone").value = data.timeZone;
             }
+
+            // SURGICAL CHANGE: Fetch secondary info only AFTER config is loaded
+            setTimeout(() => {
+              fetch("/ip").then(r => r.text()).then(ip => {
+                document.getElementById("ipDisplay").textContent = ip || "—";
+              });
+              fetch("/hostname").then(r => r.text()).then(host => {
+                document.getElementById("hostnameDisplay").textContent = host || "—";
+              });
+              fetchUptime();
+            }, 100);
+
+            document.querySelector("html").style.height = "unset";
+            document.body.classList.add("loaded");
           })
           .catch((err) => {
             console.error("Failed to load config:", err);
             showSavingModal("");
             updateSavingModal("⚠️ Failed to load configuration.", false);
-            // Show appropriate button for load error
             removeReloadButton();
             removeRestoreButton();
             const errorMsg = (err.message || "").toLowerCase();
@@ -1797,8 +1761,6 @@ opacity: 0.5;
               ensureReloadButton();
             }
           });
-        document.querySelector("html").style.height = "unset";
-        document.body.classList.add("loaded");
       };
 
       async function submitConfig(event) {
@@ -2215,9 +2177,12 @@ opacity: 0.5;
         content.style.height = "auto";
       }
 
+      // We add 'index' here to track which collapsible we are on
+// 1. Target only the inner categories (Time, Weather, etc.)
       document.querySelectorAll(".sub-collapsible").forEach((button) => {
         const content = button.nextElementSibling;
 
+        // Existing click logic (keep this exactly as is)
         button.addEventListener("click", () => {
           const isOpen = button.classList.toggle("open");
           button.setAttribute("aria-expanded", isOpen);
@@ -2225,21 +2190,34 @@ opacity: 0.5;
 
           if (isOpen) {
             content.style.height = content.scrollHeight + "px";
-
             content.addEventListener("transitionend", function handler() {
               content.style.height = "auto";
               content.removeEventListener("transitionend", handler);
             });
           } else {
             content.style.height = content.scrollHeight + "px";
-            void content.offsetHeight; // force reflow
+            void content.offsetHeight; 
             content.style.height = "0px";
           }
         });
 
-        // Ensure collapsed on load
-        content.style.height = "0px";
+        // SURGICAL CHANGE: Force all INNER menus to be open on load
+        button.classList.add("open");
+        button.setAttribute("aria-expanded", "true");
+        content.setAttribute("aria-hidden", "false");
+        content.style.height = "auto"; 
       });
+
+      // 2. Ensure the MAIN Advanced Settings button stays closed
+      // This targets the main wrapper button specifically
+      const mainToggle = document.querySelector(".collapsible-toggle");
+      const mainContent = mainToggle.nextElementSibling;
+      
+      mainToggle.classList.remove("open");
+      mainToggle.setAttribute("aria-expanded", "false");
+      mainContent.style.height = "0px";
+      mainContent.setAttribute("aria-hidden", "true");
+      
 
       let brightnessDebounceTimeout = null;
 
@@ -2773,32 +2751,6 @@ opacity: 0.5;
         }
         if (autoEl) autoEl.addEventListener("change", setDimmingFieldsEnabled);
         if (dimEl) dimEl.addEventListener("change", setDimmingFieldsEnabled);
-      });
-
-      document.addEventListener("DOMContentLoaded", () => {
-        // --- IP ---
-        fetch("/ip")
-          .then((r) => r.text())
-          .then((ip) => {
-            const el = document.getElementById("ipDisplay");
-            if (el) el.textContent = ip || "—";
-          })
-          .catch(() => {
-            const el = document.getElementById("ipDisplay");
-            if (el) el.textContent = "—";
-          });
-
-        // --- Hostname ---
-        fetch("/hostname")
-          .then((r) => r.text())
-          .then((host) => {
-            const el = document.getElementById("hostnameDisplay");
-            if (el) el.textContent = host || "—";
-          })
-          .catch(() => {
-            const el = document.getElementById("hostnameDisplay");
-            if (el) el.textContent = "—";
-          });
       });
 
       const ssidInput = document.getElementById("ssid");

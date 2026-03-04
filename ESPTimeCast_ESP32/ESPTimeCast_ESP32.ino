@@ -48,9 +48,9 @@
 
 #elif defined(CONFIG_IDF_TARGET_ESP32C3)
 // ESP32-C3 Super Mini
-#define CLK_PIN 7
-#define CS_PIN 20
-#define DATA_PIN 8
+#define CLK_PIN 4
+#define CS_PIN 10
+#define DATA_PIN 6
 
 #elif defined(ESP32)
 // Default ESP32 boards (DevKit, WROOM, etc)
@@ -106,6 +106,9 @@ char language[8] = "en";
 unsigned long lastWifiConnectTime = 0;
 String mainDesc = "";
 String detailedDesc = "";
+bool credentialsExist() {
+  return (strlen(ssid) > 0);
+}
 
 // Timing and display settings
 unsigned long clockDuration = 10000;
@@ -172,6 +175,7 @@ DNSServer dnsServer;
 
 String currentTemp = "";
 String weatherDescription = "";
+String weatherIcon = "";
 bool showWeatherDescription = false;
 bool weatherAvailable = false;
 bool weatherFetched = false;
@@ -511,9 +515,7 @@ void setupHostname() {
 void connectWiFi() {
   Serial.println(F("[WIFI] Connecting to WiFi..."));
 
-  bool credentialsExist = (strlen(ssid) > 0);
-
-  if (!credentialsExist) {
+  if (!credentialsExist()) {
     Serial.println(F("[WIFI] No saved credentials. Starting AP mode directly."));
     WiFi.mode(WIFI_AP);
     WiFi.disconnect(true);
@@ -548,7 +550,7 @@ void connectWiFi() {
   }
 
   // If credentials exist, attempt STA connection
-  WiFi.persistent(false);
+  WiFi.persistent(true);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
 #ifdef ESP8266
@@ -558,8 +560,8 @@ void connectWiFi() {
   WiFi.setSleep(false);
 #endif
   setupHostname();
-  WiFi.disconnect(true);  // Ensure a clean slate
-  delay(100);             // The "Radio Breathing Room"
+  WiFi.disconnect();  // Ensure a clean slate
+  delay(100);         // The "Radio Breathing Room"
   WiFi.begin(ssid, password);
   unsigned long startAttemptTime = millis();
 
@@ -875,7 +877,8 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[WEDNESDAYJP]", "\xB4", 7 },
     { "[THURSDAYJP]", "\xB5", 7 },
     { "[FRIDAYJP]", "\xB6", 7 },
-    { "[SATURDAYJP]", "\xB7", 7 }
+    { "[SATURDAYJP]", "\xB7", 7 },
+    { "[MIST]", "\xB9", 7 }
   };
 
   // 1. Replace all tokens with glyphs first
@@ -885,7 +888,6 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
 
   // 2. Calculate pixel width of the resulting string
   totalPixelWidth = 0;
-  Serial.println(F("--- Pixel Counting Start ---"));
 
   for (int i = 0; i < (int)msg.length(); i++) {
     bool isIcon = false;
@@ -965,14 +967,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     if (i < (int)msg.length() - 1) {
       totalPixelWidth += 1;
     }
-
-    // LOGGING
-    Serial.printf("Char[%d]: Index %d | Width: %d | Total so far: %d\n", i, c, charWidth, totalPixelWidth);
   }
-
-  // LOGIC CHANGE: We removed the "32 to 33 bump" so 32px icons fit perfectly.
-  // The display will only scroll if the final count is 33 or higher.
-  Serial.printf("--- Final Pixel Count: %d ---\n", totalPixelWidth);
 }
 
 // -----------------------------------------------------------------------------
@@ -1906,9 +1901,11 @@ void setupWebServer() {
     if (weatherAvailable && weatherDescription.length() > 0) {
       weather["currentTemperature"] = String(currentTemp).toInt();
       weather["weatherDescription"] = weatherDescription;
+      weather["icon"] = weatherIcon;
     } else {
       weather["currentTemperature"] = JsonVariant();
       weather["weatherDescription"] = JsonVariant();
+      weather["icon"] = JsonVariant();
     }
 
     weather["currentHumidity"] = (weatherAvailable && weatherDescription.length() > 0) ? currentHumidity : JsonVariant();
@@ -2669,11 +2666,13 @@ void fetchWeather() {
       if (weatherObj.containsKey(F("description"))) {
         detailedDesc = weatherObj[F("description")].as<String>();
       }
+      if (weatherObj.containsKey(F("icon"))) {
+        weatherIcon = getWeatherIconChar(weatherObj[F("icon")].as<String>());
+      }
     } else {
       Serial.println(F("[WEATHER] Weather description not found in JSON payload"));
     }
-
-    weatherDescription = cleanTextForDisplay(detailedDesc);
+    weatherDescription = String(weatherIcon) + " " + cleanTextForDisplay(detailedDesc);
     Serial.printf("[WEATHER] Description used: %s\n", weatherDescription.c_str());
 
     // -----------------------------------------
@@ -2885,6 +2884,27 @@ String formatUptime(unsigned long seconds) {
   else
     sprintf(buf, "%02lu:%02lu:%02lu", hours, minutes, secs);
   return String(buf);
+}
+
+// Weather Icon Mapping
+char getWeatherIconChar(const String &iconCode) {
+
+  if (iconCode.startsWith("01")) {                    // clear sky
+    return iconCode.endsWith("n") ? '\xA8' : '\x0C';  // Moon : Sun
+  }
+
+  if (iconCode.startsWith("02")) return '\x0D';  // few clouds
+  if (iconCode.startsWith("03")) return '\x0D';  // scattered clouds
+  if (iconCode.startsWith("04")) return '\x0D';  // broken clouds
+
+  if (iconCode.startsWith("09")) return '\x10';  // shower rain
+  if (iconCode.startsWith("10")) return '\x10';  // rain
+
+  if (iconCode.startsWith("11")) return '\x11';  // thunderstorm
+  if (iconCode.startsWith("13")) return '\x12';  // snow
+  if (iconCode.startsWith("50")) return '\xB9';  // mist
+
+  return '\x0D';  // fallback = cloud
 }
 
 
@@ -3396,6 +3416,17 @@ void loop() {
   }
   if (isAPMode) {
     dnsServer.processNextRequest();
+    if (credentialsExist()) {
+      static unsigned long apStartTime = 0;
+      if (apStartTime == 0) apStartTime = millis();  // Mark the start time once
+
+      // 3 Minutes = 180000 ms
+      if (millis() - apStartTime > 180000) {
+        Serial.println(F("[WIFI] AP Timeout: Saved credentials found. Rebooting to retry connection..."));
+        delay(500);
+        ESP.restart();
+      }
+    }
     // AP Mode animation
     static unsigned long apAnimTimer = 0;
     static int apAnimFrame = 0;
