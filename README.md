@@ -71,7 +71,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-446%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-448%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -153,7 +153,7 @@ If you are compiling manually, ensure your pin definitions match this table.
 | ESP8266    | D1 Mini (USB-C / Micro-USB)        | 14  | 13 | 15  | 5V  | GND |
 | ESP32      | ESP32 Dev Module / D1 Mini ESP32 (not ESP8266) | 18 | 23 | 5 | 5V | GND |
 | ESP32-S2   | S2 Mini                            | 7   | 11 | 12  | 5V  | GND |
-| ESP32-C3   | SuperMini                          | 7   | 20 | 8   | 5V  | GND |
+| ESP32-C3   | SuperMini (Updated GPIO Mapping as of v1.3.2)                        | 4   | 10 | 6   | 5V  | GND |
 | ESP32-S3   | WROOM-1 (Camera / SD board)        | 18 | 16 | 17  | 5V  | GND |
 
 
@@ -162,6 +162,7 @@ If you are compiling manually, ensure your pin definitions match this table.
 > All ESP32 boards listed above have been **tested successfully** with this wiring.  
 > ESP8266 D1 Mini boards are often labeled using **D-pins** (D5 = GPIO14, D7 = GPIO13, D8 = GPIO15).
 > Other boards using the same chip families may work, but SPI pins may differ depending on the manufacturer layout.
+> ESP32-C3 SuperMini mapping changed to avoid strapping pin conflicts and boot issues present on some boards.
 
 &nbsp;
 ### 🧩 Wiring Diagram
@@ -416,7 +417,7 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 - **Home Assistant messages** – send temporary or scrollable messages with visual icons.  
 - **Web UI custom messages** – include icons in persistent or scrolling text.  
 
-<img src="assets/icons.png" alt="ESPTimeCast mfactoryfont.h Icon Set Preview" width="640"/>
+<img src="assets/icons2.png" alt="ESPTimeCast mfactoryfont.h Icon Set Preview" width="640"/>
 
 **Full Icons List**  
 [NOTEMP][NONTP][WIFI][INFO][AP]  
@@ -426,7 +427,7 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 [MUSICNOTE][PLAY][SPACE][PAUSE][EURO][SPEAKER][SPEAKEROFF][RED][UP][DOWN][RIGHT][LEFT]  
 [TALK][HEART][CHECK][INSTA][TV][YOUTUBE][BELL][LOCK][PERSON][HOURGLASS]  
 [HOURGLASS25][HOURGLASS75][HOURGLASSFULL][CAR][MAIL][CO2][MOON][SIGNAL1][SIGNAL2]  
-[SIGNAL3][DEG][SUNDAYJP][MONDAYJP][TUESDAYJP][WEDNESDAYJP][THURSDAYJP][FRIDAYJP][SATURDAYJP]
+[SIGNAL3][DEG][SUNDAYJP][MONDAYJP][TUESDAYJP][WEDNESDAYJP][THURSDAYJP][FRIDAYJP][SATURDAYJP][MIST]
 
 **How to use icons:**  
 - Wrap the icon name in **brackets**: `[SUNNY] [YOUTUBE]`  
@@ -740,6 +741,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
