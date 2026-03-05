@@ -14,7 +14,26 @@ It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern w
 
 
 <video src="https://github.com/user-attachments/assets/78b6525d-8dcd-43fc-875e-28805e0f4fab"></video>
+&nbsp;
+#### 🎨 A Note on Custom Cases & Commercial Listings
 
+I love seeing the community’s creativity and fully encourage you to design, share, and even sell your own custom enclosures for **ESPTimeCast™**.
+
+If you build one, feel free to share it with the community, there’s even a dedicated showcase thread on [**r/ESPTimeCast**](https://www.reddit.com/r/ESPTimeCast/comments/1p2vt16/show_your_esptimecast_build_post_your_photos_setup/) where makers post their builds and setups.
+
+However, while the hardware and firmware are open-source, the **Signature Custom Font** is part of the project’s protected visual identity. To avoid brand confusion and keep the project sustainable, a small rule applies when it comes to commercial listings.
+
+* **The Rule:** Photos showing the **ESPTimeCast™ custom font or weather icons** may **not be used in commercial listings** (MakerWorld, Printables, Etsy, Cults3D, etc).
+
+* **The Solution:** If you are selling or promoting a case or accessory, please use the included **Basic Font** or a **blank display** in your product photos.
+
+* **Why?:** The distinctive look of the custom font is what visually defines **ESPTimeCast™**. Limiting its use in commercial listings helps prevent the project’s branding and visual design from being used to promote unrelated products.
+
+See the **Full Usage & Branding Guidelines** here: [Usage & Branding Guidelines](https://github.com/mfactory-osaka/ESPTimeCast/edit/main/README.md#%EF%B8%8F-esptimecast-branding--visual-policy)
+
+🙏 Thank you to everyone who has already updated their listings to respect this guideline, and thanks in advance to future creators for helping keep the project’s visual identity clear while continuing to share amazing builds.  
+
+&nbsp;
 &nbsp;
 ## 🚀 Install in Under a Minute (Recommended)
 
@@ -741,6 +760,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
