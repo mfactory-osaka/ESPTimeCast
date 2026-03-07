@@ -120,6 +120,8 @@ bool clockOnlyDuringDimming = false;
 bool configDirty = false;
 unsigned long lastBrightnessChange = 0;
 const unsigned long saveDelay = 1200;  // 1.2 seconds
+int startTotal, endTotal;
+bool dimActive = false;
 
 //Countdown Globals - NEW
 bool countdownEnabled = false;
@@ -207,6 +209,7 @@ const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
 // Custom message globals
 bool forceMessageRestart = false;
 bool messageBigNumbers = false;
+bool allowInterrupt = true;
 
 // Custom font for days and months
 bool useCustomFont = true;
@@ -329,6 +332,12 @@ void loadConfig() {
   }
 
   bool configChanged = false;
+
+  if (doc.containsKey("hostname")) {
+    deviceHostname = doc["hostname"].as<String>();
+    Serial.print(F("[CONFIG] Loaded hostname: "));
+    Serial.println(deviceHostname);
+  }
 
   strlcpy(ssid, doc["ssid"] | "", sizeof(ssid));
   strlcpy(password, doc["password"] | "", sizeof(password));
@@ -913,12 +922,14 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
         case '#':
         case '&':
         case '$':
+        case '@':
         case '+':  // Moved here: 5px
           charWidth = 5;
           break;
 
         // --- 6 Pixels Wide ---
-        case 37:  // %
+        case '%':
+        case '~':
           charWidth = 6;
           break;
 
@@ -1056,7 +1067,7 @@ void setupWebServer() {
       else if (n == "clockOnlyDuringDimming") {
         doc[n] = (v == "true" || v == "on" || v == "1");
       } else if (n == "weatherUnits") doc[n] = v;
-
+      else if (n == "hostname") doc[n] = v;
       else if (n == "password") {
         if (v != "********" && v.length() > 0) {
           doc[n] = v;  // user entered a new password
@@ -1178,6 +1189,9 @@ void setupWebServer() {
 
     Serial.println(F("[SAVE] Config verification successful."));
     DynamicJsonDocument okDoc(128);
+    if (doc.containsKey("hostname")) {
+      deviceHostname = doc["hostname"].as<String>();
+    }
     strlcpy(customMessage, doc["customMessage"] | "", sizeof(customMessage));
     okDoc[F("message")] = "Saved successfully. Rebooting...";
     String response;
@@ -1568,6 +1582,31 @@ void setupWebServer() {
     if (request->hasParam("message", true)) {
       String msg = request->getParam("message", true)->value();
       msg.trim();
+
+      // Detect clear command first
+      bool isClearRequest = (msg.length() == 0);
+
+      // --- Interrupt control ---
+      bool incomingAllowInterrupt = true;
+
+      // --- Block messages during clock-only dimming ---
+      if (!isClearRequest && clockOnlyDuringDimming && dimActive) {
+        Serial.printf("[MESSAGE] Rejected due to clock-only dimming mode: '%s'\n", msg.c_str());
+        request->send(409, "text/plain", "Clock-only dimming mode active");
+        return;
+      }
+
+      if (request->hasParam("allowInterrupt", true)) {
+        incomingAllowInterrupt = (request->getParam("allowInterrupt", true)->value() == "1");
+      }
+
+      // Reject only if NOT a clear request
+      if (!isClearRequest && !allowInterrupt && incomingAllowInterrupt) {
+        Serial.printf("[MESSAGE] Rejected: protected message running (allowInterrupt=%d)\n", allowInterrupt);
+        request->send(409, "text/plain", "Display busy - protected message");
+        return;
+      }
+
       // --- 1. CLEAN & NORMALIZE (The Master Cleaner) ---
       // This handles Serbian, Spanish, Uppercase, and strips Japanese Kanji/etc.
       // Call your renamed function here:
@@ -1600,15 +1639,19 @@ void setupWebServer() {
 
       // --- CLEAR MESSAGE ---
       if (msg.length() == 0) {
+        allowInterrupt = true;
+        forceMessageRestart = true;
         if (isFromUI) {
           // Web UI clear: The "real" clear, resets everything.
           customMessage[0] = '\0';
           lastPersistentMessage[0] = '\0';
-          displayMode = 0;
           messageStartTime = 0;
           currentScrollCount = 0;
           messageDisplaySeconds = 0;
           messageScrollTimes = 0;
+          displayMode = 0;
+          prevDisplayMode = 6;
+          clockScrollDone = false;
           Serial.println(F("[MESSAGE] All messages cleared by UI. Returning to normal mode."));
           request->send(200, "text/plain", "CLEARED (UI)");
 
@@ -1628,17 +1671,16 @@ void setupWebServer() {
             // Restore the last persistent message
             strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
             messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Use global speed for persistent
-
             // Ensure displayMode is set to 6 so the restored persistent message is shown immediately.
             displayMode = 6;
             prevDisplayMode = 0;
-
             Serial.printf("[MESSAGE] Temporary HA message cleared. Restored persistent message: '%s' (speed=%d)\n",
                           customMessage, messageScrollSpeed);
             request->send(200, "text/plain", "CLEARED (HA temporary, persistent restored)");
           } else {
-            // No persistent message to restore, return to clock mode.
             displayMode = 0;
+            prevDisplayMode = 6;  // This tells the clock it's coming from a message
+            clockScrollDone = false;
             Serial.println(F("[MESSAGE] Temporary HA message cleared. No persistent message to restore."));
             request->send(200, "text/plain", "CLEARED (HA temporary, no persistent)");
           }
@@ -1646,13 +1688,15 @@ void setupWebServer() {
         return;
       }
 
-      // This prevents the garbled characters in Serial logs.
-      if (isFromHA) {
-        Serial.printf("[HA] Message received: '%s' (duration: %ds, scrolls: %d, speed: %d, big: %d)\n",
-                      filtered.c_str(), messageDisplaySeconds, messageScrollTimes, localSpeed, messageBigNumbers);
-      } else {
-        Serial.printf("[UI] Message received: '%s' (big: %d)\n", filtered.c_str(), messageBigNumbers);
-      }
+      Serial.printf(
+        "[MESSAGE] Source=%s | msg='%s' | seconds=%d | scrolls=%d | speed=%d | big=%d | allowInterrupt=%d\n",
+        isFromHA ? "HA" : "UI",
+        filtered.c_str(),
+        messageDisplaySeconds,
+        messageScrollTimes,
+        localSpeed,
+        messageBigNumbers,
+        incomingAllowInterrupt);
 
       // --- REPLACE TOKENS (Converts [C] to raw bytes) ---
       int dummyLen = 0;
@@ -1681,6 +1725,7 @@ void setupWebServer() {
       }
 
       // --- Activate display ---
+      allowInterrupt = incomingAllowInterrupt;
       displayMode = 6;
       prevDisplayMode = 0;
       messageStartTime = millis();  // Start the timer
@@ -1742,32 +1787,30 @@ void setupWebServer() {
     request->send(200, "text/plain", ip);
   });
 
-  server.on("/hostname", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (WiFi.getMode() == WIFI_AP) {
-      request->send(200, "text/plain", "AP-Mode");
-    } else {
-      String host = deviceHostname + ".local";
-      request->send(200, "text/plain", host);
-    }
-  });
-
   server.on("/uptime", HTTP_GET, [](AsyncWebServerRequest *request) {
-    unsigned long seconds = 0;
-    String formatted = "No uptime recorded yet.";
+    // 1. Get Total Lifetime (from LittleFS)
+    unsigned long totalSeconds = 0;
     if (LittleFS.exists("/uptime.dat")) {
       File f = LittleFS.open("/uptime.dat", "r");
       if (f) {
-        String content = f.readString();
-        seconds = content.toInt();
-        formatted = formatUptime(seconds);
+        totalSeconds = f.readString().toInt();
         f.close();
       }
     }
+
+    // 2. Calculate Session Uptime (Time since boot)
+    unsigned long sessionSeconds = millis() / 1000;
+
+    // 3. Build the combined JSON
     String json = "{";
-    json += "\"uptime_seconds\":" + String(seconds) + ",";
-    json += "\"uptime_formatted\":\"" + formatted + "\",";
+    json += "\"hostname\":\"" + deviceHostname + "\",";
+    json += "\"total_seconds\":" + String(totalSeconds) + ",";
+    json += "\"total_formatted\":\"" + formatUptime(totalSeconds) + "\",";
+    json += "\"session_seconds\":" + String(sessionSeconds) + ",";
+    json += "\"session_formatted\":\"" + formatUptime(sessionSeconds) + "\",";
     json += "\"version\":\"" FIRMWARE_VERSION "\"";
     json += "}";
+
     request->send(200, "application/json", json);
   });
 
@@ -1788,6 +1831,8 @@ void setupWebServer() {
 
     // --- Display & Mode ---
     doc["displayMode"] = displayMode;
+    doc["displayBusy"] = (displayMode == 6);
+    doc["allowInterrupt"] = allowInterrupt;
 
     switch (displayMode) {
       case 0: doc["mode"] = "clock"; break;
@@ -2436,9 +2481,8 @@ String cleanTextForDisplay(String str) {
   for (unsigned int i = 0; i < str.length(); i++) {
     unsigned char c = (unsigned char)str.charAt(i);  // Use unsigned for safety
 
-    // MASTER FILTER: Matches Allowed characters from Web UI
-    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == ' ' || c == '!' || c == '.' || c == ':' || c == '?' || c == ',' || c == '\'' || c == 34 || c == '-' || c == '_' || c == '+' || c == '%' || c == '/' || c == '[' || c == ']' || c == '(' || c == ')' || c == '#' || c == '&' || c == '$' || c == ';' || c == 176 || c == 124 || c < 32) {
-
+    // MASTER FILTER: Expanded for Modern Smart Home Notifications
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || strchr(" !.?:,;'\"-_+%/[]()#&$ ;|°@^~*=<>\t\n\r\\{}", c)) {
       result += (char)c;
     }
   }
@@ -3274,6 +3318,8 @@ bool saveConfigRuntime() {
   doc["showDate"] = showDate;
   doc["showHumidity"] = showHumidity;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
+  doc["customMessage"] = lastPersistentMessage;
+
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {
@@ -3398,12 +3444,6 @@ void loop() {
   int curHour = timeinfo.tm_hour;
   int curMinute = timeinfo.tm_min;
   int curTotal = curHour * 60 + curMinute;
-
-  // -----------------------------
-  // Determine dimming start/end
-  // -----------------------------
-  int startTotal, endTotal;
-  bool dimActive = false;
 
   if (autoDimmingEnabled) {
     startTotal = sunsetHour * 60 + sunsetMinute;
@@ -3676,6 +3716,12 @@ void loop() {
 
   // --- CLOCK Display Mode ---
   if (displayMode == 0) {
+    if (forceMessageRestart) {
+      P.displayReset();
+      P.displayClear();
+      forceMessageRestart = false;
+      clockScrollDone = false;  // Ensure it scrolls in
+    }
     if (forceMessageRestart) return;
     P.setCharSpacing(0);
 
@@ -4375,7 +4421,7 @@ void loop() {
 
   // --- Custom Message Display Mode (displayMode == 6) ---
   if (displayMode == 6) {
-    static int totalPixelWidth = 0;
+    int totalPixelWidth = 0;
 
     if (forceMessageRestart) {
       P.displayReset();
@@ -4413,6 +4459,7 @@ void loop() {
     bool cyclesComplete = (messageScrollTimes > 0 && currentDisplayCycleCount >= messageScrollTimes);
 
     if (timedOut || scrollsComplete || cyclesComplete) {
+      allowInterrupt = true;
       if (strlen(lastPersistentMessage) > 0) {
         strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
         messageScrollSpeed = GENERAL_SCROLL_SPEED;
@@ -4508,7 +4555,7 @@ void loop() {
   if (configDirty && millis() - lastBrightnessChange > saveDelay) {
     saveConfigRuntime();
     configDirty = false;
-    Serial.println("[CONFIG] Auto-saved after brightness change");
+    Serial.println("[CONFIG] Auto-saved");
   }
 
   if (currentMillis - lastUptimeLog >= uptimeLogInterval) {

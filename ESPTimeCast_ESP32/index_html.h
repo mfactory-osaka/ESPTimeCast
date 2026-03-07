@@ -763,6 +763,12 @@ const char index_html[] PROGMEM = R"rawliteral(
         border: 0;
         border-top: 1px solid var(--glass-border);
       }
+
+      #hostnameInput{
+        min-width: calc(3ch + 1rem);
+        text-align: center;
+        padding: 0.5rem;
+      }
     </style>
   </head>
   <body>
@@ -1057,12 +1063,11 @@ const char index_html[] PROGMEM = R"rawliteral(
           type="text"
           maxlength="120"
           placeholder="ENTER MESSAGE"
-          pattern="[A-Z0-9 :!'\-.,_\+%\/?\[\]°]*"
-          title="Allowed: A-Z, 0-9, space, brackets [ ], degree symbol °, and : ! ' - . ? , _ + % /"
+          pattern="[A-Za-z0-9 ]*"
+          title="Allowed: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > { } \ - & $ |"
         />
         <div class="small">
-          Allowed characters: A-Z, 0-9, space, [ ], °, and : ! ' - . ? , _ + % / <br>
-          <b>Tip: Use [123] for Big Numbers!</b>
+           Tip: Use [123] for Big Numbers!
         </div>
       </div>
       <div class="button-row">
@@ -1424,8 +1429,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             <div class="toggle-padding device-info">
               <span>Firmware: <span id="fwVersion">...</span></span><br><br>
               <span>IP: <span id="ipDisplay">Fetching...</span></span><br><br>
-              <span>Hostname: <span id="hostnameDisplay">Fetching...</span></span><br><br>
-              <span>Uptime: <span id="uptimeDisplay">Loading...</span></span>              
+              <span>Host: <input type="text" id="hostnameInput" oninput="this.value = this.value.replace(/[^a-zA-Z0-9-]/g, ''); resizeHostname(this);" />.local</span><br><br>
+              <span>Session Uptime: <span id="sessionDisplay">Loading...</span></span><br><br>
+              <span>Total Lifetime: <span id="totalDisplay">Loading...</span></span>             
               <hr>              
               <div id="ota-container" style="text-align: center;">
                 <button type="button" id="btn-check-ota" onclick="checkUpdate()" class="primary-button cmsg1">
@@ -1461,6 +1467,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <script>
       let isSaving = false;
       let isAPMode = false;
+      const safeRegex = /[^A-Z0-9 #&$|°@^~*=<>{}!.:?,'_+%\/\[\]\\-]/g;
 
       // Set initial value display for brightness
       document.addEventListener("DOMContentLoaded", function () {
@@ -1473,8 +1480,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             let before = this.value;
             let after = before
               .toUpperCase()
-              // SURGICAL CHANGE: Added ° and \[ \] to the allowed characters
-              .replace(/[^A-Z0-9 :!'\-.,_\+%\/?\[\]°]/g, "");
+              // Updated to allow: ; # & $ | @ ^ ~ * = < > { } 
+              .replace(safeRegex, "");
             if (before !== after) {
               this.value = after;
             }
@@ -1735,9 +1742,6 @@ window.onload = function () {
               fetch("/ip").then(r => r.text()).then(ip => {
                 document.getElementById("ipDisplay").textContent = ip || "—";
               });
-              fetch("/hostname").then(r => r.text()).then(host => {
-                document.getElementById("hostnameDisplay").textContent = host || "—";
-              });
               fetchUptime();
             }, 100);
 
@@ -1784,6 +1788,15 @@ window.onload = function () {
         } else {
           formData.set("openWeatherApiKey", apiKeyToSend);
         }
+
+        const newHostname = document.getElementById("hostnameInput").value.toLowerCase();
+    
+        if (!newHostname) {
+            alert("Hostname cannot be empty!");
+            return;
+        }
+
+        formData.set("hostname", newHostname);
 
         // Advanced: ensure correct values are set for advanced fields
         formData.set(
@@ -1902,7 +1915,7 @@ window.onload = function () {
         if (customMsgInput) {
           customMsgInput.value = customMsgInput.value
             .toUpperCase()
-            .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, "")
+            .replace(safeRegex, "")
             .replace(/\s+/g, " ")
             .trim()
             .substring(0, 120);
@@ -1969,15 +1982,44 @@ window.onload = function () {
               }, 5000);
               return;
             } else {
-              showSavingModal("");
-              updateSavingModal(
-                "✅ Configuration saved successfully.<br><br>Device will reboot",
-                false,
-              );
-              setTimeout(
-                () => (location.href = location.href.split("#")[0]),
-                3000,
-              );
+                showSavingModal("");
+                
+                const newName = document.getElementById("hostnameInput").value.toLowerCase();
+                const currentHost = window.location.hostname.replace(".local", "");
+                
+                if (newName !== currentHost && !isAPMode) {
+                    let secondsLeft = 8;
+                    
+                    // Setup the interval to tick down the number
+                    const timer = setInterval(() => {
+                        secondsLeft--;
+                        if (secondsLeft > 0) {
+                            updateSavingModal(
+                                `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in ${secondsLeft} seconds...`,
+                                true
+                            );
+                        } else {
+                            clearInterval(timer);
+                            window.location.href = `http://${newName}.local`;
+                        }
+                    }, 1000);
+
+                    // Initial call so it doesn't wait 1 second to show the first message
+                    updateSavingModal(
+                        `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in 8 seconds...`,
+                        true
+                    );
+
+                } else {
+                    // Name didn't change, just a normal reboot/refresh
+                    updateSavingModal(
+                        "✅ Configuration saved successfully.<br><br>Device is rebooting...",
+                        false
+                    );
+                    setTimeout(() => {
+                        location.href = location.href.split("#")[0];
+                    }, 3000);
+                }
             }
           })
           .catch((err) => {
@@ -2508,55 +2550,62 @@ window.onload = function () {
       });
 
       // --- Uptime Tracker ---
-
-      let uptimeSeconds = 0;
+      let sessionSeconds = 0;
+      let totalSeconds = 0;
       let uptimeTimer;
 
-      // Fetch uptime from ESP
       function fetchUptime() {
         fetch("/uptime")
           .then((res) => res.json())
           .then((data) => {
-            // Get raw seconds from firmware
-            uptimeSeconds = data.uptime_seconds || 0;
-            // Update uptime display immediately
-            updateUptimeDisplay();
-            // Update firmware version in UI
-            const versionEl = document.getElementById("fwVersion");
-            if (versionEl) {
-              versionEl.textContent = "v" + data.version;
+            const hostInput = document.getElementById("hostnameInput");
+            if (hostInput && data.hostname) {
+              hostInput.value = data.hostname;
+              resizeHostname(hostInput);
             }
-            // Restart local increment timer
+            // Use the NEW keys we created in the firmware
+            sessionSeconds = data.session_seconds || 0;
+            totalSeconds = data.total_seconds || 0;
+
+            // Update firmware version
+            const versionEl = document.getElementById("fwVersion");
+            if (versionEl) versionEl.textContent = "v" + data.version;
+
+            // Update displays immediately
+            updateUptimeDisplay();
+
+            // Clear existing timer and start fresh
             if (uptimeTimer) clearInterval(uptimeTimer);
             uptimeTimer = setInterval(() => {
-              uptimeSeconds++;
+              sessionSeconds++;
+              totalSeconds++;
               updateUptimeDisplay();
             }, 1000);
           })
           .catch((err) => console.error("Error fetching /uptime:", err));
       }
 
-      // Format seconds → "2 days 04:09:31", "1 day 03:05:12", or "03:05:12"
+      function updateUptimeDisplay() {
+        const sessionEl = document.getElementById("sessionDisplay");
+        const totalEl = document.getElementById("totalDisplay");
+        
+        if (sessionEl) sessionEl.textContent = formatUptime(sessionSeconds);
+        if (totalEl) totalEl.textContent = formatUptime(totalSeconds);
+      }
+
+      // Keep your existing formatUptime function as is
       function formatUptime(seconds) {
         const days = Math.floor(seconds / 86400);
         seconds %= 86400;
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = seconds % 60;
-
         const timePart = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
         if (days > 1) return `${days} days ${timePart}`;
         if (days === 1) return `1 day ${timePart}`;
         return timePart;
       }
 
-      // Update the text on screen
-      function updateUptimeDisplay() {
-        document.getElementById("uptimeDisplay").textContent =
-          formatUptime(uptimeSeconds);
-      }
-
-      // Start it up
       fetchUptime();
 
       function sendCustomMessage() {
@@ -2573,7 +2622,7 @@ window.onload = function () {
 
         // 2. CLEAN MESSAGE (using the updated regex)
         let message = rawValue
-          .replace(/[^A-Z0-9 :!'\-.,_\+%\/?\[\]°]/g, "")
+          .replace(safeRegex, "")
           .replace(/\s+/g, " ")
           .trim()
           .substring(0, 120);
@@ -2586,10 +2635,15 @@ window.onload = function () {
             "Content-Type": "application/x-www-form-urlencoded",
             "X-Source": "UI",
           },
-          // 3. SURGICAL ADDITION: Append bignumbers to the body string
           body: "message=" + encodeURIComponent(message) + "&bignumbers=" + useBigNumbers,
         })
-          .then((res) => res.text())
+          .then((res) => {
+            if (res.status === 409) {
+              throw new Error("Protected message detected.<br><br>Please use the Clear Message button and try again.");
+            }
+            if (!res.ok) throw new Error("Failed to send message.");
+            return res.text();
+          })
           .then((res) => {
             showSavingModal("");
             updateSavingModal(
@@ -2601,11 +2655,10 @@ window.onload = function () {
           .catch((err) => {
             console.error("Error sending custom message:", err);
             showSavingModal("");
-            updateSavingModal(
-              "⚠️ Failed to send message.<br><br>Check connection.",
-              false,
-            );
-            setTimeout(hideSavingModal, 3000);
+            // Use the specific error message if it's the 409, otherwise use generic
+            const errorMsg = err.message.includes("Protected") ? "⚠️ " + err.message : "⚠️ Failed to send message.<br><br>Check connection.";
+            updateSavingModal(errorMsg, false);
+            setTimeout(hideSavingModal, err.message.includes("Protected") ? 5000 : 3000);
           });
       }
 
@@ -2618,7 +2671,10 @@ window.onload = function () {
           },
           body: "message=",
         })
-          .then((res) => res.text())
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to clear message.");
+            return res.text();
+          })
           .then((res) => {
             document.getElementById("customMessage").value = "";
             showSavingModal("");
@@ -3018,6 +3074,10 @@ window.onload = function () {
           }
         }
       });
+
+      function resizeHostname(el) {
+          el.style.width = `calc(1rem + ${el.value.length}ch)`;
+      }
     </script>
   </body>
 </html>
