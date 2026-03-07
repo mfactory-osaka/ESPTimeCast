@@ -406,13 +406,14 @@ POST http://<device_ip>/set_custom_message
 | `speed` | integer | Optional | Scrolling speed (range **10–200**). Lower values = **faster** scroll. |
 | `seconds` | integer | Optional | Maximum display duration in seconds (range **0–3600**). If set to **0**, `Weather Duration` will be used. |
 | `scrolltimes` | integer | Optional | Maximum number of full scroll cycles (**range 0–100**). Set to **0** for infinite scrolls. |
+| `allowInterrupt` | integer | Optional | **1 (Default):** New messages replace the current one immediately. **0:** Protects the message. Returns **409 Conflict** to any new requests until the current message expires. |
 
 
 #### 💡 Message Behavior Overview
 
 | Source | Behavior | Notes |
 |---------|-----------|-------|
-| **Home Assistant** | Displays message temporarily (until next mode rotation or clear). | Restores any saved Web UI message afterward. |
+| **Home Assistant** | Displays message temporarily (until next mode rotation or clear). | Returns to Clock/Weather rotation if no UI message exists. |
 | **Web UI** | Displays message persistently until manually cleared. | Acts as a permanent banner or ticker. |
 | **Clear command from Web UI** | Clears *all* messages (HA + UI). | Use this to reset the display completely. |
 | **Clear command from Home Assistant** | Clears only the temporary HA message. | UI message will reappear if one was saved. |
@@ -426,6 +427,15 @@ POST http://<device_ip>/set_custom_message
 **Long messages (8 characters or more):**  
 - Always scroll.
 - If sent from HA, scrolling stops when **scrolltimes** limit is reached or manually clered when sent without parameter.
+
+**The "Protected" State (How it works)**
+- When a message is sent with `allowInterrupt=0`, it creates a protected window. The display will refuse to show any new incoming messages until the current one has finished its scrolltimes or seconds.
+- **Why use it?** Use `allowInterrupt=0` for critical alerts (e.g., "LEAK DETECTED") that you don't want a random notification to overwrite.
+- **The 409 Error:** If your automation receives a 409 Conflict, it simply means the display is currently busy showing a protected message.
+- **Clearing a Lock:** If you send an infinite message (scrolltimes=0, seconds=0) with allowInterrupt=0, it stays on screen indefinitely. To break this lock, you can:
+  - Send an empty message (message=) from Home Assistant.
+  - Use the Clear button in the Web UI.
+  - Send a new message with allowInterrupt=0 to replace it.
 
   
 &nbsp;
@@ -498,6 +508,52 @@ action:
       message: "" # Sends an empty message to trigger the clear logic
 ```
 
+#### 4. Send a Protected Priority Message
+Use interrupt: 0 for critical alerts. This ensures the message cannot be overwritten by other automations until it finishes its 3 scrolls.
+
+```yaml
+alias: Notify Leak Detected (Protected)
+trigger:
+  - platform: state
+    entity_id: binary_sensor.water_leak
+    to: "on"
+action:
+  - service: rest_command.esptimecast_message
+    data:
+      message: "⚠️ LEAK DETECTED"
+      scrolltimes: 3
+      interrupt: 0 # Protects this message from being interrupted
+```
+
+#### 5. Send Message with Smart Retry (Handling 409)
+If you have multiple automations, use this "Retry Loop." It checks if the ESP is busy (409 Conflict) and waits 10 seconds before trying again.
+
+```yaml
+alias: Notify Mail with Retry
+trigger:
+  - platform: state
+    entity_id: binary_sensor.mailbox
+    to: "on"
+action:
+  - repeat:
+      while:
+        # Continue if we haven't hit 5 tries AND the last response was 409 (Busy)
+        - condition: template
+          value_template: "{{ repeat.index <= 5 and (not is_defined(wait_result) or wait_result.status == 409) }}"
+      sequence:
+        - service: rest_command.esptimecast_message
+          data:
+            message: "YOU HAVE MAIL"
+            scrolltimes: 2
+          response_variable: wait_result
+          continue_on_error: true
+
+        - if:
+            - condition: template
+              value_template: "{{ wait_result.status == 409 }}"
+          then:
+            - delay: "00:00:10" # Wait 10s for the protected message to finish
+```
 
 #### 🧩 Example `rest_command` Configuration
 
@@ -510,29 +566,46 @@ rest_command:
     url: "http://<device_ip>/set_custom_message"
     method: POST
     content_type: "application/x-www-form-urlencoded"
-    payload: "message={{ message }}&speed={{ speed | default(85) }}&seconds={{ seconds | default(0) }}&scrolltimes={{ scrolltimes | default(0) }}"
+    payload: "message={{ message }}&speed={{ speed | default(85) }}&seconds={{ seconds | default(0) }}&scrolltimes={{ scrolltimes | default(0) }}&allowInterrupt={{ interrupt | default(1) }}"
 ```
 
 Then restart Home Assistant.
 
 #### ⚡ Quick Test via curl
 You can quickly test sending a message to your ESPTimeCast display using `curl` from any computer on the same network:
-
 ```
 curl -X POST -d "message=HA TEST&speed=40&seconds=10&scrolltimes=2" "http://<device_ip>/set_custom_message"
+```  
+
+
+Test the "Protected" mode directly from your terminal:
+To Lock the screen:
 ```
+curl -X POST -d "message=LOCKED&scrolltimes=5&allowInterrupt=0" "http://<device_ip>/set_custom_message"
+```  
+
+
+To test the 409 Conflict (Run this while the message above is scrolling):
+```
+curl -v -X POST -d "message=TRYING" "http://<device_ip>/set_custom_message"
+```
+The `-v` flag will show you the `HTTP/1.1 409` Conflict response sent by the ESPTimeCast.  
+
+
 > Replace <device_ip> with the IP of your ESPTimeCast device.  
 > The message parameter is your text to display.  
 > The optional speed parameter controls the scroll speed (10–200, lower = faster).
 > The message will clear after **10 seconds** OR **2 scrolls**, whichever comes first.
 
+&nbsp;
 #### 🧾 Notes
 
-- Only **A–Z, 0–9**, spaces, and simple punctuation (`: ! ' - . , _ + % / ?`) are allowed.  
+- Allowed characters: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > { } \ - & $ | 
 - All text is automatically converted to **uppercase**.
 - Lower scroll speed values make the message **scroll faster**.
 - Custom Message scroll speed can be changed via this endpoint.
-- If both seconds and scrolltimes are set to non-zero values, the message is removed when the **first condition is met**.
+- Order of Operations: If both `seconds` and `scrolltimes` are set, the message is removed when the **first condition is met**.
+- Breaking a Lock: A new message sent with `allowInterrupt=0` will always overwrite a currently scrolling "Protected" message. This allows a higher-priority alert to take over the screen even if it was locked.
 
 #### ✅ Example Use Cases
 
@@ -760,6 +833,7 @@ If you'd like to go a step further, you can also support development through the
 
 
       
+
 
 
 
