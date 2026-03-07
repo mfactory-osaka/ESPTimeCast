@@ -2544,9 +2544,8 @@ String cleanTextForDisplay(String str) {
   for (unsigned int i = 0; i < str.length(); i++) {
     unsigned char c = (unsigned char)str.charAt(i);  // Use unsigned for safety
 
-    // MASTER FILTER: Matches Allowed characters from Web UI
-    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == ' ' || c == '!' || c == '.' || c == ':' || c == '?' || c == ',' || c == '\'' || c == 34 || c == '-' || c == '_' || c == '+' || c == '%' || c == '/' || c == '[' || c == ']' || c == '(' || c == ')' || c == '#' || c == '&' || c == '$' || c == ';' || c == 176 || c == 124 || c < 32) {
-
+    // MASTER FILTER: Expanded for Modern Smart Home Notifications
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || strchr(" !.?:,;'\"-_+%/[]()#&$ ;|°@^~*=<>\t\n\r\\{}", c)) {
       result += (char)c;
     }
   }
