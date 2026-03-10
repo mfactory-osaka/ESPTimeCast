@@ -7,19 +7,19 @@ typedef struct {
 } DaysOfWeekMapping;
 
 const DaysOfWeekMapping days_mappings[] = {
-    { "af", { "sun", "maa", "din", "woe", "don", "vry", "son" } },
+    { "af", { "son", "maa", "din", "woe", "don", "vry", "sat" } },
     { "cs", { "ned", "pon", "ute", "str", "ctv", "pat", "sob" } },
     { "da", { "son", "man", "tir", "ons", "tor", "fre", "lor" } },
     { "de", { "so", "mo", "di", "mi", "do", "fr", "sa" } },
     { "en", { "sun", "mon", "tue", "wed", "thu", "fri", "sat" } },
     { "eo", { "dim", "lun", "mar", "mer", "jau", "ven", "sab" } },
     { "es", { "dom", "lun", "mar", "mie", "jue", "vie", "sab" } },
-    { "et", { "pa", "es", "te", "ko", "ne", "re", "la" } },
+    { "et", { "pu", "es", "te", "ko", "ne", "re", "la" } },
     { "fi", { "sun", "maa", "tis", "kes", "tor", "per", "lau" } },
     { "fr", { "dim", "lun", "mar", "mer", "jeu", "ven", "sam" } },
     { "ga", { "dom", "lua", "mai", "cea", "dea", "aoi", "sat" } },
     { "hr", { "ned", "pon", "uto", "sri", "cet", "pet", "sub" } },
-    { "hu", { "vas", "het", "ked", "sze", "csu", "pet", "szo" } },
+    { "hu", { "vas", "het", "ked", "sze", "csu", "pen", "szo" } },
     { "it", { "dom", "lun", "mar", "mer", "gio", "ven", "sab" } },
     { "ja", { "±", "²", "³", "´", "µ", "¶", "·" } },
     { "lt", { "sek", "pir", "ant", "tre", "ket", "pen", "ses" } },
@@ -34,8 +34,8 @@ const DaysOfWeekMapping days_mappings[] = {
     { "sl", { "ned", "pon", "tor", "sre", "cet", "pet", "sob" } },
     { "sr", { "ned", "pon", "uto", "sre", "cet", "pet", "sub" } },
     { "sv", { "son", "man", "tis", "ons", "tor", "fre", "lor" } },
-    { "sw", { "jpl", "jum", "jtt", "jtn", "alk", "ijm", "jms" } },
-    { "tr", { "paz", "paz", "sal", "car", "per", "cum", "cum" } }
+    { "sw", { "jpi", "jta", "jnn", "jta", "alh", "ljm", "jmo" } },
+    { "tr", { "paz", "pzt", "sal", "car", "per", "cum", "cmt" } }
 };
 
 #define DAYS_MAPPINGS_COUNT (sizeof(days_mappings)/sizeof(days_mappings[0]))

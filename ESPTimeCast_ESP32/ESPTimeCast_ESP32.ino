@@ -243,6 +243,18 @@ bool allowInterrupt = true;
 // Custom font for days and months
 bool useCustomFont = true;
 
+// Timer
+bool timerActive = false;
+int timerSubState = 0;  // 0: Timer Clock, 1: Message
+bool timerPaused = false;
+bool timerFinished = false;
+unsigned long timerRemainingAtPause = 0;
+unsigned long timerOriginalDuration = 0;  // For RESTART command
+unsigned long timerFinishStartTime = 0;
+unsigned long timerEndTime = 0;
+int global_scrolltimes = 0;  // Persisted from HTTP request
+int global_msgSeconds = 0;
+
 // --- Safe WiFi credential and API getters ---
 const char *getSafeSsid() {
   if (isAPMode && strlen(ssid) == 0) {
@@ -872,7 +884,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[HOURGLASS25]", "\xA2", 5 },
     { "[HOURGLASS75]", "\xA3", 5 },
     { "[HOURGLASSFULL]", "\xA4", 5 },
-    { "[CAR]", "\xA5", 9 },
+    { "[CAR]", "\xBB", 9 },
     { "[MAIL]", "\xA6", 9 },
     { "[CO2]", "\xA7", 13 },
     { "[MOON]", "\xA8", 9 },
@@ -954,6 +966,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
         case '#':
         case '&':
         case '$':
+        case 0xA5:  //¥
         case '@':
         case '+':  // Moved here: 5px
           charWidth = 5;
@@ -1615,16 +1628,22 @@ void setupWebServer() {
       String msg = request->getParam("message", true)->value();
       msg.trim();
 
-      // Detect clear command first
+      // Identify type of request
       bool isClearRequest = (msg.length() == 0);
 
-      // --- Interrupt control ---
+      // GET PARAMS FIRST (Important for logic checks below)
       bool incomingAllowInterrupt = true;
 
-      // --- Block messages during clock-only dimming ---
+      // CLOCK-ONLY DIMMING PROTECTION
       if (!isClearRequest && clockOnlyDuringDimming && dimActive) {
         Serial.printf("[MESSAGE] Rejected due to clock-only dimming mode: '%s'\n", msg.c_str());
         request->send(409, "text/plain", "Clock-only dimming mode active");
+        return;
+      }
+
+      // Handle Timer Commands first
+      if (handleTimerCommand(msg)) {
+        request->send(200, "text/plain", "Timer Command Executed");
         return;
       }
 
@@ -1632,7 +1651,15 @@ void setupWebServer() {
         incomingAllowInterrupt = (request->getParam("allowInterrupt", true)->value() == "1");
       }
 
-      // Reject only if NOT a clear request
+      // TIMER PROTECTION
+      // Reject if timer is active, it's not a clear request, AND incoming message is "interruptible" (standard)
+      if (timerActive && !isClearRequest && incomingAllowInterrupt) {
+        Serial.println(F("[TIMER] Message rejected: Timer is active and message is not priority."));
+        request->send(409, "text/plain", "Timer active - use priority message to interrupt");
+        return;
+      }
+
+      // PROTECTED MESSAGE RUNNING (Existing logic)
       if (!isClearRequest && !allowInterrupt && incomingAllowInterrupt) {
         Serial.printf("[MESSAGE] Rejected: protected message running (allowInterrupt=%d)\n", allowInterrupt);
         request->send(409, "text/plain", "Display busy - protected message");
@@ -1669,6 +1696,19 @@ void setupWebServer() {
         localSpeed = constrain(request->getParam("speed", true)->value().toInt(), 10, 200);
       }
 
+      // Update displayMode immediately based on current state
+      if (timerActive) {
+        if (messageScrollTimes == 0 && messageDisplaySeconds == 0) {
+          // It's an infinite message: Abandon Mode 7, go to Message Mode
+          displayMode = 6;
+        } else {
+          // It's a timed message: Ensure we are in Mode 7 (Rotation handles the rest)
+          displayMode = 7;
+        }
+        lastSwitch = millis();
+        forceMessageRestart = true;
+      }
+
       // --- CLEAR MESSAGE ---
       if (msg.length() == 0) {
         allowInterrupt = true;
@@ -1701,7 +1741,7 @@ void setupWebServer() {
 
           if (strlen(lastPersistentMessage) > 0) {
             // Restore the last persistent message
-            strncpy(customMessage, lastPersistentMessage, sizeof(customMessage));
+            strlcpy(customMessage, lastPersistentMessage, sizeof(customMessage));
             messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Use global speed for persistent
             // Ensure displayMode is set to 6 so the restored persistent message is shown immediately.
             displayMode = 6;
@@ -1730,10 +1770,6 @@ void setupWebServer() {
         messageBigNumbers,
         incomingAllowInterrupt);
 
-      // --- REPLACE TOKENS (Converts [C] to raw bytes) ---
-      int dummyLen = 0;
-      replaceIconTokens(filtered, dummyLen);
-
       // --- STORE MESSAGE ---
       if (isFromHA) {
         // --- Only backup if lastPersistentMessage exists ---
@@ -1751,9 +1787,9 @@ void setupWebServer() {
         strlcpy(lastPersistentMessage, customMessage, sizeof(lastPersistentMessage));
         messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Always global for UI
 
-        // --- Flag for save instead of saving immediately ---
-        configDirty = true;
-        lastBrightnessChange = millis();  // Reuse this timer to trigger the auto-save loop
+        // --- Save immediately for Web UI messages ---
+        saveCustomMessageToConfig(lastPersistentMessage);
+        Serial.printf("[CONFIG] UI message saved: '%s'\n", lastPersistentMessage);
       }
 
       // --- Activate display ---
@@ -1892,7 +1928,7 @@ void setupWebServer() {
 
     // --- Display & Mode ---
     doc["displayMode"] = displayMode;
-    doc["displayBusy"] = (displayMode == 6);
+    doc["displayBusy"] = (displayMode == 6 || displayMode == 7);
     doc["allowInterrupt"] = allowInterrupt;
 
     switch (displayMode) {
@@ -1903,6 +1939,7 @@ void setupWebServer() {
       case 4: doc["mode"] = "nightscout"; break;
       case 5: doc["mode"] = "date"; break;
       case 6: doc["mode"] = "message"; break;
+      case 7: doc["mode"] = "timer"; break;
       default: doc["mode"] = "cycling"; break;
     }
 
@@ -2545,7 +2582,7 @@ String cleanTextForDisplay(String str) {
     unsigned char c = (unsigned char)str.charAt(i);  // Use unsigned for safety
 
     // MASTER FILTER: Expanded for Modern Smart Home Notifications
-    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || strchr(" !.?:,;'\"-_+%/[]()#&$ ;|°@^~*=<>\t\n\r\\{}", c)) {
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || strchr(" !.?:,;'\"-_+%/[]()#&¥$ ;|°@^~*=<>\t\n\r\\{}", c)) {
       result += (char)c;
     }
   }
@@ -2950,6 +2987,92 @@ char getWeatherIconChar(const String &iconCode) {
   return '\x0D';  // fallback = cloud
 }
 
+// Timer Helper
+bool handleTimerCommand(String cmd) {
+  cmd.toUpperCase();
+  if (cmd.indexOf("[TIMER") == -1) return false;
+
+  int start = cmd.indexOf("[TIMER") + 6;
+  int end = cmd.indexOf("]", start);
+  String payload = cmd.substring(start, end);
+  payload.trim();
+
+  if (payload == "STOP" || payload == "CANCEL") {
+    timerActive = false;
+    timerFinished = false;
+    timerPaused = false;
+    displayMode = 0;      // Force back to Clock
+    prevDisplayMode = 6;  // Ensure rotation logic knows where we came from
+    clockScrollDone = false;
+    forceMessageRestart = true;  // Clear out any stale Parola states
+    lastSwitch = millis();       // Reset the rotation timer so Clock stays for its full duration
+    Serial.println(F("[TIMER] Stopped. Returning to Clock."));
+    return true;
+  }
+
+  if (payload == "PAUSE") {
+    if (timerActive && !timerPaused && !timerFinished) {
+      timerPaused = true;
+      timerRemainingAtPause = timerEndTime - millis();
+    }
+    return true;
+  }
+
+  if (payload == "RESUME" || payload == "START") {
+    if (timerActive && timerPaused) {
+      timerEndTime = millis() + timerRemainingAtPause;
+      timerPaused = false;
+    }
+    return true;
+  }
+
+  if (payload == "RESTART") {
+    if (timerOriginalDuration > 0) {
+      timerEndTime = millis() + timerOriginalDuration;
+      timerActive = true;
+      timerPaused = false;
+      timerFinished = false;
+      displayMode = 7;
+      timerSubState = 0;
+      lastSwitch = millis();
+      forceMessageRestart = true;
+      return true;
+    }
+    return false;
+  }
+
+  long totalMs = 0;
+  String val = "";
+  for (unsigned int i = 0; i < payload.length(); i++) {
+    char c = payload.charAt(i);
+    if (isDigit(c)) val += c;
+    else {
+      long num = val.toInt();
+      if (c == 'H') totalMs += num * 3600000;
+      else if (c == 'M') totalMs += num * 60000;
+      else if (c == 'S') totalMs += num * 1000;
+      val = "";
+    }
+  }
+  if (val.length() > 0 && totalMs == 0) totalMs = val.toInt() * 60000;
+
+  if (totalMs > 86400000) totalMs = 86400000;  // 24h Cap
+
+  if (totalMs > 0) {
+    timerOriginalDuration = totalMs;
+    timerEndTime = millis() + totalMs;
+    timerActive = true;
+    timerPaused = false;
+    timerFinished = false;
+    timerSubState = 0;
+    displayMode = 7;
+    lastSwitch = millis();
+    forceMessageRestart = true;
+    return true;
+  }
+  return false;
+}
+
 
 // -----------------------------------------------------------------------------
 // Main setup() and loop()
@@ -3166,7 +3289,13 @@ void ensureHtmlFileExists() {
 }
 
 void advanceDisplayMode() {
-
+  if (clockOnlyDuringDimming && dimActive) {
+    if (displayMode != 0) {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Dimming lock: Forcing Mode 0"));
+    }
+    return;
+  }
   // If user requested clock-only during dimming and we are currently dimmed, stay on clock
   if (clockOnlyDuringDimming) {
     time_t now = time(nullptr);
@@ -3271,10 +3400,16 @@ void advanceDisplayMode() {
   } else if (displayMode == 4) {  // Nightscout -> Custom Message
     displayMode = 6;
     Serial.println(F("[DISPLAY] Switching to display mode: CUSTOM MESSAGE (from Nightscout)"));
-  } else if (displayMode == 6) {  // Custom Message -> Clock
-    displayMode = 0;
+  } else if (displayMode == 6) {  // Custom Message
+    // If Timer is active, return to Mode 7, NOT Mode 0
+    if (timerActive) {
+      displayMode = 7;
+      Serial.println(F("[DISPLAY] Message finished -> Returning to TIMER"));
+    } else {
+      displayMode = 0;
+      Serial.println(F("[DISPLAY] Message finished -> Returning to CLOCK"));
+    }
     clockScrollDone = false;
-    Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Custom Message)"));
   }
 
   // --- Common cleanup/reset logic remains the same ---
@@ -3392,7 +3527,6 @@ bool saveConfigRuntime() {
   doc["showDate"] = showDate;
   doc["showHumidity"] = showHumidity;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
-  doc["customMessage"] = lastPersistentMessage;
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {
@@ -3448,6 +3582,12 @@ String getFormattedDateText(const char *rawText) {
 }
 
 void loop() {
+  if (timerActive && (displayMode != 7 && displayMode != 6)) {
+    displayMode = 7;
+    timerSubState = 0;
+    lastSwitch = millis();
+    forceMessageRestart = true;
+  }
   // 1. REBOOT HANDLER: Execute the restart outside of the Async callback
   if (pendingRestart && (millis() - restartTimer > 2000)) {
     Serial.println(F("[SYSTEM] Rebooting now..."));
@@ -4511,6 +4651,34 @@ void loop() {
     }
 
     String msg = String(customMessage);
+
+    // --- Strip brackets around numeric tokens ONLY ---
+    if (messageBigNumbers) {
+      while (true) {
+        int start = msg.indexOf('[');
+        int end = msg.indexOf(']', start);
+
+        if (start == -1 || end == -1) break;
+
+        String inside = msg.substring(start + 1, end);
+
+        bool isNumber = true;
+        for (char c : inside) {
+          if (!isdigit(c)) {
+            isNumber = false;
+            break;
+          }
+        }
+
+        if (isNumber) {
+          msg.remove(end, 1);
+          msg.remove(start, 1);
+        } else {
+          break;  // leave icon tokens like [MOON]
+        }
+      }
+    }
+
     replaceIconTokens(msg, totalPixelWidth);
 
     if (!messageBigNumbers) {
@@ -4613,6 +4781,9 @@ void loop() {
     return;
   }
 
+  if (displayMode == 7) {
+    showTimerMode7();
+  }
 
   unsigned long currentMillis = millis();
   unsigned long runtimeSeconds = (currentMillis - bootMillis) / 1000;
@@ -4635,4 +4806,75 @@ void loop() {
     saveUptime();  // Save accumulated uptime every 10 minutes
   }
   yield();
+}
+
+void showTimerMode7() {
+  unsigned long now = millis();
+  P.setCharSpacing(1);
+  // --- 1. INTERRUPT LOGIC ---
+  // Updated to use allowInterrupt check as requested
+  if (allowInterrupt == false) {
+    unsigned long waitTime = (unsigned long)clockDuration;
+    // Wait for the specified clockDuration to elapse before switching
+    if (now - lastSwitch >= waitTime) {
+      Serial.println(F("[TIMER] clockDuration reached. Switching to Mode 6 (Infinite)"));
+      displayMode = 6;
+      lastSwitch = now;
+      return;
+    }
+  }
+
+  // 2. Timer Logic
+  if (!timerFinished) {
+    long remaining = 0;
+    if (timerPaused) {
+      remaining = (long)(timerRemainingAtPause / 1000);
+    } else {
+      if (now >= timerEndTime) {
+        timerFinished = true;
+        timerFinishStartTime = now;
+      } else {
+        remaining = (long)((timerEndTime - now) / 1000);
+        if (remaining < 0) remaining = 0;
+
+        int h = remaining / 3600;
+        int m = (remaining % 3600) / 60;
+        int s = remaining % 60;
+
+        char buf[12];
+        if (h > 0) sprintf(buf, "%02d:%02d:%02d", h, m, s);
+        else sprintf(buf, "%02d:%02d", m, s);
+
+        P.setTextAlignment(PA_CENTER);
+        P.print(buf);
+        return;
+      }
+    }
+
+    if (timerPaused) {
+      int h = remaining / 3600;
+      int m = (remaining % 3600) / 60;
+      int s = remaining % 60;
+      char buf[12];
+      if (h > 0) sprintf(buf, "%02d:%02d:%02d", h, m, s);
+      else sprintf(buf, "%02d:%02d", m, s);
+      P.setTextAlignment(PA_CENTER);
+      P.print(buf);
+      return;
+    }
+  }
+
+  // 3. Finished State (Alarm Animation)
+  if (timerFinished) {
+    if (now - timerFinishStartTime > 5000) {
+      timerActive = false;
+      timerFinished = false;
+      displayMode = 0;
+      clockScrollDone = false;
+      lastSwitch = now;
+      return;
+    }
+    if ((now / 500) % 2 == 0) P.print("\x08");
+    else P.print("\x09");
+  }
 }

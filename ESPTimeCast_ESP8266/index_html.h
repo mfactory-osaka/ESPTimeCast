@@ -328,6 +328,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         transform: scale(0.97);
       }
 
+      #customMessage {
+        text-transform: uppercase;
+      }
+
       .note {
         font-size: 0.85rem;
         text-align: center;
@@ -1063,11 +1067,10 @@ const char index_html[] PROGMEM = R"rawliteral(
           type="text"
           maxlength="120"
           placeholder="ENTER MESSAGE"
-          pattern="[A-Za-z0-9 ]*"
-          title="Allowed: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > { } \ - & $ |"
+          title="Allowed: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > ( ) { } \ - & $ ¥ |"
         />
         <div class="small">
-           Tip: Use [123] for Big Numbers!
+           <strong>Use brackets for special content:</strong> [123] for Big Numbers, icons like [CAR] or [MAIL], [TIMER 5M] for a 5-minute timer. Full icon list <a href="https://github.com/mfactory-osaka/ESPTimeCast#-using-mfactoryfonth-icons-v123" target="_blank">here</a>.
         </div>
       </div>
       <div class="button-row">
@@ -1467,27 +1470,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <script>
       let isSaving = false;
       let isAPMode = false;
-      const safeRegex = /[^A-Z0-9 #&$|°@^~*=<>{}!.:?,'_+%\/\[\]\\-]/g;
-
-      // Set initial value display for brightness
-      document.addEventListener("DOMContentLoaded", function () {
-        brightnessValue.textContent = brightnessSlider.value;
-
-        // Sanitize input LIVE for customMessage
-        var customMsgInput = document.getElementById("customMessage");
-        if (customMsgInput) {
-          customMsgInput.addEventListener("input", function () {
-            let before = this.value;
-            let after = before
-              .toUpperCase()
-              // Updated to allow: ; # & $ | @ ^ ~ * = < > { } 
-              .replace(safeRegex, "");
-            if (before !== after) {
-              this.value = after;
-            }
-          });
-        }
-      });
+      const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<>(){}!.:?,'_+%\/\[\]\\-]/g;
 
       // Show/Hide Password toggle
       document.addEventListener("DOMContentLoaded", function () {
@@ -2616,8 +2599,7 @@ window.onload = function () {
         let useBigNumbers = "0";
         if (/\[\d+\]/.test(rawValue)) {
           useBigNumbers = "1";
-          // Remove brackets but keep the numbers inside
-          rawValue = rawValue.replace(/\[(\d+)\]/g, "$1");
+
         }
 
         // 2. CLEAN MESSAGE (using the updated regex)
@@ -2639,7 +2621,9 @@ window.onload = function () {
         })
           .then((res) => {
             if (res.status === 409) {
-              throw new Error("Protected message detected.<br><br>Please use the Clear Message button and try again.");
+              throw new Error("Display temporarily locked.<br><br>" +
+"A protected message is active or the clock is in dimming mode.<br>" +
+"Wait for the dimming period to end, or press <b>Clear Message</b> and send the message again.");
             }
             if (!res.ok) throw new Error("Failed to send message.");
             return res.text();
@@ -2656,9 +2640,9 @@ window.onload = function () {
             console.error("Error sending custom message:", err);
             showSavingModal("");
             // Use the specific error message if it's the 409, otherwise use generic
-            const errorMsg = err.message.includes("Protected") ? "⚠️ " + err.message : "⚠️ Failed to send message.<br><br>Check connection.";
+            const errorMsg = err.message.includes("protected") ? "⚠️ " + err.message : "⚠️ Failed to send message.<br><br>Check connection.";
             updateSavingModal(errorMsg, false);
-            setTimeout(hideSavingModal, err.message.includes("Protected") ? 5000 : 3000);
+            setTimeout(hideSavingModal, err.message.includes("protected") ? 5000 : 3000);
           });
       }
 
