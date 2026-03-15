@@ -184,6 +184,22 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-bottom: 0;
       }
 
+      h3{
+        font-weight: normal;
+        font-size: 1.35rem;
+        margin: 0.5rem 0 0 0;
+      }
+
+      #savingModalContent p{
+        line-height: 1.6rem;
+      }
+
+      .modal-buttons{
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+      }
+
       form:first-of-type>h2:first-of-type {
         margin-top: 1.5rem;
       }
@@ -1471,6 +1487,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       let isSaving = false;
       let isAPMode = false;
       const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<>(){}!.:?,'_+%\/\[\]\\-]/g;
+      let originalHostname = ""; 
 
       // Show/Hide Password toggle
       document.addEventListener("DOMContentLoaded", function () {
@@ -1772,7 +1789,7 @@ window.onload = function () {
           formData.set("openWeatherApiKey", apiKeyToSend);
         }
 
-        const newHostname = document.getElementById("hostnameInput").value.toLowerCase();
+        const newHostname = (document.getElementById("hostnameInput").value.toLowerCase() || originalHostname || "esptimecast").trim();
     
         if (!newHostname) {
             alert("Hostname cannot be empty!");
@@ -1945,66 +1962,73 @@ window.onload = function () {
             }
             return response.json();
           })
-          .then((json) => {
-            isSaving = false;
-            removeReloadButton();
-            removeRestoreButton();
+.then((json) => {
+  isSaving = false;
+  removeReloadButton();
+  removeRestoreButton();
 
-            if (isAPMode) {
-              setTimeout(() => {
-                document.getElementById("configForm").style.display = "none";
-                document.querySelector(".footer").style.display = "none";
-                document.querySelector("html").style.height = "100vh";
-                document.body.style.height = "100vh";
-                updateSavingModal(
-                  "✅ All done!<br>You can now close this tab safely.<br><br>" +
-                    "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
-                    "Check the display for the current IP address.",
-                  false, // stop spinner
-                );
-              }, 5000);
-              return;
-            } else {
-                showSavingModal("");
-                
-                const newName = document.getElementById("hostnameInput").value.toLowerCase();
-                const currentHost = window.location.hostname.replace(".local", "");
-                
-                if (newName !== currentHost && !isAPMode) {
-                    let secondsLeft = 8;
-                    
-                    // Setup the interval to tick down the number
-                    const timer = setInterval(() => {
-                        secondsLeft--;
-                        if (secondsLeft > 0) {
-                            updateSavingModal(
-                                `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in ${secondsLeft} seconds...`,
-                                true
-                            );
-                        } else {
-                            clearInterval(timer);
-                            window.location.href = `http://${newName}.local`;
-                        }
-                    }, 1000);
+  if (isAPMode) {
+    setTimeout(() => {
+      document.getElementById("configForm").style.display = "none";
+      document.querySelector(".footer").style.display = "none";
+      document.querySelector("html").style.height = "100vh";
+      document.body.style.height = "100vh";
+      updateSavingModal(
+        "✅ All done!<br>You can now close this tab safely.<br><br>" +
+          "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
+          "Check the display for the current IP address.",
+        false,
+      );
+    }, 5000);
+    return;
+  } else {
+    showSavingModal("");
 
-                    // Initial call so it doesn't wait 1 second to show the first message
-                    updateSavingModal(
-                        `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in 8 seconds...`,
-                        true
-                    );
+    const newName = document.getElementById("hostnameInput").value.toLowerCase();
+    const currentHost = window.location.hostname.replace(".local", "");
+    const accessedViaIP = /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname);
+    const hostnameChanged = newName !== originalHostname; 
 
-                } else {
-                    // Name didn't change, just a normal reboot/refresh
-                    updateSavingModal(
-                        "✅ Configuration saved successfully.<br><br>Device is rebooting...",
-                        false
-                    );
-                    setTimeout(() => {
-                        location.href = location.href.split("#")[0];
-                    }, 3000);
-                }
-            }
-          })
+    if (hostnameChanged && !accessedViaIP) {
+      // Hostname changed, accessed via hostname → redirect to new hostname
+      let secondsLeft = 8;
+      const timer = setInterval(() => {
+        secondsLeft--;
+        if (secondsLeft > 0) {
+          updateSavingModal(
+            `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in ${secondsLeft} seconds...`,
+            true
+          );
+        } else {
+          clearInterval(timer);
+          window.location.href = `http://${newName}.local`;
+        }
+      }, 1000);
+      updateSavingModal(
+        `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in 8 seconds...`,
+        true
+      );
+
+    } else if (hostnameChanged && accessedViaIP) {
+      // Hostname changed, accessed via IP → stay on IP, inform user
+      updateSavingModal(
+        `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>You can reach it via IP or <b>${newName}.local</b> after reboot.`,
+        false
+      );
+      setTimeout(() => { location.href = location.href.split("#")[0]; }, 5000);
+
+    } else {
+      // Hostname unchanged → stay on current address
+      updateSavingModal(
+        "✅ Configuration saved successfully.<br><br>Device is rebooting...",
+        false
+      );
+      setTimeout(() => {
+        location.href = location.href.split("#")[0];
+      }, 3000);
+    }
+  }
+})
           .catch((err) => {
             isSaving = false;
 
@@ -2542,10 +2566,11 @@ window.onload = function () {
           .then((res) => res.json())
           .then((data) => {
             const hostInput = document.getElementById("hostnameInput");
-            if (hostInput && data.hostname) {
-              hostInput.value = data.hostname;
-              resizeHostname(hostInput);
-            }
+              if (hostInput) {
+                hostInput.value = data.hostname || "esptimecast";
+                resizeHostname(hostInput);
+                originalHostname = data.hostname || "esptimecast";
+              }
             // Use the NEW keys we created in the firmware
             sessionSeconds = data.session_seconds || 0;
             totalSeconds = data.total_seconds || 0;
@@ -2960,7 +2985,7 @@ window.onload = function () {
         }
 
         // 1. Initial UI feedback
-        showSavingModal("🚀 <b>Preparing Device...</b><br>Entering update mode.");
+        showSavingModal("<h3>🚀 Preparing Device...</h3><p>Entering update mode.</p>");
 
         try {
             // STEP 1: Signal the ESP to enter "Soft Maintenance" mode
@@ -2981,10 +3006,9 @@ window.onload = function () {
             console.log("Downloaded blob size:", blob.size);
 
             // STEP 3: Browser uploads the blob to the ESP via POST
-            updateSavingModal(
-                "<b>Step 2/2: Uploading...</b><br>" +
-                "Writing to flash memory.<br><br>" +
-                "<span id='ota-progress-bar' style='font-size: 1.5em; font-weight: bold; color: #2ecc71;'>0%</span>", 
+            updateSavingModal("<h3>Step 2/2: Uploading...</h3>" +
+            "<p>Writing to flash memory.</p>" +
+            "<span id='ota-progress-bar' style='font-size: 1.35em; font-weight: bold; color: #2ecc71;'>0%</span>", 
                 true
             );
 
@@ -3003,45 +3027,53 @@ window.onload = function () {
             }
         };
 
-        // Handle completion
+        //Handle completion
         xhr.onload = function() {
             if (xhr.status === 200 && xhr.responseText.includes("OK")) {
-                updateSavingModal(
-                    "✅ <b>Update Successful!</b><br>" +
-                    "Device is rebooting...<br><br>" +
-                    "<span id='modal-countdown'>Reconnecting in 30s</span>", 
-                    true
-                );
-
+                  document.getElementById("configForm").style.display = "none";
+                  document.querySelector(".footer").style.display = "none";
+                  document.querySelector("html").style.height = "100vh";
+                  document.body.style.height = "100vh";
+                  updateSavingModal("<h3>✅ Update Successful!</h3>" +    
+                    "<p><b>ESPTimeCast</b> is free & open source.<br>If you enjoy it, consider supporting its development.</p>" +
+                    "<div class='modal-buttons'>" + 
+                    "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/5USD','_blank','noopener')\">$5</button>" +
+                    "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/10USD','_blank','noopener')\">$10</button>" +
+                    "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto','_blank','noopener')\">Custom</button>" +
+                    "</div>" +
+                    "<p>❤️ <b>Built with love in Osaka!</b></p>" +
+                    "<p><span id='modal-countdown'>Device is rebooting in 35s</span></p>",
+                    false
+                  );
                 // Start countdown for page refresh
-                let count = 30;
+                let count = 35;
                 const timer = setInterval(() => {
                     count--;
                     const counter = document.getElementById('modal-countdown');
-                    if (counter) counter.innerText = `Reconnecting in ${count}s`;
+                    if (counter) counter.innerText = `Device is rebooting in ${count}s`;
                     if (count <= 0) {
                         clearInterval(timer);
                         location.reload();
                     }
                 }, 1000);
             } else {
-                updateSavingModal("❌ <b>Upload Failed</b><br>The device rejected the file.", false);
+                updateSavingModal("<h3>❌ Upload Failed</h3><p>The device rejected the file.</p>", false);
             }
         };
 
         xhr.onerror = () => {
-            updateSavingModal("❌ <b>Connection Lost</b><br>Check your WiFi and try again.", false);
+            updateSavingModal("<h3>❌Connection Lost</h3><p>Check your WiFi and try again.</p>", false);
         };
 
         xhr.send(formData);
 
         } catch (e) {
             console.error("OTA Error:", e);
-            updateSavingModal("❌ <b>Update Error</b><br>" + e.message, false);
+            updateSavingModal("<h3>❌ Update Error</h3><p>" + e.message + "</p>", false);
         }
       } 
-
-      document.addEventListener("keydown", function(event) {
+      
+        document.addEventListener("keydown", function(event) {
         if (event.key === "Enter") {
           const activeElem = document.activeElement;
 

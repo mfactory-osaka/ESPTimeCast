@@ -1,5 +1,5 @@
 #pragma once
-#define FIRMWARE_VERSION "1.4.0"
+#define FIRMWARE_VERSION "1.4.1"
 
 // Auto-detect the specific chip family
 #if defined(ESP8266)
