@@ -437,33 +437,6 @@ POST http://<device_ip>/set_custom_message
   - Use the Clear button in the Web UI.
   - Send a new message with allowInterrupt=0 to replace it.
 
-  
-&nbsp;
-#### 🎨 Using mfactoryfont.h Icons (v1.2.3)
-
-ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
-
-- **Home Assistant messages** – send temporary or scrollable messages with visual icons.  
-- **Web UI custom messages** – include icons in persistent or scrolling text.  
-
-<img src="assets/icons2.png" alt="ESPTimeCast mfactoryfont.h Icon Set Preview" width="640"/>
-
-**Full Icons List**  
-[NOTEMP][NONTP][WIFI][INFO][AP]  
-[C][F][TIMEISUP][TIMEISUPINVERTED][SUNNY]  
-[CLOUDY][NODATA][RAINY][THUNDER][SNOWY][WINDY][CLOCK]  
-[ALARM][UPDATE][BATTERYEMPTY][BATTERY33][BATTERY66][BATTERYFULL][BOLT][HOUSE][TEMP]  
-[MUSICNOTE][PLAY][SPACE][PAUSE][EURO][SPEAKER][SPEAKEROFF][RED][UP][DOWN][RIGHT][LEFT]  
-[TALK][HEART][CHECK][INSTA][TV][YOUTUBE][BELL][LOCK][PERSON][HOURGLASS]  
-[HOURGLASS25][HOURGLASS75][HOURGLASSFULL][CAR][MAIL][CO2][MOON][SIGNAL1][SIGNAL2]  
-[SIGNAL3][DEG][SUNDAYJP][MONDAYJP][TUESDAYJP][WEDNESDAYJP][THURSDAYJP][FRIDAYJP][SATURDAYJP][MIST]
-
-**How to use icons:**  
-- Wrap the icon name in **brackets**: `[SUNNY] [YOUTUBE]`  
-- Short messages (≤8 chars) = static & centered; longer = scrolling  
-- Requires `mfactoryfont.h`; otherwise firmware falls back to Basic Font  
-> For context, see: [Weird_font_displaying?_Heres_why_how_to_fix_it](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)  
-
 &nbsp;
 #### ⚙️ Example Automations
 
@@ -669,6 +642,96 @@ curl -X POST -d "value=10" "http://<device_ip>/set_brightness"
 > Replace <device_ip> with the IP address of your ESPTimeCast device.  
 > Use a brightness value between **0–15**, or **-1** to turn the display off.
 
+&nbsp;
+## 🎨 Using mfactoryfont.h Icons v1.2.3
+
+ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
+
+- **Home Assistant messages** – send temporary or scrollable messages with visual icons.  
+- **Web UI custom messages** – include icons in persistent or scrolling text.  
+
+<img src="assets/icons2.png" alt="ESPTimeCast mfactoryfont.h Icon Set Preview" width="640"/>
+
+**Full Icons List**  
+[NOTEMP][NONTP][WIFI][INFO][AP]  
+[C][F][TIMEISUP][TIMEISUPINVERTED][SUNNY]  
+[CLOUDY][NODATA][RAINY][THUNDER][SNOWY][WINDY][CLOCK]  
+[ALARM][UPDATE][BATTERYEMPTY][BATTERY33][BATTERY66][BATTERYFULL][BOLT][HOUSE][TEMP]  
+[MUSICNOTE][PLAY][SPACE][PAUSE][EURO][SPEAKER][SPEAKEROFF][RED][UP][DOWN][RIGHT][LEFT]  
+[TALK][HEART][CHECK][INSTA][TV][YOUTUBE][BELL][LOCK][PERSON][HOURGLASS]  
+[HOURGLASS25][HOURGLASS75][HOURGLASSFULL][CAR][MAIL][CO2][MOON][SIGNAL1][SIGNAL2]  
+[SIGNAL3][DEG][SUNDAYJP][MONDAYJP][TUESDAYJP][WEDNESDAYJP][THURSDAYJP][FRIDAYJP][SATURDAYJP][MIST]
+
+**How to use icons:**  
+- Wrap the icon name in **brackets**: `[SUNNY] [YOUTUBE]`  
+- Short messages (≤8 chars) = static & centered; longer = scrolling  
+- Requires `mfactoryfont.h`; otherwise firmware falls back to Basic Font  
+> For context, see: [Weird_font_displaying?_Heres_why_how_to_fix_it](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)  
+
+&nbsp;
+## ⏱️ Timer v1.4.0
+
+ESPTimeCast includes a built-in countdown timer that can be triggered via the **Custom Message** field in the Web UI or through **Home Assistant** (or any HTTP client).
+
+### Starting a Timer
+
+Send a custom message using the `[TIMER]` token with your desired duration:
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| `[TIMER xxH]` | `[TIMER 2H]` | 2 hours |
+| `[TIMER xxM]` | `[TIMER 30M]` | 30 minutes |
+| `[TIMER xxS]` | `[TIMER 90S]` | 90 seconds |
+| `[TIMER xxHxxM]` | `[TIMER 1H30M]` | 1 hour 30 minutes |
+| `[TIMER xxHxxMxxS]` | `[TIMER 1H30M45S]` | 1 hour 30 minutes 45 seconds |
+| `[TIMER xx]` | `[TIMER 5]` | 5 minutes (number only defaults to minutes) |
+
+You can combine the timer token with a message:
+```
+PIZZA IS READY IN [TIMER 20M]
+```
+
+### Timer Commands
+
+Once a timer is running, you can control it by sending the following as a custom message:
+
+| Command | Description |
+|---------|-------------|
+| `[TIMER STOP]` or `[TIMER CANCEL]` | Stops the timer and returns to clock |
+| `[TIMER PAUSE]` | Pauses the timer at the current time |
+| `[TIMER RESUME]` or `[TIMER START]` | Resumes a paused timer |
+| `[TIMER RESTART]` | Restarts the timer from its original duration |
+
+### Behavior
+
+- While a timer is running, the display is **locked** — only messages sent with `allowInterrupt=0` can override it
+- When the timer reaches zero, an alarm animation plays for 5 seconds before returning to the clock
+- Timer state is **not persisted** across reboots
+
+### Home Assistant Example
+```yaml
+service: rest_command.esptimecast_message
+data:
+  message: "PIZZA IS READY IN [TIMER 20M]"
+```
+### curl Example
+```bash
+# Start a 5 second timer
+curl -X POST -d "message=[TIMER 5S]" "http://esptimecast.local/set_custom_message"
+
+# Start a timer with a message
+curl -X POST -d "message=PIZZA IS READY IN [TIMER 20M]" "http://esptimecast.local/set_custom_message"
+
+# Pause the timer
+curl -X POST -d "message=[TIMER PAUSE]" "http://esptimecast.local/set_custom_message"
+
+# Stop the timer
+curl -X POST -d "message=[TIMER STOP]" "http://esptimecast.local/set_custom_message"
+```
+
+> Replace `esptimecast.local` with your device's IP address if mDNS is not available on your network.
+
+ 
 &nbsp;
 ## 🧩 Hidden & Advanced Features
 
