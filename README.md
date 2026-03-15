@@ -643,7 +643,7 @@ curl -X POST -d "value=10" "http://<device_ip>/set_brightness"
 > Use a brightness value between **0–15**, or **-1** to turn the display off.
 
 &nbsp;
-## 🎨 Using mfactoryfont.h Icons (v1.2.3)
+## 🎨 Using mfactoryfont.h Icons v1.2.3
 
 ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 
@@ -669,7 +669,7 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 > For context, see: [Weird_font_displaying?_Heres_why_how_to_fix_it](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)  
 
 &nbsp;
-## ⏱️ Timer
+## ⏱️ Timer v1.4.0
 
 ESPTimeCast includes a built-in countdown timer that can be triggered via the **Custom Message** field in the Web UI or through **Home Assistant** (or any HTTP client).
 
