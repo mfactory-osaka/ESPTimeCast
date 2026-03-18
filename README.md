@@ -15,26 +15,7 @@ It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern w
 
 <video src="https://github.com/user-attachments/assets/78b6525d-8dcd-43fc-875e-28805e0f4fab"></video>
 &nbsp;
-#### 🎨 A Note on Custom Cases & Commercial Listings
 
-I love seeing the community’s creativity and fully encourage you to design, share, and even sell your own custom enclosures for **ESPTimeCast™**.
-
-If you build one, feel free to share it with the community, there’s even a dedicated showcase thread on [**r/ESPTimeCast**](https://www.reddit.com/r/ESPTimeCast/comments/1p2vt16/show_your_esptimecast_build_post_your_photos_setup/) where makers post their builds and setups.
-
-However, while the hardware and firmware are open-source, the **Signature Custom Font** is part of the project’s protected visual identity. To avoid brand confusion and keep the project sustainable, a small rule applies when it comes to commercial listings.
-
-* **The Rule:** Photos showing the **ESPTimeCast™ custom font or weather icons** may **not be used in commercial listings** (MakerWorld, Printables, Etsy, Cults3D, etc).
-
-* **The Solution:** If you are selling or promoting a case or accessory, please use the included **Basic Font** or a **blank display** in your product photos.
-
-* **Why?:** The distinctive look of the custom font is what visually defines **ESPTimeCast™**. Limiting its use in commercial listings helps prevent the project’s branding and visual design from being used to promote unrelated products.
-
-See the **Full Usage & Branding Guidelines** here: [Usage & Branding Guidelines](https://github.com/mfactory-osaka/ESPTimeCast/edit/main/README.md#%EF%B8%8F-esptimecast-branding--visual-policy)
-
-🙏 Thank you to everyone who has already updated their listings to respect this guideline, and thanks in advance to future creators for helping keep the project’s visual identity clear while continuing to share amazing builds.  
-
-&nbsp;
-&nbsp;
 ## 🚀 Install in Under a Minute (Recommended)
 
 Flash ESPTimeCast directly from your browser — no Arduino IDE, no drivers setup, no manual configuration.
@@ -68,15 +49,29 @@ ESPTimeCast supports the following chip families:
 Other development boards using these chips may work,  
 but pin mapping and USB behavior can vary.
 
+&nbsp;
+#### 🔄 Updating ESPTimeCast
+
+ESPTimeCast supports two ways to update your device:
+
+#### 🌐 OTA Updates (Wi-Fi)
+Update your device wirelessly directly from the Web UI — no cable required.
+
+> Fully supported for devices installed using the Web Installer.  
+> Manual installations (e.g. via Arduino IDE) may have limited OTA support.
+
+#### 🔌 Web Installer Updates (USB)
+Update your device through the Web Installer using a USB connection.
+
+- Option to **preserve your settings** (no erase)
+- Works on all supported devices
+- Recommended if OTA is unavailable
+
+> Requires a Web Serial compatible browser (Chrome, Edge, or Brave).
+
+&nbsp;
 📌 **Wiring guide:**  
 See the [hardware connection table](https://github.com/mfactory-osaka/ESPTimeCast#-wiring-your-esptimecast).
-
-
-🔄 **About Updates:**  
-The browser-based update feature is designed for installations originally flashed using the Web Installer.  
-If you installed ESPTimeCast manually via Arduino IDE, the web update function may not work reliably.
-
-> Requires Chrome, Edge, or Brave (Web Serial support).
 
 &nbsp;
 ## 📦 3D Printable Case
@@ -125,43 +120,56 @@ ESPTimeCast™ has been featured on major maker and tech platforms highlighting 
 - [Hackster.io](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
 
 &nbsp;
-## ✨ Features
+## 🛠 Advanced Setup & Technical Details
 
-- **LED Matrix Display (8x32)** powered by MAX7219, with custom font support
-- **Simple Web Interface** for all configuration (WiFi, weather, time zone, display durations, and more)
-- **Automatic NTP Sync** with robust status feedback and retries
-- **Weather Fetching** from OpenWeatherMap (every 5 minutes, temp/humidity/description)
-- **Custom Scroll Messages** - fully persistent until manually cleared via the Web UI
-- **Fallback AP Mode** for easy first-time setup or configuration
-- **Timezone Selection** from IANA names (DST integrated on backend)
-- **Get My Location** button to get your approximate Lat/Long
-- **Week Day and Weather Description display** in multiple languages
-- **Persistent Config** stored in LittleFS, with backup/restore system
-- **Status Animations** for WiFi connection, AP mode, time syncing
-- **Advanced Settings** panel with:
-  - Custom **Primary/Secondary NTP server** input
-  - Display **Day of the Week** toggle (default is on)
-  - Display **Blinking Colon** toggle (default is on)
-  - Show **Date** toggle (default is off)
-  - **24/12h clock mode** toggle (24-hour default)
-  - **Imperial Units (°F)** toggle (metric °C defaults)
-  - Show **Humidity** toggle (display Humidity besides Temperature)
-  - **Weather description** toggle (displays: heavy rain, scattered clouds, thunderstorm etc.)
-  - **Flip display** (180 degrees)
-  - Adjustable display **brightness**
-  - **Automatic Dimming** based on Sunrise/Sunset from weather API
-  - **Custom Dimming** select custom dimming hours
-  - **Countdown** function (Scroll / Dramatic)
-  - **Optional:** ESPTimeCast supports displaying glucose data from **Nightscout** servers every 5 minutes, alternating with weather information
-  - **Optional:** Export and Upload settings via `device-ip/export` and `device-ip/upload` endpoints
+Most users should start here:
+👉 https://esptimecast.github.io
 
+Looking for manual setup, wiring details, or advanced configuration?
+Advanced and developer-focused information is available below.  
+
+&nbsp;  
+<details>
+<summary>✨ Features & Capabilities</summary>
 &nbsp;
-## 🪛 Wiring your ESPTimeCast
+  
+- **8x32 LED Matrix Display** powered by MAX7219 with custom font support  
+- **Web-Based Configuration** – no apps required, configure everything from your browser  
+- **Accurate Time Sync (NTP)** with automatic retries and status feedback  
+- **Live Weather Updates** from OpenWeatherMap (temperature, humidity, conditions)  
+- **Custom Scroll Messages** with persistent display control  
+- **Countdowns & Timers** – create event countdowns with custom messages or run quick timers (e.g. 15 min)  
+- **OTA Firmware Updates** – update your device directly from the browser, no reflashing required
+- **Open API & Home Assistant Integration** for automation, remote control, and custom messages  
+- **Automatic Setup Mode (AP)** for first-time configuration or recovery  
+- **Timezone Support** using IANA database (DST handled automatically)  
+- **Location Detection** via “Get My Location” (Lat/Long auto-fill)  
+- **Multi-language Support** for weekday and weather descriptions  
+- **Persistent Storage (LittleFS)** with backup and restore support  
+- **Visual Status Animations** for Wi-Fi, AP mode, and syncing  
 
+- **Advanced Controls & Customization:**
+  - Custom **NTP servers** (primary & fallback)  
+  - **12/24h clock** and **date display** options  
+  - Toggle **weekday**, **humidity**, and **weather descriptions**  
+  - **Metric / Imperial units** (°C / °F)  
+  - **Display rotation** (180° flip)  
+  - Adjustable **brightness**  
+  - **Auto dimming** (sunrise/sunset) or custom schedule  
+
+- **Optional Integrations:**
+  - **Nightscout glucose display** (alternates with weather)  
+  - **Config export/import** via `/export` and `/upload` endpoints  
+    
+  &nbsp;
+</details>
+<details>
+<summary>🔌 Wiring & Connections</summary>
+&nbsp;
+  
 ESPTimeCast uses **board-specific recommended SPI pin mappings** 
 to ensure consistent behavior, stable power delivery, and reliable brightness.
 
-&nbsp;
 ### 📌 Current Pin Assignment
 
 The following pin mappings correspond to the official Web Installer builds.
@@ -198,11 +206,13 @@ If your device was wired before **Oct 17, 2025**, please verify the following:
 - **CLK** is connected to **D5**  
 - **VCC** is connected to **5V** (not 3.3V)  
 - Flashing via the web installer automatically applies the correct defaults
-
-
+  
 &nbsp;
-## First-time Setup / AP Mode
-
+</details>
+<details>
+<summary>📶 First-Time Setup (Wi-Fi & AP Mode)</summary>
+&nbsp;
+  
 1. Power on the device. If WiFi fails, it auto-starts in AP mode:
    - **SSID:** `ESPTimeCast`
    - **Password:** `12345678`
@@ -215,7 +225,10 @@ If your device was wired before **Oct 17, 2025**, please verify the following:
 They won't work while the device is in AP Mode - connect to WiFi first.
 
 &nbsp;
-## 🌐 Web UI & Configuration
+</details>
+<details>
+<summary>🌐 Web Interface & Settings</summary>
+&nbsp;
 
 ESPTimeCast includes a built-in Web UI that lets you fully configure the device from any browser — no apps required.
 
@@ -238,11 +251,14 @@ mDNS / Bonjour - Works on macOS, iOS, Windows with Bonjour, and most modern brow
 
 &nbsp;
 ## UI Example:
-<img src="assets/webui11.png" alt="Web Interface" width="640">
+<img src="assets/webui11.png" alt="Web Interface" width="640">  
 
 &nbsp;
-## ⚙️ Advanced Settings
-
+</details>
+<details>
+<summary>⚙️ Advanced Settings & Tweaks</summary>
+&nbsp;  
+  
 Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal extra configuration options.  
 
 **Available advanced settings:**
@@ -278,11 +294,13 @@ Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal e
 - **ZIP Code:** Enter your ZIP code in the city field and US in the country field (US only)
 - **Latitude and Longitude** You can enter coordinates in the city field (lat.) and country field (long.)
 - **Time Zone:** Select from IANA zones (e.g., `America/New_York`, handles DST automatically)
-
-
+  
 &nbsp;
-## 🚀 Getting Started
-
+</details>
+<details>
+<summary>🚀 Manual Installation (Arduino IDE)</summary>
+&nbsp;
+  
 There are two ways to install ESPTimeCast:
 
 ### 🥇 Recommended: Web Installer (Fastest)
@@ -364,11 +382,13 @@ Once your IDE is ready:
    * Click the **Upload** button (right arrow icon) in the Arduino IDE toolbar. This will compile and upload the sketch to your board.
    * **No separate LittleFS upload is needed.** All web UI files are embedded in the sketch.
   
-**⚠️ Note for existing users:** If you have previously uploaded /data via LittleFS, you can safely skip that step now — the device will manage config files internally.
+**⚠️ Note for existing users:** If you have previously uploaded /data via LittleFS, you can safely skip that step now — the device will manage config files internally.  
 
 &nbsp;
-## 🏠 ESPTimeCast™ Home Assistant Integration
-
+</details>
+<details>
+<summary>🏠 Home Assistant Integration</summary>
+&nbsp;
 This guide explains how to integrate **ESPTimeCast** with **Home Assistant** to send custom messages to your LED display.
 
 #### 🧠 Overview
@@ -641,10 +661,11 @@ curl -X POST -d "value=10" "http://<device_ip>/set_brightness"
 
 > Replace <device_ip> with the IP address of your ESPTimeCast device.  
 > Use a brightness value between **0–15**, or **-1** to turn the display off.
-
+</details>
+<details>
+<summary>🎨 Icons & Custom Font</summary>
 &nbsp;
-## 🎨 Using mfactoryfont.h Icons v1.2.3
-
+  
 ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 
 - **Home Assistant messages** – send temporary or scrollable messages with visual icons.  
@@ -666,11 +687,14 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 - Wrap the icon name in **brackets**: `[SUNNY] [YOUTUBE]`  
 - Short messages (≤8 chars) = static & centered; longer = scrolling  
 - Requires `mfactoryfont.h`; otherwise firmware falls back to Basic Font  
-> For context, see: [Weird_font_displaying?_Heres_why_how_to_fix_it](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)  
+> For context, see: [Weird_font_displaying?_Heres_why_how_to_fix_it](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)
 
 &nbsp;
-## ⏱️ Timer v1.4.0
-
+</details>
+<details>
+<summary>⏱️ Timer Feature</summary>
+&nbsp;
+  
 ESPTimeCast includes a built-in countdown timer that can be triggered via the **Custom Message** field in the Web UI or through **Home Assistant** (or any HTTP client).
 
 ### Starting a Timer
@@ -686,10 +710,12 @@ Send a custom message using the `[TIMER]` token with your desired duration:
 | `[TIMER xxHxxMxxS]` | `[TIMER 1H30M45S]` | 1 hour 30 minutes 45 seconds |
 | `[TIMER xx]` | `[TIMER 5]` | 5 minutes (number only defaults to minutes) |
 
-You can combine the timer token with a message:
+You can include the timer token in a message:
 ```
 PIZZA IS READY IN [TIMER 20M]
 ```
+> Note: The timer starts immediately and takes over the display.  
+> Any message text is ignored while the timer is running.
 
 ### Timer Commands
 
@@ -704,15 +730,16 @@ Once a timer is running, you can control it by sending the following as a custom
 
 ### Behavior
 
-- While a timer is running, the display is **locked** — only messages sent with `allowInterrupt=0` can override it
-- When the timer reaches zero, an alarm animation plays for 5 seconds before returning to the clock
-- Timer state is **not persisted** across reboots
+- The timer **always overrides the display** while running  
+- Only messages sent with `allowInterrupt=0` can override the timer  
+- When the timer reaches zero, an alarm animation plays for 5 seconds before returning to the clock  
+- Timer state is **not persisted** across reboots  
 
 ### Home Assistant Example
 ```yaml
 service: rest_command.esptimecast_message
 data:
-  message: "PIZZA IS READY IN [TIMER 20M]"
+  message: "[TIMER 20M]"
 ```
 ### curl Example
 ```bash
@@ -731,9 +758,11 @@ curl -X POST -d "message=[TIMER STOP]" "http://esptimecast.local/set_custom_mess
 
 > Replace `esptimecast.local` with your device's IP address if mDNS is not available on your network.
 
- 
 &nbsp;
-## 🧩 Hidden & Advanced Features
+</details>
+<details>
+<summary>🧩 Power User Features</summary>
+&nbsp;
 
 ESPTimeCast™ includes a few optional “power-user” features that aren’t visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
 
@@ -791,9 +820,12 @@ In this mode:
 - These features are optional and hidden from the main interface to avoid clutter.  
 - `/upload` and `/export` are intentionally unlinked from the UI to prevent accidental access.  
 - Always verify your WiFi credentials and tokens before uploading edited configurations.
-
+  
 &nbsp;
-## 📺 Display Behavior
+</details>
+<details>
+<summary>📺 How the Display Works</summary>
+&nbsp;
 
 **ESPTimeCast™** automatically switches between two display modes: Clock and Weather.
 If "Show Weather Description" is enabled, a third mode (Description) will display with a duration of 3 seconds, if the description is too long to fit on the display the description will scroll from right to left once.
@@ -824,7 +856,9 @@ The following table summarizes what will appear on the display in each scenario:
 - ✅ **Yes**: Data available
 - ❌ **No**: Data not available
 - — : Value does not affect this mode
-
+  
+&nbsp;
+</details>
 
 &nbsp;
 ## 📣 Community & Help
@@ -840,47 +874,44 @@ If you have ideas, feature requests, bug reports, or improvements, please open a
 **Forks, custom additions, and personal experiments are absolutely encouraged.** Feel free to build on ESPTimeCast in your own fork and make it your own 😉
 &nbsp;  
 &nbsp;
-## 🛡️ ESPTimeCast™ Branding & Visual Policy
+## 🛡️ Branding & Visual Policy
 
-**ESPTimeCast™** is a project and brand created by M-Factory. The name, logo, and official firmware visuals are protected.
+ESPTimeCast™ is an open-source project, but its **name, logo, and visual identity are protected**.
 
-#### Using ESPTimeCast™ Firmware
+#### ✅ You are welcome to:
+- Build and sell compatible hardware  
+- Modify the firmware for personal or educational use  
+- Share your builds with the community  
 
-**You may:**
-- Build compatible hardware  
-- Modify the firmware for personal, educational, or hobby use  
-- Share your own builds publicly, as long as you do **not** imply affiliation or endorsement by ESPTimeCast™  
+#### ❌ You may not:
+- Use the **ESPTimeCast™ name or logo** in product listings  
+- Present your product as an official ESPTimeCast™ device  
+- Use **official firmware visuals** (custom font, icons, display style) in commercial photos  
 
-**You may not:**
-- Use the ESPTimeCast™ name, logo, or official firmware screenshots in product marketing or sales listings  
-- Present your product as “official ESPTimeCast™ hardware”  
+#### 🏷 Recommended wording for listings:
+> “ESPTimeCast™ compatible – unofficial build”
 
-**Recommended Wording for Community Builds:**  
-> “ESPTimeCast™ firmware compatible – unofficial build”  
+#### 🎨 About Firmware Visuals
 
-This ensures that your hardware is clearly independent of the official project.
+The ESPTimeCast™ visual design (including fonts, icons, and display styling) is part of the project’s identity.
 
-#### Firmware Visuals
+- Free to use for personal projects  
+- Not allowed in commercial product listings without permission  
 
-The ESPTimeCast™ firmware interface (including custom splash screens, fonts, and display layout styling) is the intellectual property of ESPTimeCast™.
+#### 💡 Why this matters
 
-- You may modify it for personal or educational projects  
-- You may **not** use official visuals in commercial marketing or product photos without permission  
+The firmware has a distinctive look.  
+Using it in product photos can make unofficial builds appear as official products.
 
-This helps prevent confusion between official ESPTimeCast™ products and community builds.
+This policy keeps:
+- The ESPTimeCast™ identity clear  
+- Community builds open and encouraged  
 
-#### Why This Matters
+#### ⚖️ License Note
 
-Because the firmware has a unique and recognizable look, photos of your product running it can easily be mistaken for ESPTimeCast™ official products. Following this policy ensures:
+The firmware code is licensed under **GPL-3.0** (subject to change in future versions).  
+This does **not** grant rights to use ESPTimeCast™ branding or visuals commercially.  
 
-- Your brand identity remains clear  
-- Community makers can still create and share builds without causing confusion
-
-#### License Note
-
-- The ESPTimeCast™ firmware code is licensed under [GPL-3.0](LICENSE)    
-- Code license does **not** grant rights to use ESPTimeCast™ branding or official firmware visuals for commercial purposes
-&nbsp;
 &nbsp;
 ## ❤️ Support this project
 ESPTimeCast is an open-source passion project that blends art, engineering, and design.  
