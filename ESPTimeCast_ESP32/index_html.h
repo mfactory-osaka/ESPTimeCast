@@ -16,10 +16,12 @@ const char index_html[] PROGMEM = R"rawliteral(
     <title>ESPTimeCast Settings</title>
     <style>
       :root {
-        --bg-gradient: linear-gradient(135deg,
-            #081f56 0%,
-            #110f2e 50%,
-            #441a65 100%);
+        --bg-gradient: linear-gradient(
+          135deg,
+          #081f56 0%,
+          #110f2e 50%,
+          #441a65 100%
+        );
         --accent-color: #0ea5e9;
         --glass-bg: rgba(255, 255, 255, 0.04);
         --glass-border: rgba(255, 255, 255, 0.12);
@@ -68,14 +70,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         border-left: 1.5px solid rgba(180, 230, 255, 0.08);
       }
 
-      #arrowBtn>svg {
+      #arrowBtn > svg {
         position: relative;
         top: 2px;
         filter: invert(0);
         opacity: 1;
       }
 
-      #arrowBtn:disabled>svg {
+      #arrowBtn:disabled > svg {
         position: relative;
         top: 2px;
         opacity: 0.25;
@@ -184,23 +186,24 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-bottom: 0;
       }
 
-      h3{
+      h3 {
         font-weight: normal;
         font-size: 1.35rem;
         margin: 0.5rem 0 0 0;
       }
 
-      #savingModalContent p{
+      #savingModalContent p {
         line-height: 1.6rem;
+        font-size: 1rem;
       }
 
-      .modal-buttons{
+      .modal-buttons {
         display: flex;
         justify-content: center;
         gap: 1rem;
       }
 
-      form:first-of-type>h2:first-of-type {
+      form:first-of-type > h2:first-of-type {
         margin-top: 1.5rem;
       }
 
@@ -280,11 +283,11 @@ const char index_html[] PROGMEM = R"rawliteral(
         filter: invert(100%);
       }
 
-      .toggle-switch input[type="checkbox"]:checked+.toggle-slider {
+      .toggle-switch input[type="checkbox"]:checked + .toggle-slider {
         background-color: var(--accent-color);
       }
 
-      .toggle-switch input[type="checkbox"]:disabled+.toggle-slider::before {
+      .toggle-switch input[type="checkbox"]:disabled + .toggle-slider::before {
         background-color: rgba(204, 204, 204, 0.5);
       }
 
@@ -292,11 +295,12 @@ const char index_html[] PROGMEM = R"rawliteral(
       input:-webkit-autofill:hover,
       input:-webkit-autofill:focus,
       input:-webkit-autofill:active {
-
         -webkit-text-fill-color: white !important;
         -webkit-box-shadow: 0 0 0px 1000px rgba(225, 245, 255, 0.07) inset !important;
         box-shadow: 0 0 0px 1000px rgba(225, 245, 255, 0.07) inset !important;
-        transition: background-color 5000000s ease-in-out 0s, color 5000000s ease-in-out 0s;
+        transition:
+          background-color 5000000s ease-in-out 0s,
+          color 5000000s ease-in-out 0s;
         caret-color: white;
       }
 
@@ -315,7 +319,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         flex-direction: column;
       }
 
-      .form-row.two-col>div {
+      .form-row.two-col > div {
         flex: 1;
       }
 
@@ -331,7 +335,9 @@ const char index_html[] PROGMEM = R"rawliteral(
         text-align: center;
         align-self: center;
         width: fit-content;
-        transition: background 0.25s, transform 0.15s ease-in-out;
+        transition:
+          background 0.25s,
+          transform 0.15s ease-in-out;
       }
 
       .primary-button:hover {
@@ -505,16 +511,16 @@ const char index_html[] PROGMEM = R"rawliteral(
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
       }
 
-      .toggle-switch input:checked+.toggle-slider {
+      .toggle-switch input:checked + .toggle-slider {
         background: var(--accent);
         box-shadow: 0 0 10px rgba(0, 191, 255, 0.35);
       }
 
-      .toggle-switch input:checked+.toggle-slider::before {
+      .toggle-switch input:checked + .toggle-slider::before {
         transform: translateX(24px);
       }
 
-      .toggle-switch input:disabled+.toggle-slider {
+      .toggle-switch input:disabled + .toggle-slider {
         opacity: 0.6;
         cursor: not-allowed;
         border: none;
@@ -542,7 +548,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-top: 6rem;
       }
 
-      #configForm>button.collapsible-toggle>span:nth-child(2) {
+      #configForm > button.collapsible-toggle > span:nth-child(2) {
         border-bottom: solid 1px white;
       }
 
@@ -670,7 +676,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-bottom: 2rem;
       }
 
-      .sub-collapsible[aria-expanded="true"]+.sub-collapsible-content {
+      .sub-collapsible[aria-expanded="true"] + .sub-collapsible-content {
         display: block;
       }
 
@@ -688,12 +694,12 @@ const char index_html[] PROGMEM = R"rawliteral(
         opacity: 1;
       }
 
-      .content-wrapper>label:nth-child(1) {
+      .content-wrapper > label:nth-child(1) {
         margin-top: 0;
       }
 
-      .content-wrapper>.toggle-padding>label:nth-child(1),
-      .content-wrapper>.form-group:nth-child(1)>label:nth-child(1) {
+      .content-wrapper > .toggle-padding > label:nth-child(1),
+      .content-wrapper > .form-group:nth-child(1) > label:nth-child(1) {
         margin-top: 0.75rem;
       }
 
@@ -742,15 +748,26 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-top: 1.75rem;
       }
 
-      #configForm>div.collapsible-content>div:nth-child(2)>div>div {
+      #configForm > div.collapsible-content > div:nth-child(2) > div > div {
         margin-top: 2rem;
       }
 
-      #configForm>div.collapsible-content>div:nth-child(8)>div>div.toggle-padding>div:nth-child(1)>label {
+      #configForm
+        > div.collapsible-content
+        > div:nth-child(8)
+        > div
+        > div.toggle-padding
+        > div:nth-child(1)
+        > label {
         margin-top: 0.75rem;
       }
 
-      #configForm>div.collapsible-content>div:nth-child(6)>div>div.toggle-padding>label:nth-child(4) {
+      #configForm
+        > div.collapsible-content
+        > div:nth-child(6)
+        > div
+        > div.toggle-padding
+        > label:nth-child(4) {
         position: relative;
       }
 
@@ -784,10 +801,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         border-top: 1px solid var(--glass-border);
       }
 
-      #hostnameInput{
+      #hostnameInput {
         min-width: calc(3ch + 1rem);
         text-align: center;
         padding: 0.5rem;
+      }
+
+      .no-ap{
+        display: none;
       }
     </style>
   </head>
@@ -813,8 +834,8 @@ const char index_html[] PROGMEM = R"rawliteral(
           />
         </svg>
       </div>
-      <h2>WiFi Settings</h2>
-      <label for="ssid">SSID</label>
+      <h2>Wi-Fi Settings</h2>
+      <label for="ssid">Enter Wi-Fi network or click Scan</label>
       <div class="ssid-wrapper">
         <div class="combo-container">
           <input type="text" id="ssid" name="ssid" required />
@@ -865,7 +886,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         </div>
         <div id="ssidList"></div>
       </div>
-      <label for="password">Password</label>
+      <label for="password">Enter your Wi-Fi password</label>
       <div style="position: relative">
         <input type="password" id="password" name="password" required />
         <label class="small">
@@ -1028,23 +1049,24 @@ const char index_html[] PROGMEM = R"rawliteral(
         </div>
       </div>
 
-      <h2>Weather Settings</h2>
-      <label for="openWeatherApiKey">OpenWeather API Key</label>
+      <h2 class="no-ap">Weather Settings</h2>
+      <label class="no-ap" for="openWeatherApiKey">OpenWeather API Key</label>
       <input
+        class="no-ap"
         type="text"
         id="openWeatherApiKey"
         name="openWeatherApiKey"
         placeholder="ADD-YOUR-API-KEY-32-CHARACTERS"
       />
-      <div class="small">
+      <div class="small no-ap">
         Required to fetch weather data.
         <a href="https://home.openweathermap.org/users/sign_up" target="_blank"
           >Get your API key here</a
         >.
       </div>
 
-      <label>Location</label>
-      <div class="form-row two-col">
+      <label class="no-ap">Location</label>
+      <div class="form-row two-col no-ap">
         <input
           type="text"
           id="openWeatherCity"
@@ -1059,7 +1081,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         />
       </div>
 
-      <div class="small">
+      <div class="small no-ap">
         <strong>Location format examples:</strong> City, Country Code - Osaka,
         JP | ZIP, Country Code - 94040, US | Latitude, Longitude - 34.6937,
         135.5023
@@ -1067,7 +1089,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
       <button
         type="button"
-        class="primary-button"
+        class="primary-button no-ap"
         id="geo-button"
         onclick="getLocation()"
         style="margin-top: 1rem"
@@ -1075,7 +1097,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         Get My Location
       </button>
 
-      <div class="form-group">
+      <div class="form-group no-ap">
         <h2>Custom Message</h2>
         <input
           id="customMessage"
@@ -1086,10 +1108,17 @@ const char index_html[] PROGMEM = R"rawliteral(
           title="Allowed: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > ( ) { } \ - & $ ¥ |"
         />
         <div class="small">
-           <strong>Use brackets for special content:</strong> [123] for Big Numbers, icons like [CAR] or [MAIL], [TIMER 5M] for a 5-minute timer. Full icon list <a href="https://github.com/mfactory-osaka/ESPTimeCast#-using-mfactoryfonth-icons-v123" target="_blank">here</a>.
+          <strong>Use brackets for special content:</strong> [123] for Big
+          Numbers, icons like [CAR] or [MAIL], [TIMER 5M] for a 5-minute timer.
+          Full icon list
+          <a
+            href="https://github.com/mfactory-osaka/ESPTimeCast#-using-mfactoryfonth-icons-v123"
+            target="_blank"
+            >here</a
+          >.
         </div>
       </div>
-      <div class="button-row">
+      <div class="button-row no-ap">
         <button
           type="button"
           class="primary-button cmsg2"
@@ -1108,17 +1137,12 @@ const char index_html[] PROGMEM = R"rawliteral(
 
       <div class="geo-note" style="display: none">
         <br />
-        <span class="small"
-          ><strong>Note:</strong> External links, Custom Message and the "Get My
-          Location" button require internet access.</span
-        >
-        <span class="small"
-          >They won't work while the device is in AP Mode - connect to Wi-Fi
-          first.</span
-        >
+        <span class="small">
+          Enter your Wi-Fi details and press “Save Settings” to unlock Weather, Custom Messages, and Advanced Features.
+        </span>
       </div>
 
-      <button type="button" class="collapsible-toggle" aria-expanded="false">
+      <button type="button" class="collapsible-toggle no-ap" aria-expanded="false">
         <span class="icon-area" aria-hidden="true">
           <svg
             width="20"
@@ -1137,7 +1161,11 @@ const char index_html[] PROGMEM = R"rawliteral(
         <span>Advanced Settings</span>
       </button>
       <div class="collapsible-content" aria-hidden="true">
-        <button type="button" class="sub-collapsible active" aria-expanded="false">
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
           Time & Date
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1214,7 +1242,11 @@ const char index_html[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible active" aria-expanded="false">
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
           Weather
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1262,7 +1294,11 @@ const char index_html[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible active" aria-expanded="false">
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
           Display & Brightness
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1365,7 +1401,11 @@ const char index_html[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible active" aria-expanded="false">
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
           Countdown
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1440,54 +1480,78 @@ const char index_html[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
-        <button type="button" class="sub-collapsible active" aria-expanded="false">
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
           Device information
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
           <div class="content-wrapper">
             <div class="toggle-padding device-info">
-              <span>Firmware: <span id="fwVersion">...</span></span><br><br>
-              <span>IP: <span id="ipDisplay">Fetching...</span></span><br><br>
-              <span>Host: <input type="text" id="hostnameInput" oninput="this.value = this.value.replace(/[^a-zA-Z0-9-]/g, ''); resizeHostname(this);" />.local</span><br><br>
-              <span>Session Uptime: <span id="sessionDisplay">Loading...</span></span><br><br>
-              <span>Total Lifetime: <span id="totalDisplay">Loading...</span></span>             
-              <hr>              
-              <div id="ota-container" style="text-align: center;">
-                <button type="button" id="btn-check-ota" onclick="checkUpdate()" class="primary-button cmsg1">
+              <span>Firmware: <span id="fwVersion">...</span></span
+              ><br /><br />
+              <span>IP: <span id="ipDisplay">Fetching...</span></span
+              ><br /><br />
+              <span
+                >Host:
+                <input
+                  type="text"
+                  id="hostnameInput"
+                  oninput="
+                    this.value = this.value.replace(/[^a-zA-Z0-9-]/g, '');
+                    resizeHostname(this);
+                  "
+                />.local</span
+              ><br /><br />
+              <span
+                >Session Uptime:
+                <span id="sessionDisplay">Loading...</span></span
+              ><br /><br />
+              <span
+                >Total Lifetime: <span id="totalDisplay">Loading...</span></span
+              >
+              <hr />
+              <div id="ota-container" style="text-align: center">
+                <button
+                  type="button"
+                  id="btn-check-ota"
+                  onclick="checkUpdate()"
+                  class="primary-button cmsg1"
+                >
                   Check for Updates
-                </button>                
-                <div id="ota-update-found" style="display:none;">
-                  <button type="button" onclick="performUpdate()" class="primary-button cmsg1">
-                    Install Update 
+                </button>
+                <div id="ota-update-found" style="display: none">
+                  <button
+                    type="button"
+                    onclick="performUpdate()"
+                    class="primary-button cmsg1"
+                  >
+                    Install Update
                   </button>
-                </div>                
-                <p id="ota-status-text" style="text-aling: center;"></p>
+                </div>
+                <p id="ota-status-text" style="text-align: center"></p>
               </div>
             </div>
           </div>
         </div>
-
       </div>
 
       <input type="submit" class="primary-button" value="Save Settings" />
     </form>
 
-    <div class="footer">
-      ESPTimeCast<span class="tm">™</span> by
-      <a
-        href="https://github.com/mfactory-osaka/ESPTimeCast"
-        target="_blank"
-        rel="noopener noreferrer"
-        >M-Factory</a
-      >
+    <div class="footer">      
+      <a href="https://esptimecast.github.io" target="_blank" rel="noopener noreferrer">
+      ESPTimeCast<span class="tm">™</span> by M-Factory</a>
     </div>
 
     <div id="savingMessage"></div>
     <script>
       let isSaving = false;
       let isAPMode = false;
-      const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<>(){}!.:?,'_+%\/\[\]\\-]/g;
-      let originalHostname = ""; 
+      const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<h3>(){}!.:?,'_+%\/\[\]\\-]/g;
+      let originalHostname = "";
 
       // Show/Hide Password toggle
       document.addEventListener("DOMContentLoaded", function () {
@@ -1522,7 +1586,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
       };
 
-window.onload = function () {
+      window.onload = function () {
         fetch("/config.json")
           .then((response) => response.json())
           .then((data) => {
@@ -1539,6 +1603,11 @@ window.onload = function () {
 
               document.querySelector(".cmsg2").classList.add("geo-disabled");
               document.querySelector(".cmsg2").disabled = true;
+            }
+            if (!isAPMode) {
+              document.querySelectorAll(".no-ap").forEach(el => {
+                el.classList.remove("no-ap");
+              });
             }
             document.getElementById("ssid").value = data.ssid || "";
             document.getElementById("password").value = data.password || "";
@@ -1567,18 +1636,20 @@ window.onload = function () {
             document.getElementById("language").value = data.language || "";
 
             // --- Advanced: brightness ---
-            const brightnessSlider = document.getElementById("brightnessSlider");
+            const brightnessSlider =
+              document.getElementById("brightnessSlider");
             const brightnessValue = document.getElementById("brightnessValue");
 
             const isDisplayOff = data.displayOff === true;
 
             brightnessSlider.value = isDisplayOff
               ? -1
-              : (typeof data.brightness !== "undefined" ? data.brightness : 10);
+              : typeof data.brightness !== "undefined"
+                ? data.brightness
+                : 10;
 
-            brightnessValue.textContent = brightnessSlider.value == -1
-              ? "Off"
-              : brightnessSlider.value;
+            brightnessValue.textContent =
+              brightnessSlider.value == -1 ? "Off" : brightnessSlider.value;
             document.getElementById("flipDisplay").checked = !!data.flipDisplay;
             document.getElementById("ntpServer1").value = data.ntpServer1 || "";
             document.getElementById("ntpServer2").value = data.ntpServer2 || "";
@@ -1739,9 +1810,11 @@ window.onload = function () {
 
             // SURGICAL CHANGE: Fetch secondary info only AFTER config is loaded
             setTimeout(() => {
-              fetch("/ip").then(r => r.text()).then(ip => {
-                document.getElementById("ipDisplay").textContent = ip || "—";
-              });
+              fetch("/ip")
+                .then((r) => r.text())
+                .then((ip) => {
+                  document.getElementById("ipDisplay").textContent = ip || "—";
+                });
               fetchUptime();
             }, 100);
 
@@ -1751,7 +1824,7 @@ window.onload = function () {
           .catch((err) => {
             console.error("Failed to load config:", err);
             showSavingModal("");
-            updateSavingModal("⚠️ Failed to load configuration.", false);
+            updateSavingModal("<h3>⚠️ Failed to load configuration.</h3>", false);
             removeReloadButton();
             removeRestoreButton();
             const errorMsg = (err.message || "").toLowerCase();
@@ -1789,11 +1862,15 @@ window.onload = function () {
           formData.set("openWeatherApiKey", apiKeyToSend);
         }
 
-        const newHostname = (document.getElementById("hostnameInput").value.toLowerCase() || originalHostname || "esptimecast").trim();
-    
+        const newHostname = (
+          document.getElementById("hostnameInput").value.toLowerCase() ||
+          originalHostname ||
+          "esptimecast"
+        ).trim();
+
         if (!newHostname) {
-            alert("Hostname cannot be empty!");
-            return;
+          alert("Hostname cannot be empty!");
+          return;
         }
 
         formData.set("hostname", newHostname);
@@ -1935,10 +2012,10 @@ window.onload = function () {
         if (isAPMode) {
           showSavingModal("");
           updateSavingModal(
-            "✅ Settings saved successfully!<br><br>" +
-              "Rebooting the device now...<br><br>" +
-              "Your device will connect to your Wi-Fi.<br>" +
-              "Its new IP address will appear on the display for future access.",
+            "<h3>✅ Settings saved successfully!</h3>" +
+              "<p>Rebooting the device now...</p>" +
+              "<p>The device will connect to your Wi-Fi.<br>" +
+              "Its new IP address will appear on the display for future access.</p>",
             true, // show spinner
           );
         } else {
@@ -1962,73 +2039,80 @@ window.onload = function () {
             }
             return response.json();
           })
-.then((json) => {
-  isSaving = false;
-  removeReloadButton();
-  removeRestoreButton();
+          .then((json) => {
+            isSaving = false;
+            removeReloadButton();
+            removeRestoreButton();
 
-  if (isAPMode) {
-    setTimeout(() => {
-      document.getElementById("configForm").style.display = "none";
-      document.querySelector(".footer").style.display = "none";
-      document.querySelector("html").style.height = "100vh";
-      document.body.style.height = "100vh";
-      updateSavingModal(
-        "✅ All done!<br>You can now close this tab safely.<br><br>" +
-          "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
-          "Check the display for the current IP address.",
-        false,
-      );
-    }, 5000);
-    return;
-  } else {
-    showSavingModal("");
+            if (isAPMode) {
+              setTimeout(() => {
+                document.getElementById("configForm").style.display = "none";
+                document.querySelector(".footer").style.display = "none";
+                document.querySelector("html").style.height = "100vh";
+                document.body.style.height = "100vh";
+                updateSavingModal(
+                  "<h3>✅ All done!</h3><p>You can now close this tab safely.</p>" +
+                    "<p>Your device has rebooted and is now connected to your Wi-Fi.<br>" +
+                    "Check the display for the current IP address.</p>",
+                  false,
+                );
+              }, 5000);
+              return;
+            } else {
+              showSavingModal("");
 
-    const newName = document.getElementById("hostnameInput").value.toLowerCase();
-    const currentHost = window.location.hostname.replace(".local", "");
-    const accessedViaIP = /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname);
-    const hostnameChanged = newName !== originalHostname; 
+              const newName = document
+                .getElementById("hostnameInput")
+                .value.toLowerCase();
+              const currentHost = window.location.hostname.replace(
+                ".local",
+                "",
+              );
+              const accessedViaIP = /^\d+\.\d+\.\d+\.\d+$/.test(
+                window.location.hostname,
+              );
+              const hostnameChanged = newName !== originalHostname;
 
-    if (hostnameChanged && !accessedViaIP) {
-      // Hostname changed, accessed via hostname → redirect to new hostname
-      let secondsLeft = 8;
-      const timer = setInterval(() => {
-        secondsLeft--;
-        if (secondsLeft > 0) {
-          updateSavingModal(
-            `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in ${secondsLeft} seconds...`,
-            true
-          );
-        } else {
-          clearInterval(timer);
-          window.location.href = `http://${newName}.local`;
-        }
-      }, 1000);
-      updateSavingModal(
-        `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in 8 seconds...`,
-        true
-      );
-
-    } else if (hostnameChanged && accessedViaIP) {
-      // Hostname changed, accessed via IP → stay on IP, inform user
-      updateSavingModal(
-        `✅ Settings saved!<br><br>Device is rebooting as <b>${newName}.local</b>.<br>You can reach it via IP or <b>${newName}.local</b> after reboot.`,
-        false
-      );
-      setTimeout(() => { location.href = location.href.split("#")[0]; }, 5000);
-
-    } else {
-      // Hostname unchanged → stay on current address
-      updateSavingModal(
-        "✅ Configuration saved successfully.<br><br>Device is rebooting...",
-        false
-      );
-      setTimeout(() => {
-        location.href = location.href.split("#")[0];
-      }, 3000);
-    }
-  }
-})
+              if (hostnameChanged && !accessedViaIP) {
+                // Hostname changed, accessed via hostname → redirect to new hostname
+                let secondsLeft = 8;
+                const timer = setInterval(() => {
+                  secondsLeft--;
+                  if (secondsLeft > 0) {
+                    updateSavingModal(
+                      `<h3>✅ Settings saved!</h3><p>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in ${secondsLeft} seconds...</p>`,
+                      true,
+                    );
+                  } else {
+                    clearInterval(timer);
+                    window.location.href = `http://${newName}.local`;
+                  }
+                }, 1000);
+                updateSavingModal(
+                  `<h3>✅ Settings saved!</h3><p>Device is rebooting as <b>${newName}.local</b>.<br>Redirecting you in 8 seconds...</p>`,
+                  true,
+                );
+              } else if (hostnameChanged && accessedViaIP) {
+                // Hostname changed, accessed via IP → stay on IP, inform user
+                updateSavingModal(
+                  `<h3>✅ Settings saved!</h3><p>Device is rebooting as <b>${newName}.local</b>.<br>You can reach it via IP or <b>${newName}.local</b> after reboot.</p>`,
+                  false,
+                );
+                setTimeout(() => {
+                  location.href = location.href.split("#")[0];
+                }, 5000);
+              } else {
+                // Hostname unchanged → stay on current address
+                updateSavingModal(
+                  "<h3>✅ Configuration saved successfully.</h3><p>Device is rebooting...</p>",
+                  false,
+                );
+                setTimeout(() => {
+                  location.href = location.href.split("#")[0];
+                }, 3000);
+              }
+            }
+          })
           .catch((err) => {
             isSaving = false;
 
@@ -2036,15 +2120,15 @@ window.onload = function () {
               console.warn("Expected disconnect in AP mode after reboot.");
               showSavingModal("");
               updateSavingModal(
-                "✅ Settings saved successfully!<br><br>Rebooting the device now... ",
+                "<h3>✅ Settings saved successfully!</h3><p>Rebooting the device now...</p>",
                 false,
               );
               setTimeout(() => {
                 document.getElementById("configForm").style.display = "none";
                 updateSavingModal(
-                  "✅ All done!<br>You can now close this tab safely.<br><br>" +
-                    "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
-                    "Check the display for the current IP address.",
+                  "<h3>✅ All done!</h3><p>You can now close this tab safely.</p>" +
+                    "<p>Your device has rebooted and is now connected to your Wi-Fi.<br>" +
+                    "Check the display for the current IP address.</p>",
                   false,
                 );
               }, 5000);
@@ -2055,14 +2139,14 @@ window.onload = function () {
 
             console.error("Save error:", err);
             let friendlyMessage =
-              "⚠️ Something went wrong while saving the configuration.";
+              "<h3>⚠️ Something went wrong while saving the configuration.</h3>";
             if (err.message.includes("Failed to fetch")) {
               friendlyMessage =
-                "⚠️ Cannot connect to the device.<br>Is it powered on and connected?";
+                "<h3>⚠️ Cannot connect to the device.</h3><p>Is it powered on and connected?</p>";
             }
 
             updateSavingModal(
-              `${friendlyMessage}<br><br>Details: ${err.message}`,
+              `${friendlyMessage}<p>Details: ${err.message}</p>`,
               false,
             );
 
@@ -2129,7 +2213,7 @@ window.onload = function () {
           btn.id = "reloadButton";
           btn.className = "primary-button";
           btn.style.display = "inline-block";
-          btn.style.margin = "1rem 0.5rem 0 0";
+          btn.style.margin = "1rem 0 0 0";
           modalContent.appendChild(btn);
         }
         btn.textContent = options.text || "Reload Page";
@@ -2165,7 +2249,7 @@ window.onload = function () {
         if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
       }
       function restoreBackupConfig() {
-        showSavingModal("Restoring backup...");
+        showSavingModal("<h3>Restoring backup...</h3>");
         removeReloadButton();
         removeRestoreButton();
 
@@ -2177,13 +2261,13 @@ window.onload = function () {
             return response.json();
           })
           .then((data) => {
-            updateSavingModal("✅ Backup restored! Device will now reboot.");
+            updateSavingModal("<h3>✅ Backup restored!</h3><p>Device will now reboot.</p>");
             setTimeout(() => location.reload(), 1500);
           })
           .catch((err) => {
             console.error("Restore error:", err);
             updateSavingModal(
-              `❌ Failed to restore backup: ${err.message}`,
+              `<h3>❌ Failed to restore backup:</h3><p>${err.message}</p>`,
               false,
             );
 
@@ -2227,7 +2311,7 @@ window.onload = function () {
       }
 
       // We add 'index' here to track which collapsible we are on
-// 1. Target only the inner categories (Time, Weather, etc.)
+      // 1. Target only the inner categories (Time, Weather, etc.)
       document.querySelectorAll(".sub-collapsible").forEach((button) => {
         const content = button.nextElementSibling;
 
@@ -2245,7 +2329,7 @@ window.onload = function () {
             });
           } else {
             content.style.height = content.scrollHeight + "px";
-            void content.offsetHeight; 
+            void content.offsetHeight;
             content.style.height = "0px";
           }
         });
@@ -2254,19 +2338,18 @@ window.onload = function () {
         button.classList.add("open");
         button.setAttribute("aria-expanded", "true");
         content.setAttribute("aria-hidden", "false");
-        content.style.height = "auto"; 
+        content.style.height = "auto";
       });
 
       // 2. Ensure the MAIN Advanced Settings button stays closed
       // This targets the main wrapper button specifically
       const mainToggle = document.querySelector(".collapsible-toggle");
       const mainContent = mainToggle.nextElementSibling;
-      
+
       mainToggle.classList.remove("open");
       mainToggle.setAttribute("aria-expanded", "false");
       mainContent.style.height = "0px";
       mainContent.setAttribute("aria-hidden", "true");
-      
 
       let brightnessDebounceTimeout = null;
 
@@ -2566,11 +2649,11 @@ window.onload = function () {
           .then((res) => res.json())
           .then((data) => {
             const hostInput = document.getElementById("hostnameInput");
-              if (hostInput) {
-                hostInput.value = data.hostname || "esptimecast";
-                resizeHostname(hostInput);
-                originalHostname = data.hostname || "esptimecast";
-              }
+            if (hostInput) {
+              hostInput.value = data.hostname || "esptimecast";
+              resizeHostname(hostInput);
+              originalHostname = data.hostname || "esptimecast";
+            }
             // Use the NEW keys we created in the firmware
             sessionSeconds = data.session_seconds || 0;
             totalSeconds = data.total_seconds || 0;
@@ -2596,7 +2679,7 @@ window.onload = function () {
       function updateUptimeDisplay() {
         const sessionEl = document.getElementById("sessionDisplay");
         const totalEl = document.getElementById("totalDisplay");
-        
+
         if (sessionEl) sessionEl.textContent = formatUptime(sessionSeconds);
         if (totalEl) totalEl.textContent = formatUptime(totalSeconds);
       }
@@ -2624,7 +2707,6 @@ window.onload = function () {
         let useBigNumbers = "0";
         if (/\[\d+\]/.test(rawValue)) {
           useBigNumbers = "1";
-
         }
 
         // 2. CLEAN MESSAGE (using the updated regex)
@@ -2642,13 +2724,19 @@ window.onload = function () {
             "Content-Type": "application/x-www-form-urlencoded",
             "X-Source": "UI",
           },
-          body: "message=" + encodeURIComponent(message) + "&bignumbers=" + useBigNumbers,
+          body:
+            "message=" +
+            encodeURIComponent(message) +
+            "&bignumbers=" +
+            useBigNumbers,
         })
           .then((res) => {
             if (res.status === 409) {
-              throw new Error("Display temporarily locked.<br><br>" +
-"A protected message is active or the clock is in dimming mode.<br>" +
-"Wait for the dimming period to end, or press <b>Clear Message</b> and send the message again.");
+              throw new Error(
+                "<h3>Display temporarily locked.</h3>" +
+                  "<p>A protected message is active or the clock is in dimming mode.<br>" +
+                  "Wait for the dimming period to end, or press <b>Clear Message</b> and send the message again.</p>",
+              );
             }
             if (!res.ok) throw new Error("Failed to send message.");
             return res.text();
@@ -2656,7 +2744,7 @@ window.onload = function () {
           .then((res) => {
             showSavingModal("");
             updateSavingModal(
-              "✅ Message sent successfully!<br><br>Now displaying your custom message.",
+              "<h3>✅ Message sent successfully!<h3><p>Now displaying your custom message.</p>",
               false,
             );
             setTimeout(hideSavingModal, 2000);
@@ -2665,9 +2753,14 @@ window.onload = function () {
             console.error("Error sending custom message:", err);
             showSavingModal("");
             // Use the specific error message if it's the 409, otherwise use generic
-            const errorMsg = err.message.includes("protected") ? "⚠️ " + err.message : "⚠️ Failed to send message.<br><br>Check connection.";
+            const errorMsg = err.message.includes("protected")
+              ? "<h3>⚠️ " + err.message + "</h3>"
+              : "<h3>⚠️ Failed to send message.<h3><p>Check connection.<p>";
             updateSavingModal(errorMsg, false);
-            setTimeout(hideSavingModal, err.message.includes("protected") ? 5000 : 3000);
+            setTimeout(
+              hideSavingModal,
+              err.message.includes("protected") ? 5000 : 3000,
+            );
           });
       }
 
@@ -2688,7 +2781,7 @@ window.onload = function () {
             document.getElementById("customMessage").value = "";
             showSavingModal("");
             updateSavingModal(
-              "✅ Custom message cleared.<br><br>Display reverted to normal.",
+              "<h3>✅ Custom message cleared.<h3><p>Display reverted to normal.</p>",
               false,
             );
             setTimeout(hideSavingModal, 2000);
@@ -2697,7 +2790,7 @@ window.onload = function () {
             console.error("Error clearing custom message:", err);
             showSavingModal("");
             updateSavingModal(
-              "⚠️ Failed to clear message.<br><br>Check connection.",
+              "<h3>⚠️ Failed to clear message.<h3><p>Check connection.</p>",
               false,
             );
             setTimeout(hideSavingModal, 3000);
@@ -2907,173 +3000,203 @@ window.onload = function () {
         scanBtn.disabled = false;
         scanBtn.innerText = "Scan";
       };
-      
+
       async function checkUpdate() {
-        const checkBtn = document.getElementById('btn-check-ota');
-        const updateDiv = document.getElementById('ota-update-found');
-        const statusText = document.getElementById('ota-status-text');
-    
+        const checkBtn = document.getElementById("btn-check-ota");
+        const updateDiv = document.getElementById("ota-update-found");
+        const statusText = document.getElementById("ota-status-text");
+
         checkBtn.disabled = true;
-        updateDiv.style.display = 'none';
+        updateDiv.style.display = "none";
         statusText.style.color = "";
         statusText.style.fontWeight = "normal";
         statusText.innerText = "Checking for updates...";
 
         try {
-            // STEP 1: Get current version and specific board type
-            const localRes = await fetch('/get_version');
-            const localData = await localRes.json();
-            const currentVersion = localData.version;
-            const board = localData.board; // e.g., "esp32s3"
+          // STEP 1: Get current version and specific board type
+          const localRes = await fetch("/get_version");
+          const localData = await localRes.json();
+          const currentVersion = localData.version;
+          const board = localData.board; // e.g., "esp32s3"
 
-            // STEP 2: Fetch latest info from GitHub
-            const githubRes = await fetch('https://esptimecast.github.io/ota.json?t=' + Date.now());
-            if (!githubRes.ok) throw new Error(`GitHub returned ${githubRes.status}`);
-            
-            const githubData = await githubRes.json();
-            const latestVersion = githubData.version;
+          // STEP 2: Fetch latest info from GitHub
+          const githubRes = await fetch(
+            "https://esptimecast.github.io/ota.json?t=" + Date.now(),
+          );
+          if (!githubRes.ok)
+            throw new Error(`GitHub returned ${githubRes.status}`);
 
-            // STEP 3: Semantic Comparison
-            const parseV = (v) => v.replace(/[^\d.]/g, '').split('.').map(Number);
-            const vRemote = parseV(latestVersion);
-            const vLocal = parseV(currentVersion);
-            
-            let isNewer = false;
-            for (let i = 0; i < 3; i++) {
-                if ((vRemote[i] || 0) > (vLocal[i] || 0)) { isNewer = true; break; }
-                if ((vRemote[i] || 0) < (vLocal[i] || 0)) { isNewer = false; break; }
+          const githubData = await githubRes.json();
+          const latestVersion = githubData.version;
+
+          // STEP 3: Semantic Comparison
+          const parseV = (v) =>
+            v
+              .replace(/[^\d.]/g, "")
+              .split(".")
+              .map(Number);
+          const vRemote = parseV(latestVersion);
+          const vLocal = parseV(currentVersion);
+
+          let isNewer = false;
+          for (let i = 0; i < 3; i++) {
+            if ((vRemote[i] || 0) > (vLocal[i] || 0)) {
+              isNewer = true;
+              break;
             }
-
-            if (isNewer) {
-                // DYNAMIC LINK SELECTION:
-                // Matches "esp32s3" from device to "esp32s3" in ota.json
-                pendingBinUrl = githubData.bins[board];
-
-                if (!pendingBinUrl) {
-                    throw new Error(`No binary found for board: ${board}`);
-                }
-
-                console.log(`Found Update for ${board}:`, pendingBinUrl);
-
-                statusText.style.fontWeight = "bold";
-                statusText.style.color = "#2ecc71"; 
-                statusText.innerText = `New v${latestVersion} found! (Current: v${currentVersion})`;
-                
-                checkBtn.style.display = 'none';
-                updateDiv.style.display = 'block';
-
-            } else {
-                statusText.innerText = `Up to date (v${currentVersion})`;
-                setTimeout(() => { 
-                    checkBtn.disabled = false; 
-                    statusText.innerText = ""; 
-                }, 3000);
+            if ((vRemote[i] || 0) < (vLocal[i] || 0)) {
+              isNewer = false;
+              break;
             }
-
-          } catch (e) {
-              console.error("OTA Check Error:", e);
-              statusText.style.color = "#ff4444"; 
-              statusText.innerText = "Check Failed: " + e.message;
-              setTimeout(() => { checkBtn.disabled = false; }, 5000);
           }
+
+          if (isNewer) {
+            // DYNAMIC LINK SELECTION:
+            // Matches "esp32s3" from device to "esp32s3" in ota.json
+            pendingBinUrl = githubData.bins[board];
+
+            if (!pendingBinUrl) {
+              throw new Error(`No binary found for board: ${board}`);
+            }
+
+            console.log(`Found Update for ${board}:`, pendingBinUrl);
+
+            statusText.style.fontWeight = "bold";
+            statusText.style.color = "#2ecc71";
+            statusText.innerText = `New v${latestVersion} found! (Current: v${currentVersion})`;
+
+            checkBtn.style.display = "none";
+            updateDiv.style.display = "block";
+          } else {
+            statusText.innerText = `Up to date (v${currentVersion})`;
+            setTimeout(() => {
+              checkBtn.disabled = false;
+              statusText.innerText = "";
+            }, 3000);
+          }
+        } catch (e) {
+          console.error("OTA Check Error:", e);
+          statusText.style.color = "#ff4444";
+          statusText.innerText = "Check Failed: " + e.message;
+          setTimeout(() => {
+            checkBtn.disabled = false;
+          }, 5000);
+        }
       }
 
       async function performUpdate() {
         if (!pendingBinUrl) {
-            alert("No update URL found. Please check for updates again.");
-            return;
+          alert("No update URL found. Please check for updates again.");
+          return;
         }
 
         // 1. Initial UI feedback
-        showSavingModal("<h3>🚀 Preparing Device...</h3><p>Entering update mode.</p>");
+        showSavingModal(
+          "<h3>🚀 Preparing Device...</h3><p>Entering update mode.</p>",
+        );
 
         try {
-            // STEP 1: Signal the ESP to enter "Soft Maintenance" mode
-            // This clears the screen and stops background tasks on the ESP
-            const prepRes = await fetch(`/perform_update`);
-            if (!prepRes.ok) throw new Error("Device refused to enter update mode.");
+          // STEP 1: Signal the ESP to enter "Soft Maintenance" mode
+          // This clears the screen and stops background tasks on the ESP
+          const prepRes = await fetch(`/perform_update`);
+          if (!prepRes.ok)
+            throw new Error("Device refused to enter update mode.");
 
-            // Brief pause to let the ESP UI update (show icon)
-            await new Promise(r => setTimeout(r, 800));
+          // Brief pause to let the ESP UI update (show icon)
+          await new Promise((r) => setTimeout(r, 800));
 
-            // STEP 2: Browser downloads the .bin from GitHub
-            updateSavingModal("<b>Step 1/2: Downloading...</b><br>Fetching firmware from GitHub.");
-            
-            const fileRes = await fetch(pendingBinUrl);
-            if (!fileRes.ok) throw new Error("Could not download firmware from GitHub.");
-            
-            const blob = await fileRes.blob();
-            console.log("Downloaded blob size:", blob.size);
+          // STEP 2: Browser downloads the .bin from GitHub
+          updateSavingModal(
+            "<h3>Step 1/2: Downloading...</h3><p>Fetching firmware from GitHub.</p>", true
+          );
 
-            // STEP 3: Browser uploads the blob to the ESP via POST
-            updateSavingModal("<h3>Step 2/2: Uploading...</h3>" +
-            "<p>Writing to flash memory.</p>" +
-            "<span id='ota-progress-bar' style='font-size: 1.35em; font-weight: bold; color: #2ecc71;'>0%</span>", 
-                true
-            );
+          const fileRes = await fetch(pendingBinUrl);
+          if (!fileRes.ok)
+            throw new Error("Could not download firmware from GitHub.");
 
-        const formData = new FormData();
-        formData.append("update", blob, "update.bin");
+          const blob = await fileRes.blob();
+          console.log("Downloaded blob size:", blob.size);
 
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/upload_ota");
+          // STEP 3: Browser uploads the blob to the ESP via POST
+          updateSavingModal(
+            "<h3>Step 2/2: Uploading...</h3>" +
+              "<p>Writing to flash memory.</p>" +
+              "<span id='ota-progress-bar' style='font-size: 1.35em; font-weight: bold; color: #2ecc71;'>0%</span>",
+            true,
+          );
 
-        // Track upload progress
-        xhr.upload.onprogress = (e) => {
+          const formData = new FormData();
+          formData.append("update", blob, "update.bin");
+
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/upload_ota");
+
+          // Track upload progress
+          xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
-                const progressSpan = document.getElementById('ota-progress-bar');
-                if (progressSpan) progressSpan.innerText = percent + "%";
+              const percent = Math.round((e.loaded / e.total) * 100);
+              const progressSpan = document.getElementById("ota-progress-bar");
+              if (progressSpan) progressSpan.innerText = percent + "%";
             }
-        };
+          };
 
-        //Handle completion
-        xhr.onload = function() {
+          //Handle completion
+          xhr.onload = function () {
             if (xhr.status === 200 && xhr.responseText.includes("OK")) {
-                  document.getElementById("configForm").style.display = "none";
-                  document.querySelector(".footer").style.display = "none";
-                  document.querySelector("html").style.height = "100vh";
-                  document.body.style.height = "100vh";
-                  updateSavingModal("<h3>✅ Update Successful!</h3>" +    
-                    "<p><b>ESPTimeCast</b> is free & open source.<br>If you enjoy it, consider supporting its development.</p>" +
-                    "<div class='modal-buttons'>" + 
-                    "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/5USD','_blank','noopener')\">$5</button>" +
-                    "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/10USD','_blank','noopener')\">$10</button>" +
-                    "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto','_blank','noopener')\">Custom</button>" +
-                    "</div>" +
-                    "<p>❤️ <b>Built with love in Osaka!</b></p>" +
-                    "<p><span id='modal-countdown'>Device is rebooting in 35s</span></p>",
-                    false
-                  );
-                // Start countdown for page refresh
-                let count = 35;
-                const timer = setInterval(() => {
-                    count--;
-                    const counter = document.getElementById('modal-countdown');
-                    if (counter) counter.innerText = `Device is rebooting in ${count}s`;
-                    if (count <= 0) {
-                        clearInterval(timer);
-                        location.reload();
-                    }
-                }, 1000);
+              document.getElementById("configForm").style.display = "none";
+              document.querySelector(".footer").style.display = "none";
+              document.querySelector("html").style.height = "100vh";
+              document.body.style.height = "100vh";
+              updateSavingModal(
+                "<h3>✅ Update Successful!</h3>" +
+                  "<p><b>ESPTimeCast</b> is free for personal use.<br>If you enjoy it, consider supporting its development.</p>" +
+                  "<div class='modal-buttons'>" +
+                  "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/5USD','_blank','noopener')\">$5</button>" +
+                  "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/10USD','_blank','noopener')\">$10</button>" +
+                  "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto','_blank','noopener')\">Custom</button>" +
+                  "</div>" +
+                  "<p>❤️ <b>Built with love in Osaka!</b></p>" +
+                  "<p><span id='modal-countdown'>Device is rebooting in 35s</span></p>",
+                false,
+              );
+              // Start countdown for page refresh
+              let count = 35;
+              const timer = setInterval(() => {
+                count--;
+                const counter = document.getElementById("modal-countdown");
+                if (counter)
+                  counter.innerText = `Device is rebooting in ${count}s`;
+                if (count <= 0) {
+                  clearInterval(timer);
+                  location.reload();
+                }
+              }, 1000);
             } else {
-                updateSavingModal("<h3>❌ Upload Failed</h3><p>The device rejected the file.</p>", false);
+              updateSavingModal(
+                "<h3>❌ Upload Failed</h3><p>The device rejected the file.</p>",
+                false,
+              );
             }
-        };
+          };
 
-        xhr.onerror = () => {
-            updateSavingModal("<h3>❌Connection Lost</h3><p>Check your WiFi and try again.</p>", false);
-        };
+          xhr.onerror = () => {
+            updateSavingModal(
+              "<h3>❌Connection Lost</h3><p>Check your Wi-Fi and try again.</p>",
+              false,
+            );
+          };
 
-        xhr.send(formData);
-
+          xhr.send(formData);
         } catch (e) {
-            console.error("OTA Error:", e);
-            updateSavingModal("<h3>❌ Update Error</h3><p>" + e.message + "</p>", false);
+          console.error("OTA Error:", e);
+          updateSavingModal(
+            "<h3>❌ Update Error</h3><p>" + e.message + "</p>",
+            false
+          );
         }
-      } 
-      
-        document.addEventListener("keydown", function(event) {
+      }
+
+      document.addEventListener("keydown", function (event) {
         if (event.key === "Enter") {
           const activeElem = document.activeElement;
 
@@ -3081,9 +3204,12 @@ window.onload = function () {
           if (activeElem.id === "customMessage") {
             event.preventDefault();
             sendCustomMessage();
-          } 
+          }
           // SCENARIO 2: User is in any other input field (NTP, Brightness, etc.)
-          else if (activeElem.tagName === "INPUT" || activeElem.tagName === "SELECT") {
+          else if (
+            activeElem.tagName === "INPUT" ||
+            activeElem.tagName === "SELECT"
+          ) {
             event.preventDefault();
             // Manually trigger the form submit or click the Save button
             document.querySelector('input[type="submit"]').click();
@@ -3092,7 +3218,7 @@ window.onload = function () {
       });
 
       function resizeHostname(el) {
-          el.style.width = `calc(1rem + ${el.value.length}ch)`;
+        el.style.width = `calc(1rem + ${el.value.length}ch)`;
       }
     </script>
   </body>

@@ -2191,6 +2191,8 @@ void setupWebServer() {
 
     // Immediate UI Feedback
     P.displayClear();
+    P.setTextAlignment(PA_CENTER);
+    delay(100);
     P.print((char)172);  // Show your download/update icon
 
     request->send(200, "application/json", "{\"status\":\"ready\"}");
@@ -4575,12 +4577,16 @@ void loop() {
 
       // 2. THE MANUAL SHIFT (Create 4-5px of pure black)
       if (totalPixelWidth >= 27) {
-        // Shift the internal pixel buffer to the left 5 times
+        // Shift the internal pixel buffer 5 times
         for (uint8_t i = 0; i < 5; i++) {
-          // TSL = Transform Shift Left.
-          // This moves the actual dots on the screen.
-          P.getGraphicObject()->transform(MD_MAX72XX::TSL);
-
+          // Only do this in displayMode 6
+          if (displayMode != 6) return;
+          // Choose direction based on flipDisplay
+          if (flipDisplay) {
+            P.getGraphicObject()->transform(MD_MAX72XX::TSR);  // shift right
+          } else {
+            P.getGraphicObject()->transform(MD_MAX72XX::TSL);  // shift left
+          }
           delay(messageScrollSpeed);
         }
       }
@@ -4589,8 +4595,9 @@ void loop() {
       if (messageScrollTimes > 0) {
         currentDisplayCycleCount++;
       } else {
-        prevDisplayMode = 6;
         advanceDisplayMode();
+        prevDisplayMode = 6;
+        clockScrollDone = false;
       }
       yield();
       return;
