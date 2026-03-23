@@ -74,6 +74,30 @@ Update your device through the Web Installer using a USB connection.
 See the [hardware connection table](https://github.com/mfactory-osaka/ESPTimeCast#-wiring-your-esptimecast).
 
 &nbsp;
+## 🌐 Now Playing — ESPTimeCast Companion Extension
+
+The **ESPTimeCast Companion Extension** automatically detects what you're watching or listening to and displays it on your device in real time.
+
+Send messages, start timers, and control your display — all directly from your browser, no Web UI required.
+
+- 🎵 Auto-detects music & video titles (YouTube, Spotify, Twitch, and more)
+- ⚡ Instantly sends messages and timers from the popup
+- 🎛️ Control brightness, modes, and rotation remotely
+- 📡 Cast to multiple ESPTimeCast devices at once
+- 🔒 Runs locally on your network — fast and private
+
+  <img src="assets/extension.png" alt="ESPTimeCast Companion Extension" width="400" />
+
+
+<a href="https://chromewebstore.google.com/detail/esptimecast-companion/oddacoojadbboefmmebihlengjacbbme">
+  <img src="https://img.shields.io/badge/Chrome-Install%20Extension-4285F4?logo=googlechrome&logoColor=white" width="210" />
+</a>
+
+&nbsp;
+> Works with **YouTube**, **Spotify**, **Prime Video**, **Vimeo**, **Dailymotion**, **Twitch**, and **SoundCloud**.  
+> **Note:** Firmware v1.5.0+ required
+
+&nbsp;
 ## 📦 3D Printable Case
 
 To help support the project’s development, the official **ESPTimeCast™** case design is available as a **paid STL download** (see links below).  
@@ -387,140 +411,207 @@ Once your IDE is ready:
 &nbsp;
 </details>
 <details>
-<summary>🏠 Home Assistant Integration</summary>
+<summary>🏠 API & Home Assistant Integration</summary>
 &nbsp;
-This guide explains how to integrate **ESPTimeCast** with **Home Assistant** to send custom messages to your LED display.
+  
+ESPTimeCast exposes a unified `/action` endpoint for all device control — messages, display settings, brightness, timers, navigation, and more. It works with **Home Assistant**, **curl**, the **Chrome Extension**, or any HTTP client.
 
-#### 🧠 Overview
 
-ESPTimeCast exposes a REST API endpoint that lets you send **scrolling messages** to the display from either **Home Assistant** or the built-in **Web UI**.
+### 🧠 Message Behavior Overview
 
 #### Web UI messages
 - Act as **persistent** messages
 - Remain active (even through reboots) until replaced or cleared in the Web UI
-- Short messages (up to 8 characters) display **static & centered**, using the Web UI’s `Weather Duration` before the display rotates to the next mode
+- Short messages (up to 8 characters) display **static & centered**, using the Web UI's `Weather Duration` before the display rotates to the next mode
+- Long messages scroll `once` per display cycle if no `scrolls` value is sent
 
-#### Home Assistant messages
+#### Home Assistant / API messages
 - Are **temporary overrides**
 - Do **not** overwrite the persistent Web UI message
-- Can automatically expire using:
-  - `scrolltimes` → number of scroll cycles
-- If neither parameter is sent:
-  - Short messages (up to 8 characters) use `Weather Duration`
-  - Long messages scroll **once per display cycle** (then the display advances to the next mode, e.g., clock → weather → …)
-
->**New:** Home Assistant messages can now expire automatically after a set number of **seconds** or **scroll cycles** and the last Web UI message (if any) will be restored.
-#### 🔗 Endpoint
-
-```
-POST http://<device_ip>/set_custom_message
-```
-
-
-#### 📝 Parameters
-
-| Parameter | Type | Required | Description |
-|------------|------|-----------|-------------|
-| `message` | string | Yes | Message text to display. Send an empty string (`""`) to clear messages. |
-| `bignumbers` | integer | Optional	| Set to 1 to use the Large Numbers Font. (WEB UI Shortcut: Wrap numbers in brackets, e.g., [123]).|
-| `speed` | integer | Optional | Scrolling speed (range **10–200**). Lower values = **faster** scroll. |
-| `seconds` | integer | Optional | Maximum display duration in seconds (range **0–3600**). If set to **0**, `Weather Duration` will be used. |
-| `scrolltimes` | integer | Optional | Maximum number of full scroll cycles (**range 0–100**). Set to **0** for infinite scrolls. |
-| `allowInterrupt` | integer | Optional | **1 (Default):** New messages replace the current one immediately. **0:** Protects the message. Returns **409 Conflict** to any new requests until the current message expires. |
-
-
-#### 💡 Message Behavior Overview
+- Can automatically expire using `seconds` or `scrolls`
+- If neither is sent: short messages use `Weather Duration`, long messages scroll `once` per display cycle
 
 | Source | Behavior | Notes |
-|---------|-----------|-------|
-| **Home Assistant** | Displays message temporarily (until next mode rotation or clear). | Returns to Clock/Weather rotation if no UI message exists. |
-| **Web UI** | Displays message persistently until manually cleared. | Acts as a permanent banner or ticker. |
-| **Clear command from Web UI** | Clears *all* messages (HA + UI). | Use this to reset the display completely. |
-| **Clear command from Home Assistant** | Clears only the temporary HA message. | UI message will reappear if one was saved. |
-| **Scrolltimes expires (HA only)** | **Automatic clear.** The temporary message is removed when the limit is reached.| Automatically restores the saved UI message. |
+|--------|-----------|-------|
+| **Home Assistant** | Displays message temporarily | Returns to Clock/Weather rotation if no UI message exists |
+| **Web UI** | Displays message persistently until manually cleared | Acts as a permanent banner or ticker |
+| **Clear from Web UI** | Clears *all* messages (HA + UI) | Use this to reset the display completely |
+| **Clear from HA/API** | Clears only the temporary message | UI message will reappear if one was saved |
+| **Scrolls expires** | Automatic clear when limit is reached | Automatically restores the saved UI message |
+| **Seconds expires** | Automatic clear when limit is reached | Automatically restores the saved UI message |
 
-**Short messages (up to 8 characters):**  
-- Display static & centered (no scrolling).  
-- **Home Assistant:** uses `seconds` if provided, otherwise the Web UI **Weather Duration**.  
-- **Web UI:** always uses **Weather Duration**.
+**Short messages (up to 8 characters):**
+- Display static & centered (no scrolling)
+- Uses `seconds` if provided, otherwise `Weather Duration`
 
-**Long messages (8 characters or more):**  
-- Always scroll.
-- If sent from HA, scrolling stops when **scrolltimes** limit is reached or manually clered when sent without parameter.
+**Long messages (8+ characters):**
+- Always scroll
+- Scrolling stops when `scrolls` limit is reached or when manually cleared
 
-**The "Protected" State (How it works)**
-- When a message is sent with `allowInterrupt=0`, it creates a protected window. The display will refuse to show any new incoming messages until the current one has finished its scrolltimes or seconds.
-- **Why use it?** Use `allowInterrupt=0` for critical alerts (e.g., "LEAK DETECTED") that you don't want a random notification to overwrite.
-- **The 409 Error:** If your automation receives a 409 Conflict, it simply means the display is currently busy showing a protected message.
-- **Clearing a Lock:** If you send an infinite message (scrolltimes=0, seconds=0) with allowInterrupt=0, it stays on screen indefinitely. To break this lock, you can:
-  - Send an empty message (message=) from Home Assistant.
-  - Use the Clear button in the Web UI.
-  - Send a new message with allowInterrupt=0 to replace it.
+**The "Protected" State:**
+- Sending `interrupt=0` creates a protected window — the display refuses new messages until the current one expires
+- Use this for critical alerts (e.g., `LEAK DETECTED`) that you don't want overwritten
+- A `409 Conflict` response means the display is currently showing a protected message
+- To break a lock: send an empty message, use the Web UI Clear button, or send a new message with `interrupt=0`
 
 &nbsp;
+
+### ⚡ `/action` Endpoint
+
+Supports both GET and POST. Send a parameter name alone to toggle, or with a value to set explicitly.
+
+#### 🔗 Endpoint
+```
+GET  http://<device_ip>/action?<parameter>
+GET  http://<device_ip>/action?<parameter>=<value>
+POST http://<device_ip>/action
+```
+
+#### 💬 Messages
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `message` | string | Display a message. Send empty string `""` to clear. |
+| `speed` | `10`–`200` | Scroll speed. Lower = faster. Default: `80` |
+| `scrolls` | `0`–`100` | Scroll cycles. `0` = infinite. Default: `0` |
+| `seconds` | `0`–`3600` | Auto-clear after N seconds. `0` = use Weather Duration. |
+| `bignumbers` | `0` or `1` | Use large number font. |
+| `interrupt` | `0` or `1` | `0` = protect message from being overwritten. Returns `409` if busy. Default: `1` |
+
+#### 🧭 Navigation
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `next_mode` | -- | Advance to next display mode |
+| `prev_mode` | -- | Go to previous display mode |
+| `go_to_mode` | `0`–`6` or name | Jump to a mode: `clock`, `weather`, `description`, `countdown`, `date`, `nightscout`, `message` |
+| `enable_rotation` | `0` or `1` (optional) | Freeze or resume automatic rotation. Toggles if no value sent. |
+
+#### 🔆 Display & Brightness
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `brightness` | `0`–`15` | Set brightness |
+| `brightness_up` | -- | Increase brightness by 1 |
+| `brightness_down` | -- | Decrease brightness by 1 |
+| `display_off` | -- | Toggle display on/off |
+| `flip`| `0` or `1` (optional) | Flip display 180°. Toggles if no value sent. |
+
+#### 🕐 Clock & Time
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `twelve_hour` | `0` or `1` (optional) | Toggle 12/24h clock |
+| `show_dayofweek` | `0` or `1` (optional) | Toggle day of week display |
+| `show_date` | `0` or `1` (optional) | Toggle date display |
+| `animated_seconds` | `0` or `1` (optional) | Toggle animated seconds |
+
+#### 🌤️ Weather
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `humidity`| `0` or `1` (optional) | Toggle humidity display |
+| `weatherdesc` | `0` or `1` (optional) | Toggle weather description |
+| `units` | `0` or `1` (optional) | Toggle imperial/metric units |
+| `imperial` | -- | Set imperial units |
+| `metric` | -- | Set metric units |
+| `language` | e.g. `en`, `ja`, `sv` | Set display language |
+
+#### ⏱️ Timer
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `timer` | e.g. `5M`, `1H30M`, `90S` | Start a timer |
+| `timer_stop` / `timer_cancel` | -- | Stop and clear timer |
+| `timer_pause` | -- | Pause running timer |
+| `timer_resume` / `timer_start` | -- | Resume paused timer |
+| `timer_restart` | -- | Restart timer from original duration |
+
+#### ⚙️ System
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `clear_message` | -— | Clear current message, restore persistent UI message |
+| `save` | —- | Persist current settings to flash |
+| `restart` | -— | Reboot the device |
+
+> **Toggle behavior:** Sending a parameter without a value toggles it and jumps to the relevant display mode. 
+&nbsp;
+
+&nbsp;
+
+### 🏠 Home Assistant Setup
+
+Add this to your `configuration.yaml`:
+```yaml
+rest_command:
+  esptimecast:
+    url: "http://<device_ip>/action"
+    method: POST
+    content_type: "application/x-www-form-urlencoded"
+    payload: "{{ payload }}"
+```
+
+Then restart Home Assistant.
+
 #### ⚙️ Example Automations
 
-#### 1. Send a Temporary HA Message with Duration
-
+**1. Send a notification with auto-clear:**
 ```yaml
-alias: Notify Door Open on ESPTimeCast
+alias: Notify Door Open
 trigger:
   - platform: state
     entity_id: binary_sensor.front_door
     to: "on"
 action:
-  - service: rest_command.esptimecast_message
+  - service: rest_command.esptimecast
     data:
-      message: "DOOR OPEN"
-      speed: 60
-      seconds: 15 # Message will automatically clear after 15 seconds
+      payload: "message=DOOR OPEN&seconds=15"
 ```
 
-#### 2. Send a Temporary HA Message with Scroll Count
-
+**2. Send a protected priority message:**
 ```yaml
-alias: Notify Mail Delivered Three Times
-action:
-  - service: rest_command.esptimecast_message
-    data:
-      message: "MAIL DELIVERED"
-      scrolltimes: 3 # Message will clear after 3 complete scroll cycles
-```
-
-#### 3. Manually Clear the Temporary Message
-
-```yaml
-alias: Clear ESPTimeCast Message
-trigger:
-  - platform: state
-    entity_id: binary_sensor.front_door
-    to: "off"
-action:
-  - service: rest_command.esptimecast_message
-    data:
-      message: "" # Sends an empty message to trigger the clear logic
-```
-
-#### 4. Send a Protected Priority Message
-Use interrupt: 0 for critical alerts. This ensures the message cannot be overwritten by other automations until it finishes its 3 scrolls.
-
-```yaml
-alias: Notify Leak Detected (Protected)
+alias: Notify Leak Detected
 trigger:
   - platform: state
     entity_id: binary_sensor.water_leak
     to: "on"
 action:
-  - service: rest_command.esptimecast_message
+  - service: rest_command.esptimecast
     data:
-      message: "⚠️ LEAK DETECTED"
-      scrolltimes: 3
-      interrupt: 0 # Protects this message from being interrupted
+      payload: "message=LEAK DETECTED&scrolltimes=5&ainterrupt=0"
 ```
 
-#### 5. Send Message with Smart Retry (Handling 409)
-If you have multiple automations, use this "Retry Loop." It checks if the ESP is busy (409 Conflict) and waits 10 seconds before trying again.
+**3. Freeze display while media plays:**
+```yaml
+alias: Freeze ESPTimeCast during media
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "enable_rotation=0"
+```
 
+**4. Start a 10 minute timer:**
+```yaml
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "timer=10M"
+```
+
+**5. Dim display at night:**
+```yaml
+alias: Dim ESPTimeCast at Night
+trigger:
+  - platform: time
+    at: "23:00"
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "display_off"
+```
+
+**6. Send message with Smart Retry (Handling 409):**
 ```yaml
 alias: Notify Mail with Retry
 trigger:
@@ -530,137 +621,123 @@ trigger:
 action:
   - repeat:
       while:
-        # Continue if we haven't hit 5 tries AND the last response was 409 (Busy)
         - condition: template
           value_template: "{{ repeat.index <= 5 and (not is_defined(wait_result) or wait_result.status == 409) }}"
       sequence:
-        - service: rest_command.esptimecast_message
+        - service: rest_command.esptimecast
           data:
-            message: "YOU HAVE MAIL"
-            scrolltimes: 2
+            payload: "message=YOU HAVE MAIL&scrolls=2"
           response_variable: wait_result
           continue_on_error: true
-
         - if:
             - condition: template
               value_template: "{{ wait_result.status == 409 }}"
           then:
-            - delay: "00:00:10" # Wait 10s for the protected message to finish
+            - delay: "00:00:10"
 ```
 
-#### 🧩 Example `rest_command` Configuration
+### ⚡ curl Examples
+```bash
+# Send a message
+curl -X POST -d "message=HELLO WORLD&scrolls=3" "http://<device_ip>/action"
 
-Add this to your `configuration.yaml` This configuration uses default values for the new parameters (`seconds` and `scrolltimes`) set to `0` (infinite) if they are not passed in the service call.
+# Protected message
+curl -X POST -d "message=LEAK DETECTED&scrolls=5&interrupt=0" "http://<device_ip>/action"
 
+# Test 409 (run while a protected message is scrolling)
+curl -v -X POST -d "message=TRYING" "http://<device_ip>/action"
 
-```yaml
-rest_command:
-  esptimecast_message:
-    url: "http://<device_ip>/set_custom_message"
-    method: POST
-    content_type: "application/x-www-form-urlencoded"
-    payload: "message={{ message }}&speed={{ speed | default(85) }}&seconds={{ seconds | default(0) }}&scrolltimes={{ scrolltimes | default(0) }}&allowInterrupt={{ interrupt | default(1) }}"
+# Start a timer
+curl "http://<device_ip>/action?timer=5M"
+
+# Jump to clock mode
+curl "http://<device_ip>/action?go_to_mode=clock"
+
+# Set brightness
+curl "http://<device_ip>/action?brightness=8"
+
+# Toggle 12-hour clock
+curl "http://<device_ip>/action?twelve_hour"
+
+# Turn display off
+curl "http://<device_ip>/action?display_off"
 ```
 
-Then restart Home Assistant.
+### 🧾 Notes
 
-#### ⚡ Quick Test via curl
-You can quickly test sending a message to your ESPTimeCast display using `curl` from any computer on the same network:
-```
-curl -X POST -d "message=HA TEST&speed=40&seconds=10&scrolltimes=2" "http://<device_ip>/set_custom_message"
-```  
-
-
-Test the "Protected" mode directly from your terminal:
-To Lock the screen:
-```
-curl -X POST -d "message=LOCKED&scrolltimes=5&allowInterrupt=0" "http://<device_ip>/set_custom_message"
-```  
-
-
-To test the 409 Conflict (Run this while the message above is scrolling):
-```
-curl -v -X POST -d "message=TRYING" "http://<device_ip>/set_custom_message"
-```
-The `-v` flag will show you the `HTTP/1.1 409` Conflict response sent by the ESPTimeCast.  
-
-
-> Replace <device_ip> with the IP of your ESPTimeCast device.  
-> The message parameter is your text to display.  
-> The optional speed parameter controls the scroll speed (10–200, lower = faster).
-> The message will clear after **10 seconds** OR **2 scrolls**, whichever comes first.
-
-&nbsp;
-#### 🧾 Notes
-
-- Allowed characters: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > { } \ - & $ | 
-- All text is automatically converted to **uppercase**.
-- Lower scroll speed values make the message **scroll faster**.
-- Custom Message scroll speed can be changed via this endpoint.
-- Order of Operations: If both `seconds` and `scrolltimes` are set, the message is removed when the **first condition is met**.
-- Breaking a Lock: A new message sent with `allowInterrupt=0` will always overwrite a currently scrolling "Protected" message. This allows a higher-priority alert to take over the screen even if it was locked.
+- Allowed characters: A-Z, 0-9, space, and symbols `: ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > { } \ - & $ |`
+- All text is automatically converted to **uppercase**
+- If both `seconds` and `scrolls` are set, the message clears when the **first condition** is met
+- A new message with `interrupt=0` always overrides a currently protected message
 
 #### ✅ Example Use Cases
 
-- Temporary alerts like **DOOR OPEN**, **RAIN STARTING**, or **MAIL DELIVERED**.  
-- Persistent ticker messages from the Web UI like **WELCOME HOME** or **ESPTIMECAST LIVE**.  
-- Combine both: Web UI for a base banner, and HA for transient automation messages.
+- Temporary alerts like **DOOR OPEN**, **RAIN STARTING**, or **MAIL DELIVERED**
+- Persistent ticker messages from the Web UI like **WELCOME HOME** or **ESPTIMECAST LIVE**
+- Combine both: Web UI for a base banner, HA for transient automation messages
+- Freeze the display during media playback using `enable_rotation=0`
+
+> **ℹ️ Legacy Endpoint:** The `/set_custom_message` endpoint from previous versions is still supported for backwards compatibility. New integrations should use `/action` instead.
 
 &nbsp;
-#### 🔆 Brightness Control (Home Assistant)
+</details>
+<details>
+<summary> 🔘 Physical Button (Optional)</summary>
+&nbsp;
 
-ESPTimeCast provides an endpoint that allows Home Assistant to remotely control the LED matrix brightness — including turning the display completely off.
+ESPTimeCast supports an optional physical button that can be wired directly to your ESP board for hands-free control — no app or network required.
 
-#### 🔗 Endpoint
+The button template is included in the firmware but **disabled by default**. To enable it, simply uncomment the relevant lines and choose your GPIO pin.
+
+### Wiring
+
+Connect a momentary push button between your chosen GPIO pin and **GND**. The firmware uses the internal pull-up resistor — no external resistor needed.
 ```
-POST http://<device_ip>/set_brightness
-```
-
-#### 📝 Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|-------|----------|-------------|
-| `value` | integer | Yes | Brightness level **0–15**, or **-1** to turn the display **off**. |
-
-- Values **0–15** set the LED matrix brightness normally.  
-- Value **-1** turns the display off entirely (LEDs disabled) until brightness is set again.
-- When brightness is set back to 0–15, the display immediately resumes showing the current message or mode.
-
-
-#### 🧩 Example Home Assistant `rest_command`
-
-```
-rest_command:
-  esptimecast_brightness:
-    url: "http://<device_ip>/set_brightness"
-    method: POST
-    content_type: "application/x-www-form-urlencoded"
-    payload: "value={{ brightness }}"
+ESP GPIO pin  ──────────────  Button  ──────────────  GND
 ```
 
-#### ⚡ Example Automation
+### Setup
 
+In the firmware, find the **PHYSICAL BUTTON TEMPLATE** section and:
+
+1. Uncomment `#define BUTTON_PIN 4` and change `4` to your GPIO pin
+2. Uncomment the `handleButton()` function
+3. Uncomment the `pinMode` line in `setup()`
+4. Uncomment the `handleButton()` call in `loop()`
+
+### Default Behavior
+
+| Press | Default Action | 
+|-------|----------------|
+| **Short press** | Advance to next display mode |
+| **Long press** (800ms+) | Toggle display on/off |
+
+### Customization
+
+Both actions can be replaced with any `/action` parameter. Some examples:
+```cpp
+// Short press examples:
+executeAction("prev_mode", "");         // Go to previous mode
+executeAction("brightness_up", "");     // Increase brightness
+executeAction("enable_rotation", "");   // Toggle rotation freeze
+executeAction("go_to_mode", "clock");   // Jump to clock
+
+// Long press examples:
+executeAction("restart", "");           // Reboot device
+executeAction("brightness_down", "");   // Decrease brightness
+executeAction("go_to_mode", "clock");   // Jump to clock
+executeAction("enable_rotation", "");   // Toggle rotation freeze
 ```
-alias: Dim ESPTimeCast at Night
-trigger:
-  - platform: time
-    at: "23:00"
-action:
-  - service: rest_command.esptimecast_brightness
-    data:
-      brightness: -1   # Turns the display off
-```
 
-#### ⚡ Quick Test via curl
+> See the full list of available actions in the API & Home Assistant Integration section.
 
-You can quickly test changing the brightness of your ESPTimeCast display using `curl` from any computer on the same network:
-
-```
-curl -X POST -d "value=10" "http://<device_ip>/set_brightness"
-```
-
-> Replace <device_ip> with the IP address of your ESPTimeCast device.  
-> Use a brightness value between **0–15**, or **-1** to turn the display off.
+### Notes
+- The long press threshold defaults to **800ms** — change `BUTTON_LONG_PRESS_MS` to adjust
+- Short press fires on **button release** to avoid conflict with long press
+- Any GPIO pin can be used — check your board's pinout for available pins
+- ESP8266 D-pin labels map to GPIO numbers (e.g. D2 = GPIO4)
+  
+&nbsp;
 </details>
 <details>
 <summary>🎨 Icons & Custom Font</summary>
@@ -924,7 +1001,11 @@ If you'd like to go a step further, you can also support development through the
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-fafbfc?logo=github&logoColor=ea4aaa)](https://github.com/sponsors/mfactory-osaka)   
 &nbsp;
 &nbsp;
-
+## 📜 License Change Notice
+As of v1.5.0, ESPTimeCast is no longer licensed under GPL-3.0.  
+It is now source-available for personal, non-commercial use only.  
+Previous versions (v1.4.2 and earlier) remain under their original GPL-3.0 license.  
+For commercial licensing inquiries contact mario.felipe.tf@gmail.com
 
       
 
