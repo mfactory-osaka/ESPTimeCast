@@ -1,3 +1,14 @@
+/*
+ESPTimeCast™
+
+Copyright (c) 2026 M-Factory
+
+This software is source-available for personal, non-commercial use only.
+It is not open source.
+
+See LICENSE.txt for full terms.
+*/
+
 #ifndef DAYS_LOOKUP_H
 #define DAYS_LOOKUP_H
 

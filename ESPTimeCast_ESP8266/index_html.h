@@ -1,3 +1,14 @@
+/*
+ESPTimeCast™
+
+Copyright (c) 2026 M-Factory
+
+This software is source-available for personal, non-commercial use only.
+It is not open source.
+
+See LICENSE.txt for full terms.
+*/
+
 #pragma once
 // index_html.h
 
@@ -2718,17 +2729,15 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         if (message.length === 0 && input.value.trim().length > 0) return;
 
-        fetch("/set_custom_message", {
-          method: "POST",
+      // 1. All data goes into the URL for a GET request
+        const url = `/action?message=${encodeURIComponent(message)}&bignumbers=${useBigNumbers}&scrolls=0&seconds=0`;
+
+        // 2. Fetch with your custom header, but NO body
+        fetch(url, {
+          method: "GET",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Source": "UI",
-          },
-          body:
-            "message=" +
-            encodeURIComponent(message) +
-            "&bignumbers=" +
-            useBigNumbers,
+            "X-Source": "UI" //
+          }
         })
           .then((res) => {
             if (res.status === 409) {
@@ -2765,19 +2774,21 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       function clearCustomMessage() {
-        fetch("/set_custom_message", {
-          method: "POST",
+        // We use /action?message= to clear, hitting our reliable C++ bridge
+        const url = "/action?message=&scrolls=0&seconds=0";
+
+        fetch(url, {
+          method: "GET",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
             "X-Source": "UI",
-          },
-          body: "message=",
+          }
         })
           .then((res) => {
             if (!res.ok) throw new Error("Failed to clear message.");
             return res.text();
           })
           .then((res) => {
+            // This is your original UI success logic
             document.getElementById("customMessage").value = "";
             showSavingModal("");
             updateSavingModal(

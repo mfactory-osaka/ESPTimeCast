@@ -1,5 +1,16 @@
+/*
+ESPTimeCast™
+
+Copyright (c) 2026 M-Factory
+
+This software is source-available for personal, non-commercial use only.
+It is not open source.
+
+See LICENSE.txt for full terms.
+*/
+
 #pragma once
-#define FIRMWARE_VERSION "1.4.2"
+#define FIRMWARE_VERSION "1.5.0"
 
 // Auto-detect the specific chip family
 #if defined(ESP8266)

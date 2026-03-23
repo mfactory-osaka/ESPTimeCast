@@ -1,3 +1,14 @@
+/*
+ESPTimeCast™
+
+Copyright (c) 2026 M-Factory
+
+This software is source-available for personal, non-commercial use only.
+It is not open source.
+
+See LICENSE.txt for full terms.
+*/
+
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
@@ -14,16 +25,7 @@
 #include <WiFiClientSecure.h>
 #include <ESP8266mDNS.h>
 #include "version.h"
-
-// --- FONT HANDLING ---
-#if __has_include("mfactoryfont.h")
 #include "mfactoryfont.h"
-#define USE_CUSTOM_FONT
-#pragma message("ESPTimeCast™: Building with mfactoryfont")
-#else
-#include "basic_font.h"
-#pragma message("ESPTimeCast™: Using Basic Font (fallback)")
-#endif
 
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
@@ -49,6 +51,20 @@ AsyncWebServer server(80);
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
 int IP_SCROLL_SPEED = 115;            // Default: Adjust this for the IP Address display (slower for readability)
 int messageScrollSpeed = 85;          // default fallback
+
+// Order for safe advance display mode
+const uint8_t modeOrder[] = {
+  0,  // CLOCK
+  1,  // WEATHER
+  5,  // DATE
+  2,  // WEATHER DESCRIPTION
+  3,  // COUNTDOWN
+  4,  // NIGHTSCOUT
+  6   // CUSTOM MESSAGE
+};
+
+const uint8_t MODE_COUNT = sizeof(modeOrder) / sizeof(modeOrder[0]);
+uint8_t modeIndex = 0;
 
 // --- Nightscout setting ---
 const unsigned int NIGHTSCOUT_IDLE_THRESHOLD_MIN = 10;  // minutes before data is considered outdated
@@ -128,6 +144,8 @@ bool countdownEnabled = false;
 time_t countdownTargetTimestamp = 0;  // Unix timestamp
 char countdownLabel[64] = "";         // Label for the countdown
 bool isDramaticCountdown = true;      // Default to the dramatic countdown mode
+int countdownSegment = 0;
+unsigned long segmentStartTime = 0;
 
 // Runtime Uptime Tracker
 unsigned long bootMillis = 0;                      // Stores millis() at boot
@@ -145,6 +163,7 @@ bool weatherCycleStarted = false;
 WiFiClient client;
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
+bool rotationEnabled = true;
 
 String currentTemp = "";
 String weatherDescription = "";
@@ -225,6 +244,11 @@ unsigned long timerFinishStartTime = 0;
 unsigned long timerEndTime = 0;
 int global_scrolltimes = 0;  // Persisted from HTTP request
 int global_msgSeconds = 0;
+
+// Forward declarations
+void advanceDisplayMode(bool forced = false);
+void previousDisplayMode(bool forced = false);
+void goToMode(const String &target);
 
 // --- Safe WiFi credential and API getters ---
 const char *getSafeSsid() {
@@ -540,7 +564,7 @@ void connectWiFi() {
   // If credentials exist, attempt STA connection
   WiFi.persistent(true);
   WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
+  WiFi.setAutoReconnect(false);
 #ifdef ESP8266
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
 #endif
@@ -962,6 +986,171 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
   }
 }
 
+void handleCustomMessageLogic(AsyncWebServerRequest *request) {
+  if (isNetworkBusy) {
+    Serial.println(F("[MESSAGE] Rejected: Network Busy"));
+    AsyncWebServerResponse *busyResponse = request->beginResponse(503, "text/plain", "Network Busy");
+    busyResponse->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(busyResponse);
+    return;
+  }
+
+  if (request->hasArg("message")) {
+    String msg = request->arg("message");
+    msg.trim();
+
+    bool isClearRequest = (msg.length() == 0);
+    bool incomingAllowInterrupt = true;
+
+    // Detect Source: Header or URL param
+    bool isFromUI = (request->header("X-Source") == "UI") || (request->arg("source") == "UI");
+    bool isFromAPI = !isFromUI;
+
+    // 1. Interrupt (allowInterrupt / interrupt)
+    if (request->hasArg("allowInterrupt")) {
+      incomingAllowInterrupt = (request->arg("allowInterrupt") == "1");
+    } else if (request->hasArg("interrupt")) {
+      incomingAllowInterrupt = (request->arg("interrupt") == "1");
+    }
+
+    // 2. Seconds (seconds / duration)
+    int rawSecs = request->hasArg("seconds") ? request->arg("seconds").toInt() : (request->hasArg("duration") ? request->arg("duration").toInt() : 0);
+    messageDisplaySeconds = constrain(rawSecs, 0, 3600);
+
+    // 3. Scrolls (scrolltimes / scrolls / scroll_times)
+    int rawScrolls = request->hasArg("scrolltimes") ? request->arg("scrolltimes").toInt() : (request->hasArg("scrolls") ? request->arg("scrolls").toInt() : (request->hasArg("scroll_times") ? request->arg("scroll_times").toInt() : 0));
+    messageScrollTimes = constrain(rawScrolls, 0, 100);
+
+    // 4. Speed & Big Numbers
+    messageBigNumbers = (request->arg("bignumbers") == "1");
+    int rawSpeed = request->hasArg("speed") ? request->arg("speed").toInt() : GENERAL_SCROLL_SPEED;
+    int localSpeed = constrain(rawSpeed, 10, 200);
+
+    // PROTECTION: Clock-only dimming
+    if (!isClearRequest && clockOnlyDuringDimming && dimActive) {
+      Serial.printf("[MESSAGE] Rejected (Dimming Mode): '%s'\n", msg.c_str());
+      request->send(409, "text/plain", "Clock-only dimming mode active");
+      return;
+    }
+
+    // Handle Timer Commands
+    if (handleTimerCommand(msg)) {
+      Serial.println(F("[MESSAGE] Timer command executed."));
+      request->send(200, "text/plain", "Timer Command Executed");
+      return;
+    }
+
+    if (request->hasParam("allowInterrupt")) {
+      incomingAllowInterrupt = (request->getParam("allowInterrupt")->value() == "1");
+    }
+
+    // PROTECTION: Timer Active
+    if (timerActive && !isClearRequest && incomingAllowInterrupt) {
+      Serial.println(F("[MESSAGE] Rejected: Timer is active."));
+      request->send(409, "text/plain", "Timer active - use priority message");
+      return;
+    }
+
+    // PROTECTION: Protected Message Running
+    if (!isClearRequest && !allowInterrupt && incomingAllowInterrupt) {
+      Serial.println(F("[MESSAGE] Rejected: Protected message running"));
+      request->send(409, "text/plain", "Display busy");
+      return;
+    }
+
+    String filtered = cleanTextForDisplay(msg);
+
+    // --- LOG: Consolidated Intent (Before Saving/Execution) ---
+    Serial.printf(
+      "[MESSAGE] Source=%s | msg='%s' | seconds=%d | scrolls=%d | speed=%d | big=%d | allowInterrupt=%d\n",
+      isFromUI ? "UI" : "API",
+      filtered.c_str(),
+      messageDisplaySeconds,
+      messageScrollTimes,
+      localSpeed,
+      messageBigNumbers,
+      incomingAllowInterrupt);
+
+    if (timerActive) {
+      displayMode = (messageScrollTimes == 0 && messageDisplaySeconds == 0) ? 6 : 7;
+      lastSwitch = millis();
+      forceMessageRestart = true;
+    }
+
+    // --- CLEAR MESSAGE ---
+    if (isClearRequest) {
+      allowInterrupt = true;
+      forceMessageRestart = true;
+      if (isFromUI) {
+        customMessage[0] = '\0';
+        lastPersistentMessage[0] = '\0';
+        messageStartTime = 0;
+        currentScrollCount = 0;
+        messageDisplaySeconds = 0;
+        messageScrollTimes = 0;
+        displayMode = 0;
+        prevDisplayMode = 6;
+        lastSwitch = millis();
+        clockScrollDone = false;
+        saveCustomMessageToConfig("");
+        Serial.println(F("[MESSAGE] Full Clear (UI) completed."));
+        request->send(200, "text/plain", "CLEARED (UI)");
+      } else {
+        customMessage[0] = '\0';
+        messageStartTime = 0;
+        currentScrollCount = 0;
+        messageDisplaySeconds = 0;
+        messageScrollTimes = 0;
+
+        if (strlen(lastPersistentMessage) > 0) {
+          strlcpy(customMessage, lastPersistentMessage, sizeof(customMessage));
+          messageScrollSpeed = GENERAL_SCROLL_SPEED;
+          displayMode = 6;
+          prevDisplayMode = 0;
+          Serial.println(F("[MESSAGE] Temp message cleared. Persistent restored."));
+          request->send(200, "text/plain", "CLEARED (API temporary, persistent restored)");
+        } else {
+          displayMode = 0;
+          lastSwitch = millis();
+          prevDisplayMode = 6;
+          clockScrollDone = false;
+          Serial.println(F("[MESSAGE] Temp message cleared. No persistent found."));
+          request->send(200, "text/plain", "CLEARED (API temporary, no persistent)");
+        }
+      }
+      return;
+    }
+
+    // --- STORE & ACTIVATE ---
+    if (isFromAPI) {
+      filtered.toCharArray(customMessage, sizeof(customMessage));
+      messageScrollSpeed = localSpeed;
+    } else {
+      filtered.toCharArray(customMessage, sizeof(customMessage));
+      strlcpy(lastPersistentMessage, customMessage, sizeof(lastPersistentMessage));
+      messageScrollSpeed = GENERAL_SCROLL_SPEED;
+      saveCustomMessageToConfig(lastPersistentMessage);
+    }
+
+    allowInterrupt = incomingAllowInterrupt;
+    displayMode = 6;
+    prevDisplayMode = 0;
+    messageStartTime = millis();
+    currentScrollCount = 0;
+    clockScrollDone = false;
+    forceMessageRestart = true;
+
+    // --- FINAL RESPONSE ---
+    String responseMsg = "OK (" + String(isFromUI ? "UI" : "API") + ")";
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", responseMsg);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(response);
+  } else {
+    Serial.println(F("[MESSAGE] Error: Missing message parameter"));
+    request->send(400, "text/plain", "Missing message parameter");
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Web Server and Captive Portal
 // -----------------------------------------------------------------------------
@@ -970,41 +1159,22 @@ void handleCaptivePortal(AsyncWebServerRequest *request);
 void setupWebServer() {
   Serial.println(F("[WEBSERVER] Setting up web server..."));
 
+  // 1. Global CORS headers (Required for Chrome Extension)
+  // These headers allow the browser to verify the security policy for all routes.
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type, X-Source");
+
+  // Root handler with BOTH CORS and Cache-Prevention
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.println(F("[WEBSERVER] Request: /"));
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html);
+    // Anti-Caching Headers: Ensures the browser always fetches the latest UI
     response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     response->addHeader("Pragma", "no-cache");
     response->addHeader("Expires", "0");
+    // CORS Header (Manual insurance for strict browser scrutiny)
+    response->addHeader("Access-Control-Allow-Origin", "*");
     request->send(response);
-  });
-
-  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(204);  // 204 No Content response
-  });
-  server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest *request) {  // iOS icon check
-    request->send(204);
-  });
-  server.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest *request) {  // Android short probe (already in handleCaptivePortal, but safe to also silence if somehow missed)
-    request->send(204);
-  });
-  server.on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest *request) {  // iOS/macOS generic check
-    request->send(204);
-  });
-  server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) {  // Windows NCSI check
-    request->send(204);
-  });
-  server.on("/msdownload/update/v3/static/trustedr/en/disallowedcertstl.cab", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(204);
-  });
-  server.on("/msdownload/update/v3/static/trustedr/en/authrootstl.cab", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(204);
-  });
-  server.on("/msdownload/update/v3/static/trustedr/en/pinrulesstl.cab", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(204);
-  });
-  server.on("/r/r1.crl", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(204);
   });
 
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -1281,503 +1451,85 @@ void setupWebServer() {
     request->send(200, "application/json", json);
   });
 
-  server.on("/set_brightness", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (!request->hasParam("value", true)) {
-      request->send(400, "application/json", "{\"error\":\"Missing value\"}");
-      return;
-    }
-
-    String sourceHeader = request->header("X-Source");
-    bool isFromUI = (sourceHeader == "UI");
-    int newBrightness = request->getParam("value", true)->value().toInt();
-
-    // --- CASE 1: Turn Display OFF ---
-    if (newBrightness == -1) {
-      if (!displayOff) {
-        P.displayShutdown(true);
-        P.displayClear();
-        displayOff = true;
-        brightness = -1;
-        configDirty = true;
-        lastBrightnessChange = millis();
-
-        Serial.printf("[BRIGHTNESS] Display turned OFF via %s\n", isFromUI ? "UI" : "HA");
-      }
-      request->send(200, "application/json", "{\"ok\":true, \"display\":\"off\"}");
-      return;
-    }
-
-    // --- CASE 2: Turn Display ON or Adjust ---
-    newBrightness = constrain(newBrightness, 0, 15);
-
-    if (newBrightness != brightness || displayOff) {
-      bool wakingUp = displayOff;
-      brightness = newBrightness;
-      configDirty = true;
-      lastBrightnessChange = millis();
-
-      P.setIntensity(brightness);
-
-      if (wakingUp) {
-        advanceDisplayModeSafe();
-        P.displayShutdown(false);
-        displayOff = false;
-        Serial.printf("[BRIGHTNESS] Display woke from OFF via %s to %d\n", isFromUI ? "UI" : "HA", brightness);
-      } else {
-        Serial.printf("[BRIGHTNESS] Intensity set to %d via %s\n", brightness, isFromUI ? "UI" : "HA");
-      }
-    }
-
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_flip", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool flip = false;
+  auto setHandler = [](AsyncWebServerRequest *request) {
+    String action = request->url().substring(5);  // strips "/set_" → e.g. "brightness"
+    String value = "";
     if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      flip = (v == "1" || v == "true" || v == "on");
+      value = request->getParam("value", true)->value();
+    } else if (request->params() > 0) {
+      value = request->getParam(0)->value();
     }
-    flipDisplay = flip;
-    P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
-    P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
-    Serial.printf("[WEBSERVER] Set flipDisplay to %d\n", flipDisplay);
+    executeAction(action, value);
     request->send(200, "application/json", "{\"ok\":true}");
-  });
+  };
 
-  server.on("/set_twelvehour", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool twelveHour = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      twelveHour = (v == "1" || v == "true" || v == "on");
-    }
-    twelveHourToggle = twelveHour;
-    Serial.printf("[WEBSERVER] Set twelveHourToggle to %d\n", twelveHourToggle);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_dayofweek", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool showDay = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      showDay = (v == "1" || v == "true" || v == "on");
-    }
-    showDayOfWeek = showDay;
-    Serial.printf("[WEBSERVER] Set showDayOfWeek to %d\n", showDayOfWeek);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_showdate", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool showDateVal = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      showDateVal = (v == "1" || v == "true" || v == "on");
-    }
-    showDate = showDateVal;
-    Serial.printf("[WEBSERVER] Set showDate to %d\n", showDate);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_humidity", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool showHumidityNow = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      showHumidityNow = (v == "1" || v == "true" || v == "on");
-    }
-    showHumidity = showHumidityNow;
-    Serial.printf("[WEBSERVER] Set showHumidity to %d\n", showHumidity);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_colon_blink", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool enableBlink = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      enableBlink = (v == "1" || v == "true" || v == "on");
-    }
-    colonBlinkEnabled = enableBlink;
-    Serial.printf("[WEBSERVER] Set colonBlinkEnabled to %d\n", colonBlinkEnabled);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_language", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (!request->hasParam("value", true)) {
-      request->send(400, "application/json", "{\"error\":\"Missing value\"}");
-      return;
-    }
-
-    String lang = request->getParam("value", true)->value();
-    lang.trim();         // Remove whitespace/newlines
-    lang.toLowerCase();  // Normalize to lowercase
-
-    strlcpy(language, lang.c_str(), sizeof(language));              // Safe copy to char[]
-    Serial.printf("[WEBSERVER] Set language to '%s'\n", language);  // Use quotes for debug
-
-    shouldFetchWeatherNow = true;
-
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_weatherdesc", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool showDesc = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      showDesc = (v == "1" || v == "true" || v == "on");
-    }
-
-    if (showWeatherDescription == true && showDesc == false) {
-      Serial.println(F("[WEBSERVER] showWeatherDescription toggled OFF. Checking display mode..."));
-      if (displayMode == 2) {
-        Serial.println(F("[WEBSERVER] Currently in Weather Description mode. Forcing mode advance/cleanup."));
-        advanceDisplayMode();
-      }
-    }
-
-    showWeatherDescription = showDesc;
-    Serial.printf("[WEBSERVER] Set Show Weather Description to %d\n", showWeatherDescription);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_units", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      if (v == "1" || v == "true" || v == "on") {
-        strcpy(weatherUnits, "imperial");
-        tempSymbol = '\007';
-      } else {
-        strcpy(weatherUnits, "metric");
-        tempSymbol = '\006';
-      }
-      Serial.printf("[WEBSERVER] Set weatherUnits to %s\n", weatherUnits);
-      shouldFetchWeatherNow = true;
-      request->send(200, "application/json", "{\"ok\":true}");
-    } else {
-      request->send(400, "application/json", "{\"error\":\"Missing value parameter\"}");
-    }
-  });
-
-  server.on("/set_countdown_enabled", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool enableCountdownNow = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      enableCountdownNow = (v == "1" || v == "true" || v == "on");
-    }
-
-    if (countdownEnabled == enableCountdownNow) {
-      Serial.println(F("[WEBSERVER] Countdown enable state unchanged, ignoring."));
-      request->send(200, "application/json", "{\"ok\":true}");
-      return;
-    }
-
-    if (countdownEnabled == true && enableCountdownNow == false) {
-      Serial.println(F("[WEBSERVER] Countdown toggled OFF. Checking display mode..."));
-      if (displayMode == 3) {
-        Serial.println(F("[WEBSERVER] Currently in Countdown mode. Forcing mode advance/cleanup."));
-        advanceDisplayMode();
-      }
-    }
-
-    countdownEnabled = enableCountdownNow;
-    Serial.printf("[WEBSERVER] Set Countdown Enabled to %d\n", countdownEnabled);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/set_dramatic_countdown", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool enableDramaticNow = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      enableDramaticNow = (v == "1" || v == "true" || v == "on");
-    }
-
-    // Check if the state has changed
-    if (isDramaticCountdown == enableDramaticNow) {
-      Serial.println(F("[WEBSERVER] Dramatic Countdown state unchanged, ignoring."));
-      request->send(200, "application/json", "{\"ok\":true}");
-      return;
-    }
-
-    // Update the global variable
-    isDramaticCountdown = enableDramaticNow;
-
-    // Call saveCountdownConfig with only the existing parameters.
-    // It will read the updated global variable 'isDramaticCountdown'.
-    saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
-
-    Serial.printf("[WEBSERVER] Set Dramatic Countdown to %d\n", isDramaticCountdown);
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  // Set Clock-only-during-dimming (no reboot)
-  server.on("/set_clock_only_dimming", HTTP_POST, [](AsyncWebServerRequest *request) {
-    bool enableNow = false;
-    if (request->hasParam("value", true)) {
-      String v = request->getParam("value", true)->value();
-      enableNow = (v == "1" || v == "true" || v == "on");
-    }
-
-    // Update runtime variable immediately
-    clockOnlyDuringDimming = enableNow;
-    Serial.printf("[WEBSERVER] Set clockOnlyDuringDimming to %d (requested)\n", clockOnlyDuringDimming);
-
-    // Read existing config.json (if present)
-    DynamicJsonDocument doc(2048);
-    bool needToWrite = true;
-    File configFile = LittleFS.open("/config.json", "r");
-    if (configFile) {
-      DeserializationError err = deserializeJson(doc, configFile);
-      configFile.close();
-      if (err) {
-        Serial.print(F("[WEBSERVER] Error parsing existing config.json: "));
-        Serial.println(err.f_str());
-        // proceed to write (will create a new doc)
-        doc.clear();
-      } else {
-        // If the key exists and matches the requested value, skip write
-        bool existing = doc["clockOnlyDuringDimming"] | false;
-        if (existing == enableNow) {
-          Serial.println(F("[WEBSERVER] clockOnlyDuringDimming unchanged — skipping write."));
-          // Send immediate OK response without touching FS
-          DynamicJsonDocument okDoc(128);
-          okDoc[F("ok")] = true;
-          okDoc[F("clockOnlyDuringDimming")] = enableNow;
-          String response;
-          serializeJson(okDoc, response);
-          request->send(200, "application/json", response);
-          return;
-        }
-      }
-    } else {
-      // No config file found — doc is empty and we will write
-      doc.clear();
-    }
-
-    // Set/update the key in the JSON doc
-    doc[F("clockOnlyDuringDimming")] = clockOnlyDuringDimming;
-
-    // Backup existing file only if it exists (and only because we're about to replace it)
-    if (LittleFS.exists("/config.json")) {
-      if (!LittleFS.rename("/config.json", "/config.bak")) {
-        Serial.println(F("[WEBSERVER] Warning: failed to create config backup"));
-        // continue anyway
-      }
-    }
-
-    File f = LittleFS.open("/config.json", "w");
-    if (!f) {
-      Serial.println(F("[WEBSERVER] ERROR: Failed to open /config.json for writing"));
-      DynamicJsonDocument errDoc(128);
-      errDoc[F("error")] = "Failed to write config file.";
-      String response;
-      serializeJson(errDoc, response);
-      request->send(500, "application/json", response);
-      return;
-    }
-
-    size_t bytesWritten = serializeJson(doc, f);
-    f.close();
-    Serial.printf("[WEBSERVER] Saved clockOnlyDuringDimming=%d to /config.json (%u bytes written)\n", clockOnlyDuringDimming, bytesWritten);
-
-    // Send immediate response (no reboot)
-    DynamicJsonDocument okDoc(128);
-    okDoc[F("ok")] = true;
-    okDoc[F("clockOnlyDuringDimming")] = clockOnlyDuringDimming;
-    String response;
-    serializeJson(okDoc, response);
-    request->send(200, "application/json", response);
-  });
+  server.on("/set_brightness", HTTP_POST, setHandler);
+  server.on("/set_flip", HTTP_POST, setHandler);
+  server.on("/set_twelvehour", HTTP_POST, setHandler);
+  server.on("/set_dayofweek", HTTP_POST, setHandler);
+  server.on("/set_showdate", HTTP_POST, setHandler);
+  server.on("/set_humidity", HTTP_POST, setHandler);
+  server.on("/set_colon_blink", HTTP_POST, setHandler);
+  server.on("/set_language", HTTP_POST, setHandler);
+  server.on("/set_weatherdesc", HTTP_POST, setHandler);
+  server.on("/set_units", HTTP_POST, setHandler);
+  server.on("/set_countdown_enabled", HTTP_POST, setHandler);
+  server.on("/set_dramatic_countdown", HTTP_POST, setHandler);
+  server.on("/set_clock_only_dimming", HTTP_POST, setHandler);
 
   // --- Custom Message Endpoint ---
-  server.on("/set_custom_message", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (isNetworkBusy) {
-      request->send(503);
+  server.on("/set_custom_message", HTTP_ANY, [](AsyncWebServerRequest *request) {
+    if (request->method() == HTTP_OPTIONS) {
+      AsyncWebServerResponse *response = request->beginResponse(200);
+      response->addHeader("Access-Control-Allow-Origin", "*");
+      response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      response->addHeader("Access-Control-Allow-Headers", "Content-Type, X-Source");
+      request->send(response);
       return;
     }
-    if (request->hasParam("message", true)) {
-      String msg = request->getParam("message", true)->value();
-      msg.trim();
-
-      // Identify type of request
-      bool isClearRequest = (msg.length() == 0);
-
-      // GET PARAMS FIRST (Important for logic checks below)
-      bool incomingAllowInterrupt = true;
-
-      // CLOCK-ONLY DIMMING PROTECTION
-      if (!isClearRequest && clockOnlyDuringDimming && dimActive) {
-        Serial.printf("[MESSAGE] Rejected due to clock-only dimming mode: '%s'\n", msg.c_str());
-        request->send(409, "text/plain", "Clock-only dimming mode active");
-        return;
-      }
-
-      // Handle Timer Commands first
-      if (handleTimerCommand(msg)) {
-        request->send(200, "text/plain", "Timer Command Executed");
-        return;
-      }
-
-      if (request->hasParam("allowInterrupt", true)) {
-        incomingAllowInterrupt = (request->getParam("allowInterrupt", true)->value() == "1");
-      }
-
-      // TIMER PROTECTION
-      // Reject if timer is active, it's not a clear request, AND incoming message is "interruptible" (standard)
-      if (timerActive && !isClearRequest && incomingAllowInterrupt) {
-        Serial.println(F("[TIMER] Message rejected: Timer is active and message is not priority."));
-        request->send(409, "text/plain", "Timer active - use priority message to interrupt");
-        return;
-      }
-
-      // PROTECTED MESSAGE RUNNING (Existing logic)
-      if (!isClearRequest && !allowInterrupt && incomingAllowInterrupt) {
-        Serial.printf("[MESSAGE] Rejected: protected message running (allowInterrupt=%d)\n", allowInterrupt);
-        request->send(409, "text/plain", "Display busy - protected message");
-        return;
-      }
-
-      // --- 1. CLEAN & NORMALIZE (The Master Cleaner) ---
-      // This handles Serbian, Spanish, Uppercase, and strips Japanese Kanji/etc.
-      // Call your renamed function here:
-      String filtered = cleanTextForDisplay(msg);
-
-      String sourceHeader = request->header("X-Source");
-      bool isFromUI = (sourceHeader == "UI");
-      bool isFromHA = !isFromUI;
-
-      messageBigNumbers = false;
-      if (request->hasParam("bignumbers", true)) {
-        messageBigNumbers = (request->getParam("bignumbers", true)->value() == "1");
-      }
-
-      messageDisplaySeconds = 0;  // Reset
-      if (request->hasParam("seconds", true)) {
-        messageDisplaySeconds = constrain(request->getParam("seconds", true)->value().toInt(), 0, 3600);  // 1 hour max
-      }
-
-      messageScrollTimes = 0;  // Reset
-      if (request->hasParam("scrolltimes", true)) {
-        messageScrollTimes = constrain(request->getParam("scrolltimes", true)->value().toInt(), 0, 100);  // 100 max scrolls
-      }
-
-      // --- Local speed variable (does not modify global GENERAL_SCROLL_SPEED) ---
-      int localSpeed = GENERAL_SCROLL_SPEED;  // Default for UI messages
-      if (request->hasParam("speed", true)) {
-        localSpeed = constrain(request->getParam("speed", true)->value().toInt(), 10, 200);
-      }
-
-      // Update displayMode immediately based on current state
-      if (timerActive) {
-        if (messageScrollTimes == 0 && messageDisplaySeconds == 0) {
-          // It's an infinite message: Abandon Mode 7, go to Message Mode
-          displayMode = 6;
-        } else {
-          // It's a timed message: Ensure we are in Mode 7 (Rotation handles the rest)
-          displayMode = 7;
-        }
-        lastSwitch = millis();
-        forceMessageRestart = true;
-      }
-
-      // --- CLEAR MESSAGE ---
-      if (msg.length() == 0) {
-        allowInterrupt = true;
-        forceMessageRestart = true;
-        if (isFromUI) {
-          // Web UI clear: The "real" clear, resets everything.
-          customMessage[0] = '\0';
-          lastPersistentMessage[0] = '\0';
-          messageStartTime = 0;
-          currentScrollCount = 0;
-          messageDisplaySeconds = 0;
-          messageScrollTimes = 0;
-          displayMode = 0;
-          prevDisplayMode = 6;
-          clockScrollDone = false;
-          Serial.println(F("[MESSAGE] All messages cleared by UI. Returning to normal mode."));
-          request->send(200, "text/plain", "CLEARED (UI)");
-
-          // --- SAVE CLEAR STATE ---
-          saveCustomMessageToConfig("");
-        } else {
-          // HA clear: remove only temporary message, reset time/scroll variables.
-          customMessage[0] = '\0';  // Clear the currently active message
-
-          // Reset the temporary HA timing/scroll limits.
-          messageStartTime = 0;
-          currentScrollCount = 0;
-          messageDisplaySeconds = 0;
-          messageScrollTimes = 0;
-
-          if (strlen(lastPersistentMessage) > 0) {
-            // Restore the last persistent message
-            strlcpy(customMessage, lastPersistentMessage, sizeof(customMessage));
-            messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Use global speed for persistent
-            // Ensure displayMode is set to 6 so the restored persistent message is shown immediately.
-            displayMode = 6;
-            prevDisplayMode = 0;
-            Serial.printf("[MESSAGE] Temporary HA message cleared. Restored persistent message: '%s' (speed=%d)\n",
-                          customMessage, messageScrollSpeed);
-            request->send(200, "text/plain", "CLEARED (HA temporary, persistent restored)");
-          } else {
-            displayMode = 0;
-            prevDisplayMode = 6;  // This tells the clock it's coming from a message
-            clockScrollDone = false;
-            Serial.println(F("[MESSAGE] Temporary HA message cleared. No persistent message to restore."));
-            request->send(200, "text/plain", "CLEARED (HA temporary, no persistent)");
-          }
-        }
-        return;
-      }
-
-      Serial.printf(
-        "[MESSAGE] Source=%s | msg='%s' | seconds=%d | scrolls=%d | speed=%d | big=%d | allowInterrupt=%d\n",
-        isFromHA ? "HA" : "UI",
-        filtered.c_str(),
-        messageDisplaySeconds,
-        messageScrollTimes,
-        localSpeed,
-        messageBigNumbers,
-        incomingAllowInterrupt);
-
-      // --- STORE MESSAGE ---
-      if (isFromHA) {
-        // --- Only backup if lastPersistentMessage exists ---
-        if (strlen(lastPersistentMessage) > 0) {
-          // No log here to save memory
-        }
-
-        // --- Overwrite customMessage with new temporary HA message ---
-        filtered.toCharArray(customMessage, sizeof(customMessage));
-        messageScrollSpeed = localSpeed;
-
-      } else {
-        // --- UI-originated message: permanent ---
-        filtered.toCharArray(customMessage, sizeof(customMessage));
-        strlcpy(lastPersistentMessage, customMessage, sizeof(lastPersistentMessage));
-        messageScrollSpeed = GENERAL_SCROLL_SPEED;  // Always global for UI
-
-        // --- Save immediately for Web UI messages ---
-        saveCustomMessageToConfig(lastPersistentMessage);
-        Serial.printf("[CONFIG] UI message saved: '%s'\n", lastPersistentMessage);
-      }
-
-      // --- Activate display ---
-      allowInterrupt = incomingAllowInterrupt;
-      displayMode = 6;
-      prevDisplayMode = 0;
-      messageStartTime = millis();  // Start the timer
-      currentScrollCount = 0;
-
-      // NEW: Set the restart flag so the main loop can interrupt instantly
-      clockScrollDone = false;
-      forceMessageRestart = true;
-
-      String response = String(isFromHA ? "OK (HA message, speed=" : "OK (UI message, speed=") + String(localSpeed);
-      response += String(", duration=") + String(messageDisplaySeconds) + "s, scrolls=" + String(messageScrollTimes) + ")";
-      request->send(200, "text/plain", response);
-    } else {
-      Serial.println(F("[MESSAGE] Error: missing 'message' parameter in request."));
-      request->send(400, "text/plain", "Missing message parameter");
-    }
+    handleCustomMessageLogic(request);
   });
+
+  server.onNotFound([](AsyncWebServerRequest *request) {
+    if (request->method() == HTTP_OPTIONS) {
+      AsyncWebServerResponse *response = request->beginResponse(200);
+      response->addHeader("Access-Control-Allow-Origin", "*");
+      response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      response->addHeader("Access-Control-Allow-Headers", "Content-Type, X-Source");
+      request->send(response);
+      return;
+    }
+    handleCaptivePortal(request);
+  });
+
+  server.on(
+    "/action", HTTP_ANY, [](AsyncWebServerRequest *request) {
+      if (request->method() == HTTP_OPTIONS) {
+        AsyncWebServerResponse *response = request->beginResponse(200);
+        response->addHeader("Access-Control-Allow-Origin", "*");
+        response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        response->addHeader("Access-Control-Allow-Headers", "Content-Type, X-Source");
+        request->send(response);
+        return;
+      }
+
+      // Capture 'message' from either URL (GET) or Body (POST)
+      if (request->hasArg("message")) {
+        handleCustomMessageLogic(request);
+      } else {
+        // Handle other actions (brightness, etc.)
+        if (request->params() > 0) {
+          executeAction(request->getParam(0)->name(), request->getParam(0)->value());
+          request->send(200, "text/plain", "OK");
+        } else {
+          request->send(400, "text/plain", "No parameters found");
+        }
+      }
+    },
+    NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      // This empty body handler is CRITICAL for AsyncWebServer
+      // to parse 'application/x-www-form-urlencoded' POST data!
+    });
 
   server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request) {
     int scanStatus = WiFi.scanComplete();
@@ -1850,7 +1602,7 @@ void setupWebServer() {
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    DynamicJsonDocument doc(4096);
+    DynamicJsonDocument doc(1536);
 
     // --- Identity ---
     doc["id"] = deviceHostname;
@@ -1992,8 +1744,11 @@ void setupWebServer() {
     dimming["autoDimmingEnabled"] = autoDimmingEnabled;
 
     String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
+    serializeJsonPretty(doc, response);
+    AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
+    res->addHeader("Access-Control-Allow-Origin", "*");
+    res->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    request->send(res);
   });
 
   server.on("/export", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -2785,6 +2540,53 @@ void fetchWeather() {
   http.end();
 }
 
+void fetchNightscout() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (ESP.getFreeHeap() < 15000) {
+    //Serial.printf("[NIGHTSCOUT] Skipping fetch, heap too low: %d\n", ESP.getFreeHeap());
+    return;
+  }
+
+  String url = String(ntpServer2);
+  if (url.indexOf('?') == -1) url += "?count=1";
+  else if (url.indexOf("count=") == -1) url += "&count=1";
+  isNetworkBusy = true;
+  {
+    WiFiClientSecure client;
+    client.setInsecure();
+#ifdef ESP8266
+    client.setBufferSizes(512, 512);
+#endif
+    HTTPClient https;
+    https.begin(client, url);
+    https.setTimeout(5000);
+    Serial.println("[HTTPS] Nightscout fetch initiated...");
+    int httpCode = https.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      WiFiClient *stream = https.getStreamPtr();
+      StaticJsonDocument<1024> doc;
+      DeserializationError error = deserializeJson(doc, *stream);
+      if (!error && doc.is<JsonArray>() && doc.size() > 0) {
+        JsonObject firstReading = doc[0].as<JsonObject>();
+        currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
+        currentDirection = firstReading["direction"] | "?";
+        long long dateMs = firstReading["date"] | 0LL;
+        if (dateMs > 0) lastGlucoseTime = dateMs / 1000;
+        Serial.printf("[NIGHTSCOUT] Fetched: %d mg/dL %s\n", currentGlucose, currentDirection.c_str());
+      } else {
+        Serial.println("[NIGHTSCOUT] Failed to parse JSON");
+      }
+    } else {
+      Serial.printf("[HTTPS] GET failed: %s\n", https.errorToString(httpCode).c_str());
+    }
+    https.end();
+    client.stop();  // ← forces TCP connection fully closed before cleanup
+    delay(100);
+  }
+  isNetworkBusy = false;
+  lastNightscoutFetchTime = millis();
+}
+
 
 // -----------------------------
 // Load uptime from LittleFS
@@ -3009,6 +2811,312 @@ bool handleTimerCommand(String cmd) {
   return false;
 }
 
+//Actions handler
+void executeAction(const String &action, const String &value) {
+  if (value.length() > 0) {
+    Serial.println("[ACTION] " + action + " = " + value);
+  } else {
+    Serial.println("[ACTION] " + action);
+  }
+  String v = value;
+  v.trim();
+  v.toLowerCase();
+  bool hasValue = v.length() > 0;
+  bool boolVal = (v == "1" || v == "true" || v == "on");
+
+  // Display actions
+  if (action == "next_mode") {
+    advanceDisplayMode(true);
+
+  } else if (action == "prev_mode") {
+    previousDisplayMode(true);
+
+  } else if (action == "brightness") {
+    handleBrightnessChange(value.toInt(), false);
+
+  } else if (action == "brightness_up") {
+    handleBrightnessChange(displayOff ? 1 : constrain(brightness + 1, 0, 15), false);
+
+  } else if (action == "brightness_down") {
+    if (!displayOff) { handleBrightnessChange(constrain(brightness - 1, 0, 15), false); }
+
+  } else if (action == "display_off") {
+    handleBrightnessChange(-1, false);
+
+  } else if (action == "flip" || action == "flip_display") {
+    flipDisplay = hasValue ? boolVal : !flipDisplay;
+    P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
+    P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
+
+  } else if (action == "twelvehour" || action == "twelve_hour") {
+    twelveHourToggle = hasValue ? boolVal : !twelveHourToggle;
+    if (!hasValue && displayMode != 0) { goToMode("0"); }
+
+  } else if (action == "dayofweek" || action == "show_dayofweek") {
+    showDayOfWeek = hasValue ? boolVal : !showDayOfWeek;
+    if (!hasValue && displayMode != 0) { goToMode("0"); }
+
+  } else if (action == "showdate" || action == "show_date") {
+    bool newVal = hasValue ? boolVal : !showDate;
+    if (showDate && !newVal && displayMode == 5) { advanceDisplayMode(true); }
+    showDate = newVal;
+    if (!hasValue && showDate) { goToMode("5"); }
+
+  } else if (action == "colon_blink" || action == "animated_seconds") {
+    colonBlinkEnabled = hasValue ? boolVal : !colonBlinkEnabled;
+    if (!hasValue && displayMode != 0) { goToMode("0"); }
+
+  } else if (action == "humidity" || action == "show_humidity") {
+    showHumidity = hasValue ? boolVal : !showHumidity;
+    if (!hasValue) { goToMode("1"); }  // show the change on weather
+
+  } else if (action == "weatherdesc" || action == "show_weather_desc") {
+    bool newVal = hasValue ? boolVal : !showWeatherDescription;
+    if (showWeatherDescription && !newVal && displayMode == 2) { advanceDisplayMode(true); }
+    showWeatherDescription = newVal;
+    if (!hasValue && showWeatherDescription) { goToMode("2"); }  // only jump when turning ON
+
+  } else if (action == "units" || action == "imperial") {
+    bool isImperial = (action == "imperial") ? (!hasValue ? true : boolVal) : (hasValue ? boolVal : strcmp(weatherUnits, "imperial") != 0);
+    if (isImperial) {
+      strcpy(weatherUnits, "imperial");
+      tempSymbol = '\007';
+    } else {
+      strcpy(weatherUnits, "metric");
+      tempSymbol = '\006';
+    }
+    shouldFetchWeatherNow = true;
+    if (!hasValue) { goToMode("1"); }  // show the change on weather
+
+  } else if (action == "metric") {
+    strcpy(weatherUnits, "metric");
+    tempSymbol = '\006';
+    shouldFetchWeatherNow = true;
+    if (!hasValue) { goToMode("1"); }  // show the change on weather
+
+  } else if (action == "countdown_enabled" || action == "countdown") {
+    bool newVal = hasValue ? boolVal : !countdownEnabled;
+    if (countdownEnabled && !newVal && displayMode == 3) { advanceDisplayMode(true); }
+    countdownEnabled = newVal;
+
+  } else if (action == "dramatic_countdown") {
+    bool newVal = hasValue ? boolVal : !isDramaticCountdown;
+    if (isDramaticCountdown != newVal) {
+      isDramaticCountdown = newVal;
+      saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
+    }
+
+  } else if (action == "clock_only_dimming") {
+    clockOnlyDuringDimming = hasValue ? boolVal : !clockOnlyDuringDimming;
+    configDirty = true;
+
+  } else if (action == "go_to_mode") {
+    goToMode(value);
+
+  } else if (action == "enable_rotation") {
+    rotationEnabled = hasValue ? boolVal : !rotationEnabled;
+    if (rotationEnabled) advanceDisplayMode();
+
+  }
+
+  // Timer commands
+  else if (action == "timer_stop" || action == "timer_cancel") {
+    handleTimerCommand("[TIMER STOP]");
+  } else if (action == "timer_pause") {
+    handleTimerCommand("[TIMER PAUSE]");
+  } else if (action == "timer_resume" || action == "timer_start") {
+    handleTimerCommand("[TIMER RESUME]");
+  } else if (action == "timer_restart") {
+    handleTimerCommand("[TIMER RESTART]");
+  } else if (action == "timer") {
+    handleTimerCommand("[TIMER " + value + "]");
+
+  } else if (action == "restart") {
+    pendingRestart = true;
+    restartTimer = millis();
+
+  } else if (action == "save") {
+    configDirty = true;
+
+  } else if (action == "language") {
+    String lang = value;
+    lang.trim();
+    lang.toLowerCase();
+    strlcpy(language, lang.c_str(), sizeof(language));
+    shouldFetchWeatherNow = true;
+    advanceDisplayMode();
+
+  } else if (action == "clear_message") {
+    allowInterrupt = true;
+    forceMessageRestart = true;
+    customMessage[0] = '\0';
+    messageStartTime = 0;
+    currentScrollCount = 0;
+    messageDisplaySeconds = 0;
+    messageScrollTimes = 0;
+
+    if (strlen(lastPersistentMessage) > 0) {
+      strlcpy(customMessage, lastPersistentMessage, sizeof(customMessage));
+      messageScrollSpeed = GENERAL_SCROLL_SPEED;
+      displayMode = 6;
+      prevDisplayMode = 0;
+      Serial.println(F("[MESSAGE] clear_message: restored persistent message"));
+    } else {
+      displayMode = 0;
+      prevDisplayMode = 6;
+      clockScrollDone = false;
+      Serial.println(F("[MESSAGE] clear_message: no persistent message, returning to clock"));
+    }
+
+  } else {
+    Serial.println("[ACTION] Unknown action: " + action);
+  }
+}
+
+void handleBrightnessChange(int newBrightness, bool isFromUI) {
+  // --- CASE 1: Turn Display OFF ---
+  if (newBrightness == -1) {
+    if (!displayOff) {
+      P.displayShutdown(true);
+      P.displayClear();
+      displayOff = true;
+      brightness = -1;
+      configDirty = true;
+      lastBrightnessChange = millis();
+      Serial.printf("[BRIGHTNESS] Display turned OFF via %s\n", isFromUI ? "UI" : "API");
+    }
+    return;
+  }
+
+  // --- CASE 2: Turn Display ON or Adjust ---
+  newBrightness = constrain(newBrightness, 0, 15);
+
+  if (newBrightness != brightness || displayOff) {
+    bool wakingUp = displayOff;
+    brightness = newBrightness;
+    configDirty = true;
+    lastBrightnessChange = millis();
+    P.setIntensity(brightness);
+
+    if (wakingUp) {
+      advanceDisplayMode(true);
+      P.displayShutdown(false);
+      P.displayClear();
+      displayOff = false;
+      Serial.printf("[BRIGHTNESS] Display woke from OFF via %s to %d\n", isFromUI ? "UI" : "API", brightness);
+    } else {
+      Serial.printf("[BRIGHTNESS] Intensity set to %d via %s\n", brightness, isFromUI ? "UI" : "API");
+    }
+  }
+}
+
+void goToMode(const String &target) {
+  int targetMode = -1;
+  String v = target;
+  v.toLowerCase();
+
+  if (v == "0" || v == "clock") targetMode = 0;
+  else if (v == "1" || v == "weather") targetMode = 1;
+  else if (v == "2" || v == "weather_desc") targetMode = 2;
+  else if (v == "3" || v == "countdown") targetMode = 3;
+  else if (v == "4" || v == "nightscout") targetMode = 4;
+  else if (v == "5" || v == "date") targetMode = 5;
+  else if (v == "6" || v == "message") targetMode = 6;
+  else if (v == "7" || v == "timer") targetMode = 7;
+
+  if (targetMode == -1 || !isModeAvailable(targetMode)) {
+    Serial.printf("[DISPLAY] go_to_mode: invalid or unavailable target '%s'\n", target.c_str());
+    return;
+  }
+
+  // ---- CLEANUP CURRENT MODE ----
+  if (displayMode == 3) {
+    countdownSegment = 0;
+    segmentStartTime = 0;
+    countdownShowFinishedMessage = false;
+    hourglassPlayed = false;
+  }
+
+  prevDisplayMode = displayMode;  // general line already there
+  displayMode = targetMode;
+
+  // ---- RESET TARGET MODE STATE ----
+  if (targetMode == 0) {
+    prevDisplayMode = 6;
+    clockScrollDone = false;
+    P.displayReset();
+    P.displayClear();
+    delay(100);
+  }
+
+  if (displayMode == 6 || displayMode == 2 || displayMode == 3) {
+    P.displayReset();
+    P.displayClear();
+  }
+
+  // ---- RESET TARGET MODE STATE ----
+  if (targetMode == 3) {
+    countdownSegment = 0;
+    segmentStartTime = 0;
+    countdownShowFinishedMessage = false;
+    hourglassPlayed = false;
+  }
+
+  prevDisplayMode = displayMode;
+  displayMode = targetMode;
+
+  // ---- SYNC modeIndex ----
+  for (int i = 0; i < MODE_COUNT; i++) {
+    if (modeOrder[i] == displayMode) {
+      modeIndex = i;
+      break;
+    }
+  }
+
+  // ---- RESET SCROLL STATE ----
+  clockScrollDone = false;
+  descScrolling = false;
+  descScrollEndTime = 0;
+
+  const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "NIGHTSCOUT", "DATE", "CUSTOM MESSAGE", "TIMER" };
+  Serial.printf("[DISPLAY] go_to_mode: %s (from %s)\n", modeNames[targetMode], modeNames[prevDisplayMode]);
+  lastSwitch = millis();
+}
+
+
+// =============================================================================
+// PHYSICAL BUTTON TEMPLATE
+// To enable: uncomment ALL lines below, and set BUTTON_PIN to your GPIO pin.
+// =============================================================================
+
+// #define BUTTON_PIN 4               // ← Change to your GPIO pin
+// #define BUTTON_LONG_PRESS_MS 800   // ← Hold duration for long press (ms)
+
+// void handleButton() {
+//   static unsigned long lastPress = 0;
+//   static unsigned long pressStart = 0;
+//   static bool lastState = HIGH;
+//   static bool longPressHandled = false;
+//   bool currentState = digitalRead(BUTTON_PIN);
+//   if (currentState == LOW && lastState == HIGH) {
+//     pressStart = millis();
+//     longPressHandled = false;
+//   }
+//   if (currentState == LOW && !longPressHandled) {
+//     if (millis() - pressStart >= BUTTON_LONG_PRESS_MS) {
+//       longPressHandled = true;
+//       executeAction("display_off", "");   // ← LONG PRESS action
+//     }
+//   }
+//   if (currentState == HIGH && lastState == LOW) {
+//     if (!longPressHandled && millis() - lastPress > 200) {
+//       lastPress = millis();
+//       executeAction("next_mode", "");     // ← SHORT PRESS action
+//     }
+//   }
+//   lastState = currentState;
+// }
+
 
 // -----------------------------------------------------------------------------
 // Main setup() and loop()
@@ -3024,11 +3132,10 @@ DisplayMode key:
   6: Custom Message
 */
 void setup() {
+  // pinMode(BUTTON_PIN, INPUT_PULLUP);  // ← Uncomment if using button
+  
   Serial.begin(115200);
   delay(1000);
-  Serial.println();
-  Serial.println(F("[SETUP] Starting setup..."));
-
   if (!LittleFS.begin()) {
     Serial.println(F("[ERROR] LittleFS mount failed in setup! Halting."));
     while (true) {
@@ -3036,93 +3143,41 @@ void setup() {
       yield();
     }
   }
-  Serial.println(F("[SETUP] LittleFS file system mounted successfully."));
   loadUptime();
-  P.begin();  // Initialize Parola library
-
+  P.begin();
   P.setCharSpacing(0);
-#ifdef USE_CUSTOM_FONT
-  P.setFont(mFactory);  // Using the variable name from your private header
-#else
-  P.setFont(newFont);  // Using the variable name from basic_font.h
-#endif
-  loadConfig();  // This function now has internal yields and prints
-
+  P.setFont(mFactory);
+  loadConfig();
   P.setIntensity(brightness);
   if (displayOff) {
     P.displayShutdown(true);
-    Serial.println(F("[SETUP] Display restored as OFF"));
   } else {
     P.displayShutdown(false);
   }
   P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
   P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
 
-  Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
-
-#if defined(ESP32)
-  WiFi.setSleep(false);
-  WiFi.setAutoReconnect(true);
+#if defined(ESP8266)
+  WiFi.setAutoReconnect(false);
   WiFi.persistent(false);
-
-  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-    const char *name = nullptr;
-    switch (event) {
-      case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-        name = "GOT_IP";
-        lastWifiConnectTime = millis();
-        Serial.println("[WIFI EVENT] Re-initializing mDNS due to new IP.");
-        setupMDNS();
-        break;
-      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-        name = "DISCONNECTED";
-        MDNS.end();
-        Serial.println("[WIFI EVENT] mDNS stopped.");
-        break;
-      default: return;  // ignore all other events
-    }
-    Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
-  });
-
-#elif defined(ESP8266)
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(false);
-
   mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
     Serial.println("[WIFI EVENT] Connected");
   });
-
   mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
     Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
     MDNS.end();
-    Serial.println("[WIFI EVENT] mDNS stopped.");
   });
-
   mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
     Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
     lastWifiConnectTime = millis();
-    Serial.println("[WIFI EVENT] Re-initializing mDNS due to new IP.");
     setupMDNS();
   });
 #endif
-
   connectWiFi();
-
-  if (isAPMode) {
-    Serial.println(F("[SETUP] WiFi connection failed. Device is in AP Mode."));
-  } else if (WiFi.status() == WL_CONNECTED) {
-    Serial.println(F("[SETUP] WiFi connected successfully to local network."));
-  } else {
-    Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
-  }
   if (!isAPMode && WiFi.status() == WL_CONNECTED) {
     setupMDNS();
   }
   setupWebServer();
-  Serial.println(F("[SETUP] Webserver setup complete"));
-  Serial.println(F("[SETUP] Setup complete"));
-  Serial.println();
-  printConfigToSerial();
   setupTime();
   displayMode = 0;
   lastSwitch = millis() - (clockDuration - 500);
@@ -3131,7 +3186,16 @@ void setup() {
   saveUptime();
 }
 
-void advanceDisplayMode() {
+void advanceDisplayMode(bool forced) {
+  if (!rotationEnabled && !forced) return;
+  // Sync modeIndex to current displayMode position before going backwards
+  for (int i = 0; i < MODE_COUNT; i++) {
+    if (modeOrder[i] == displayMode) {
+      modeIndex = i;
+      break;
+    }
+  }
+  // ---- DIMMING LOCK ----
   if (clockOnlyDuringDimming && dimActive) {
     if (displayMode != 0) {
       displayMode = 0;
@@ -3139,13 +3203,12 @@ void advanceDisplayMode() {
     }
     return;
   }
-  // If user requested clock-only during dimming and we are currently dimmed, stay on clock
+
   if (clockOnlyDuringDimming) {
     time_t now = time(nullptr);
     struct tm local_tm;
     localtime_r(&now, &local_tm);
     int curTotal = local_tm.tm_hour * 60 + local_tm.tm_min;
-
     int startTotal = -1, endTotal = -1;
     bool currentlyDimmed = false;
 
@@ -3166,138 +3229,122 @@ void advanceDisplayMode() {
     if (currentlyDimmed) {
       displayMode = 0;
       lastSwitch = millis();
-      Serial.println(F("[DISPLAY] advanceDisplayMode(): Staying in CLOCK because Clock-only-dimming is enabled and dimming is active."));
+      Serial.println(F("[DISPLAY] Staying in CLOCK (dimming active)"));
       return;
     }
   }
 
+  // ---- RESET COUNTDOWN STATE WHEN LEAVING ----
+  if (displayMode == 3) {
+    countdownSegment = 0;
+    segmentStartTime = 0;
+  }
+
   prevDisplayMode = displayMode;
-  int oldMode = displayMode;
+
+  // ---- SAFE ROTATION ENGINE ----
+  for (int i = 0; i < MODE_COUNT; i++) {
+    modeIndex++;
+    if (modeIndex >= MODE_COUNT)
+      modeIndex = 0;
+
+    int nextMode = modeOrder[modeIndex];
+
+    if (isModeAvailable(nextMode)) {
+      if (displayMode == 6 || displayMode == 2 || displayMode == 3) {
+        // P.displayReset();
+        // P.displayClear();
+      }
+
+      displayMode = nextMode;
+
+      const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "NIGHTSCOUT", "DATE", "CUSTOM MESSAGE", "TIMER" };
+      const char *newName = displayMode < 8 ? modeNames[displayMode] : "UNKNOWN";
+      const char *prevName = prevDisplayMode < 8 ? modeNames[prevDisplayMode] : "UNKNOWN";
+      Serial.printf("[DISPLAY] Switching to display mode: %s (from %s)\n", newName, prevName);
+
+      clockScrollDone = false;
+      descScrolling = false;
+      descScrollEndTime = 0;
+      lastSwitch = millis();
+      return;
+    }
+  }
+
+  // ---- FALLBACK ----
+  displayMode = 0;
+  Serial.println(F("[DISPLAY] Fallback to CLOCK"));
+}
+
+void previousDisplayMode(bool forced) {
+  if (!rotationEnabled && !forced) return;
+  // Sync modeIndex to current displayMode position before going backwards
+  for (int i = 0; i < MODE_COUNT; i++) {
+    if (modeOrder[i] == displayMode) {
+      modeIndex = i;
+      break;
+    }
+  }
+  if (clockOnlyDuringDimming && dimActive) {
+    displayMode = 0;
+    return;
+  }
+
+  if (displayMode == 3) {
+    countdownSegment = 0;
+    segmentStartTime = 0;
+  }
+
+  prevDisplayMode = displayMode;
+
+  for (int i = 0; i < MODE_COUNT; i++) {
+    if (modeIndex == 0)
+      modeIndex = MODE_COUNT - 1;
+    else
+      modeIndex--;
+
+    int nextMode = modeOrder[modeIndex];
+
+    if (isModeAvailable(nextMode)) {
+      if (displayMode == 6 || displayMode == 2 || displayMode == 3) {
+        P.displayReset();
+        P.displayClear();
+      }
+
+      displayMode = nextMode;
+
+      const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "NIGHTSCOUT", "DATE", "CUSTOM MESSAGE", "TIMER" };
+      const char *newName = displayMode < 8 ? modeNames[displayMode] : "UNKNOWN";
+      const char *prevName = prevDisplayMode < 8 ? modeNames[prevDisplayMode] : "UNKNOWN";
+      Serial.printf("[DISPLAY] Switching to display mode: %s (from %s)\n", newName, prevName);
+
+      clockScrollDone = false;
+      descScrolling = false;
+      descScrollEndTime = 0;
+      lastSwitch = millis();
+      return;
+    }
+  }
+
+  displayMode = 0;
+  Serial.println(F("[DISPLAY] Fallback to CLOCK"));
+}
+
+bool isModeAvailable(int mode) {
   String ntpField = String(ntpServer2);
   bool nightscoutConfigured = ntpField.startsWith("https://");
 
-  if (displayMode == 0) {  // Clock -> ...
-    if (showDate) {
-      displayMode = 5;  // Date mode right after Clock
-      Serial.println(F("[DISPLAY] Switching to display mode: DATE (from Clock)"));
-    } else if (weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) {
-      displayMode = 1;
-      Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Clock)"));
-    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Clock, weather skipped)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;  // Clock -> Nightscout (if weather & countdown are skipped)
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Clock, weather & countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Staying in CLOCK (from Clock)"));
-    }
-  } else if (displayMode == 5) {  // Date mode
-    if (weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) {
-      displayMode = 1;
-      Serial.println(F("[DISPLAY] Switching to display mode: WEATHER (from Date)"));
-    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Date, weather skipped)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Date, weather & countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Date)"));
-    }
-  } else if (displayMode == 1) {  // Weather -> ...
-    if (showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
-      displayMode = 2;
-      Serial.println(F("[DISPLAY] Switching to display mode: DESCRIPTION (from Weather)"));
-    } else if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Weather)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;  // Weather -> Nightscout (if description & countdown are skipped)
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Weather, description & countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Weather)"));
-    }
-  } else if (displayMode == 2) {  // Weather Description -> ...
-    if (countdownEnabled && !countdownFinished && ntpSyncSuccessful && countdownTargetTimestamp > 0 && countdownTargetTimestamp > time(nullptr)) {
-      displayMode = 3;
-      Serial.println(F("[DISPLAY] Switching to display mode: COUNTDOWN (from Description)"));
-    } else if (nightscoutConfigured) {
-      displayMode = 4;  // Description -> Nightscout (if countdown is skipped)
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Description, countdown skipped)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Description)"));
-    }
-  } else if (displayMode == 3) {  // Countdown -> Nightscout
-    if (nightscoutConfigured) {
-      displayMode = 4;
-      Serial.println(F("[DISPLAY] Switching to display mode: NIGHTSCOUT (from Countdown)"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Switching to display mode: CLOCK (from Countdown)"));
-    }
-  } else if (displayMode == 4) {  // Nightscout -> Custom Message
-    displayMode = 6;
-    Serial.println(F("[DISPLAY] Switching to display mode: CUSTOM MESSAGE (from Nightscout)"));
-  } else if (displayMode == 6) {  // Custom Message
-    // If Timer is active, return to Mode 7, NOT Mode 0
-    if (timerActive) {
-      displayMode = 7;
-      Serial.println(F("[DISPLAY] Message finished -> Returning to TIMER"));
-    } else {
-      displayMode = 0;
-      Serial.println(F("[DISPLAY] Message finished -> Returning to CLOCK"));
-    }
-    clockScrollDone = false;
+  switch (mode) {
+    case 0: return true;  // CLOCK always available
+    case 1: return weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
+    case 2: return showWeatherDescription && weatherAvailable && weatherDescription.length() > 0;
+    case 3: return countdownEnabled && !countdownFinished && ntpSyncSuccessful;
+    case 4: return nightscoutConfigured;
+    case 5: return showDate;
+    case 6: return strlen(customMessage) > 0;
   }
-
-  // --- Common cleanup/reset logic remains the same ---
-  if ((displayMode == 0) && strlen(customMessage) > 0 && oldMode != 6) {
-    displayMode = 6;
-    Serial.println(F("[DISPLAY] Custom Message display before returning to CLOCK"));
-  }
-  lastSwitch = millis();
+  return false;
 }
-
-void advanceDisplayModeSafe() {
-  int attempts = 0;
-  const int MAX_ATTEMPTS = 7;  // Number of possible modes + 1
-  int startMode = displayMode;
-  bool valid = false;
-  do {
-    advanceDisplayMode();  // One step advance
-    attempts++;
-    // Recalculate validity for the new mode
-    valid = false;
-    String ntpField = String(ntpServer2);
-    bool nightscoutConfigured = ntpField.startsWith("https://");
-
-    if (displayMode == 0) valid = true;  // Clock always valid
-    else if (displayMode == 5 && showDate) valid = true;
-    else if (displayMode == 1 && weatherAvailable && (strlen(openWeatherApiKey) == 32) && (strlen(openWeatherCity) > 0) && (strlen(openWeatherCountry) > 0)) valid = true;
-    else if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) valid = true;
-    else if (displayMode == 3 && countdownEnabled && !countdownFinished && ntpSyncSuccessful) valid = true;
-    else if (displayMode == 4 && nightscoutConfigured) valid = true;
-    else if (displayMode == 6 && strlen(customMessage) > 0) valid = true;
-
-    // If we've looped back to where we started, break to avoid infinite loop
-    if (displayMode == startMode) break;
-
-    if (valid) break;
-  } while (attempts < MAX_ATTEMPTS);
-
-  // If no valid mode found, fall back to Clock
-  if (!valid) {
-    displayMode = 0;
-    Serial.println(F("[DISPLAY] Safe fallback to CLOCK"));
-  }
-  lastSwitch = millis();
-}
-
 
 //config save after countdown finishes
 bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &label) {
@@ -3424,6 +3471,39 @@ String getFormattedDateText(const char *rawText) {
 }
 
 void loop() {
+  // handleButton();  // ← Uncomment if using button
+
+  // --- WIFI RECONNECTION ---
+  static unsigned long lastReconnectAttempt = 0;
+  static unsigned long reconnectInterval = 5000;
+  static bool wasConnected = true;
+
+  if (WiFi.status() != WL_CONNECTED) {
+    if (wasConnected) {
+      Serial.println(F("[WIFI] Connection lost. Will attempt reconnection..."));
+      wasConnected = false;
+      reconnectInterval = 5000;  // reset backoff on first disconnect
+    }
+    if (millis() - lastReconnectAttempt > reconnectInterval) {
+      lastReconnectAttempt = millis();
+      Serial.printf("[WIFI] Reconnecting... (next attempt in %lus)\n", min(reconnectInterval * 2, 300000UL) / 1000);
+      WiFi.disconnect();  // ← clean slate first
+      delay(100);
+#ifdef ESP8266
+      WiFi.begin(ssid, password);
+#else
+      WiFi.reconnect();
+#endif
+      reconnectInterval = min(reconnectInterval * 2, 300000UL);  // backoff up to 5 min
+    }
+  } else {
+    if (!wasConnected) {
+      Serial.println(F("[WIFI] Reconnected!"));
+      wasConnected = true;
+      reconnectInterval = 5000;  // reset backoff
+    }
+  }
+
   if (timerActive && (displayMode != 7 && displayMode != 6)) {
     displayMode = 7;
     timerSubState = 0;
@@ -3682,10 +3762,9 @@ void loop() {
 
   // Only advance mode by timer for clock/weather, not description!
   unsigned long displayDuration = (displayMode == 0) ? clockDuration : weatherDuration;
-  if ((displayMode == 0 || displayMode == 1) && millis() - lastSwitch > displayDuration) {
+  if (rotationEnabled && (displayMode == 0 || displayMode == 1) && millis() - lastSwitch > displayDuration) {
     advanceDisplayMode();
   }
-
 
   // --- MODIFIED WEATHER FETCHING LOGIC ---
   if (WiFi.status() == WL_CONNECTED) {
@@ -3708,13 +3787,21 @@ void loop() {
     shouldFetchWeatherNow = false;
   }
 
+  // --- NIGHTSCOUT FETCH TIMER ---
+  String ntpFieldCheck = String(ntpServer2);
+  if (ntpFieldCheck.startsWith("https://") && WiFi.status() == WL_CONNECTED && ntpSyncSuccessful) {  // ← add ntpSyncSuccessful
+    if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
+      fetchNightscout();
+      lastNightscoutFetchTime = millis();
+    }
+  }
 
   const char *const *daysOfTheWeek = getDaysOfWeek(language);
   // Call our new formatting function
   String daySymbol = getFormattedDateText(daysOfTheWeek[timeinfo.tm_wday]);
 
   // build base HH:MM first ---
-  char baseTime[9];
+  char baseTime[24];
   if (twelveHourToggle) {
     int hour12 = timeinfo.tm_hour % 12;
     if (hour12 == 0) hour12 = 12;
@@ -3730,6 +3817,8 @@ void loop() {
     const char *trimmedBase = baseTime;
     if (baseTime[0] == ' ') trimmedBase++;  // skip leading space
     sprintf(timeWithSeconds, "%s:%02d", trimmedBase, timeinfo.tm_sec);
+  } else if (!showDayOfWeek && !colonBlinkEnabled) {
+    sprintf(timeWithSeconds, "  %s  ", baseTime);
   } else {
     strcpy(timeWithSeconds, baseTime);  // no seconds
   }
@@ -3764,7 +3853,7 @@ void loop() {
 
   // Only advance mode by timer for clock/weather static (Mode 0 & 1).
   // Other modes (2, 3) have their own internal timers/conditions for advancement.
-  if ((displayMode == 0 || displayMode == 1) && (millis() - lastSwitch > currentDisplayDuration)) {
+  if (rotationEnabled && (displayMode == 0 || displayMode == 1) && (millis() - lastSwitch > currentDisplayDuration)) {
     advanceDisplayMode();
   }
 
@@ -3782,6 +3871,7 @@ void loop() {
 
     // --- NTP SYNC ---
     if (ntpState == NTP_SYNCING) {
+      P.setTextAlignment(PA_CENTER);
       if (ntpSyncSuccessful || ntpRetryCount >= maxNtpRetries || millis() - ntpStartTime > ntpTimeout) {
         ntpState = NTP_FAILED;
       } else if (millis() - ntpAnimTimer > 750) {
@@ -3847,10 +3937,13 @@ void loop() {
           inDir,
           PA_NO_EFFECT);
         while (!P.displayAnimate()) {
-          if (forceMessageRestart) {
-            // We are interrupting the scroll, so it is NOT done.
+          if (displayMode != 0) {
             clockScrollDone = false;
-            return;  // Exit the clock function immediately
+            return;
+          }
+          if (forceMessageRestart) {
+            clockScrollDone = false;
+            return;
           }
           yield();
         }
@@ -3876,6 +3969,7 @@ void loop() {
   if (displayMode == 1) {
     if (forceMessageRestart) return;
     P.setCharSpacing(1);
+    P.setTextAlignment(PA_CENTER);
     if (weatherAvailable) {
       String weatherDisplay;
       if (showHumidity && currentHumidity != -1) {
@@ -3909,6 +4003,8 @@ void loop() {
 
   // --- WEATHER DESCRIPTION Display Mode ---
   if (displayMode == 2 && showWeatherDescription && weatherAvailable && weatherDescription.length() > 0) {
+    P.setCharSpacing(1);
+    P.setTextAlignment(PA_CENTER);
     if (forceMessageRestart) return;
     String desc = weatherDescription;
 
@@ -3935,6 +4031,7 @@ void loop() {
         descScrolling = true;
         descScrollEndTime = 0;  // reset end time at start
       }
+      if (displayMode != 2) return;
       if (P.displayAnimate()) {
         if (descScrollEndTime == 0) {
           descScrollEndTime = millis();  // mark the time when scroll finishes
@@ -3972,8 +4069,6 @@ void loop() {
   // --- Countdown Display Mode ---
   if (displayMode == 3 && countdownEnabled && ntpSyncSuccessful) {
     if (forceMessageRestart) return;
-    static int countdownSegment = 0;
-    static unsigned long segmentStartTime = 0;
     const unsigned long SEGMENT_DISPLAY_DURATION = 1500;  // 1.5 seconds for each static segment
 
     long timeRemaining = countdownTargetTimestamp - now_time;
@@ -4011,6 +4106,7 @@ void loop() {
         const char *hourglassFrames[] = { "¡", "¢", "£", "¤" };
         for (int repeat = 0; repeat < 3; repeat++) {
           for (int i = 0; i < 4; i++) {
+            if (displayMode != 3) return;
             if (forceMessageRestart) return;
             P.setTextAlignment(PA_CENTER);
             P.setCharSpacing(0);
@@ -4037,6 +4133,7 @@ void loop() {
       // --- Continue Flashing "TIMES UP" for its duration (after initial combined sequence) ---
       // This part runs in subsequent loop iterations after the hourglass has played.
       if (millis() - countdownFinishedMessageStartTime < 15000) {  // Flashing duration
+        if (displayMode != 3) return;
         if (forceMessageRestart) return;
         if (millis() - lastFlashingSwitch >= 500) {  // Check for flashing interval
           lastFlashingSwitch = millis();
@@ -4119,7 +4216,7 @@ void loop() {
               }
             case 3:
               {  // Seconds & Label Scroll
-                time_t segmentStartTime = time(nullptr);
+                time_t segmentNow = time(nullptr);
                 unsigned long segmentStartMillis = millis();
 
                 long nowRemaining = countdownTargetTimestamp - segmentStartTime;
@@ -4168,6 +4265,7 @@ void loop() {
                 P.displayScroll(label.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
 
                 while (!P.displayAnimate()) {
+                  if (displayMode != 3) return;
                   if (forceMessageRestart) return;
                   yield();
                 }
@@ -4263,6 +4361,7 @@ void loop() {
 
         // Blocking loop to ensure the full message scrolls
         while (!P.displayAnimate()) {
+          if (displayMode != 3) return;
           if (forceMessageRestart) break;
           yield();
         }
@@ -4284,57 +4383,14 @@ void loop() {
   }  // End of if (displayMode == 3 && ...)
 
 
-  // // --- NIGHTSCOUT Display Mode ---
-
+  // --- NIGHTSCOUT Display Mode ---
   if (displayMode == 4) {
+    P.setCharSpacing(1);
     if (forceMessageRestart) return;
-    String ntpField = String(ntpServer2);
-
-    // Check if it's time to fetch new data or if we have no data yet
-    if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
-      isNetworkBusy = true;
-      WiFiClientSecure client;
-      client.setInsecure();
-      HTTPClient https;
-      https.begin(client, ntpField);
-#ifdef ESP8266
-      client.setBufferSizes(512, 512);
-#endif
-      https.setTimeout(5000);
-
-      Serial.println("[HTTPS] Nightscout fetch initiated...");
-      int httpCode = https.GET();
-
-      if (httpCode == HTTP_CODE_OK) {
-        String payload = https.getString();
-        StaticJsonDocument<1024> doc;
-        DeserializationError error = deserializeJson(doc, payload);
-        if (!error && doc.is<JsonArray>() && doc.size() > 0) {
-          JsonObject firstReading = doc[0].as<JsonObject>();
-          currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
-          currentDirection = firstReading["direction"] | "?";
-          long long dateMs = firstReading["date"] | 0LL;
-          if (dateMs > 0) {
-            lastGlucoseTime = dateMs / 1000;  // ms → seconds (UTC epoch)
-          }
-          Serial.printf("Nightscout data fetched: %d mg/dL %s\n",
-                        currentGlucose, currentDirection.c_str());
-        } else {
-          Serial.println("Failed to parse Nightscout JSON");
-        }
-      } else {
-        Serial.printf("[HTTPS] GET failed, error: %s\n",
-                      https.errorToString(httpCode).c_str());
-      }
-      https.end();
-      isNetworkBusy = false;
-      lastNightscoutFetchTime = millis();
-    }
 
     // --- Display the data ---
     if (currentGlucose != -1) {
-      // Calculate age of reading
-      time_t nowUTC = time(nullptr);  // already UTC epoch
+      time_t nowUTC = time(nullptr);
 
       bool isOutdated = false;
       int ageMinutes = 0;
@@ -4346,7 +4402,6 @@ void loop() {
         Serial.printf("[NIGHTSCOUT] Data age: %d minutes old (threshold: %d)\n", ageMinutes, NIGHTSCOUT_IDLE_THRESHOLD_MIN);
       }
 
-      // Pick arrow character
       char arrow;
       if (currentDirection == "Flat") arrow = 139;
       else if (currentDirection == "SingleUp") arrow = 134;
@@ -4357,34 +4412,26 @@ void loop() {
       else if (currentDirection == "FortyFiveDown") arrow = 140;
       else arrow = '?';
 
-      // Build display text
       String displayText = "";
-      // ADD crossed digits
       if (isOutdated) {
-
         String glucoseStr = String(currentGlucose);
-
         for (int i = 0; i < glucoseStr.length(); i++) {
           if (isDigit(glucoseStr[i])) {
-            int num = glucoseStr[i] - '0';           // 0–9
-            glucoseStr[i] = 195 + ((num + 9) % 10);  // Maps 0→204, 1→195, ...
+            int num = glucoseStr[i] - '0';
+            glucoseStr[i] = 195 + ((num + 9) % 10);
           }
         }
-
         String separatedStr = "";
         for (int i = 0; i < glucoseStr.length(); i++) {
           separatedStr += glucoseStr[i];
-          if (i < glucoseStr.length() - 1) {
-            separatedStr += char(255);  // insert separator between digits
-          }
+          if (i < glucoseStr.length() - 1) separatedStr += char(255);
         }
-
         displayText += char(255);
         displayText += char(255);
         displayText += separatedStr;
         displayText += char(255);
         displayText += char(255);
-        displayText += " ";  // extra space
+        displayText += " ";
         displayText += arrow;
         P.setCharSpacing(0);
       } else {
@@ -4396,7 +4443,8 @@ void loop() {
       P.print(displayText.c_str());
       unsigned long nightscoutStart = millis();
       while (millis() - nightscoutStart < weatherDuration) {
-        if (forceMessageRestart) return;  // Kicks out immediately if HA spams
+        if (displayMode != 4) return;
+        if (forceMessageRestart) return;
         yield();
       }
       advanceDisplayMode();
@@ -4407,6 +4455,7 @@ void loop() {
       P.write(15);
       unsigned long errorStart = millis();
       while (millis() - errorStart < 2000) {
+        if (displayMode != 4) return;
         if (forceMessageRestart) return;
         yield();
       }
@@ -4571,17 +4620,20 @@ void loop() {
 
       unsigned long displayUntil = millis() + durationMs;
       while (millis() < displayUntil) {
+        if (displayMode != 6) return;
         if (forceMessageRestart) return;
         yield();
       }
 
       // 2. THE MANUAL SHIFT (Create 4-5px of pure black)
-      if (totalPixelWidth >= 27) {
+      // We only want to "push" the text off-screen if this is the VERY LAST cycle
+      bool isLastCycle = (messageScrollTimes > 0 && (currentDisplayCycleCount + 1 >= messageScrollTimes))
+                         || (messageScrollTimes == 0);
+
+      if (totalPixelWidth >= 27 && isLastCycle) {
         // Shift the internal pixel buffer 5 times
         for (uint8_t i = 0; i < 5; i++) {
-          // Only do this in displayMode 6
           if (displayMode != 6) return;
-          // Choose direction based on flipDisplay
           if (flipDisplay) {
             P.getGraphicObject()->transform(MD_MAX72XX::TSR);  // shift right
           } else {
@@ -4618,6 +4670,7 @@ void loop() {
     P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
 
     while (!P.displayAnimate()) {
+      if (displayMode != 6) return;
       if (forceMessageRestart) return;  // Exit immediately to top level
       yield();
     }
