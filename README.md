@@ -71,7 +71,7 @@ Update your device through the Web Installer using a USB connection.
 
 &nbsp;
 📌 **Wiring guide:**  
-See the [hardware connection table](https://github.com/mfactory-osaka/ESPTimeCast#-current-pin-assignment)
+See the [hardware connection table](https://github.com/mfactory-osaka/ESPTimeCast#-advanced-setup--technical-details)
 
 &nbsp;
 ## 🌐 Now Playing — ESPTimeCast Companion Extension
