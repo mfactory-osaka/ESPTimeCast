@@ -27,39 +27,37 @@ See LICENSE.txt for full terms.
 #include <Update.h>
 #include "version.h"
 #include "mfactoryfont.h"
-
-
+#include <Preferences.h>
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
 
+#include "esp_partition.h"
+#include "nvs_flash.h"
+
 // ============================
-// Board-specific MAX7219 pin mapping
+// LEGACY fallback pins (used ONLY for migration)
 // ============================
 #if defined(CONFIG_IDF_TARGET_ESP32S2)
-// ESP32-S2 Mini
-#define CLK_PIN 7
-#define CS_PIN 11
-#define DATA_PIN 12
+#define L_CLK 7
+#define L_CS 11
+#define L_DATA 12
 
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
-// ESP32-S3 WROOM / Camera board
-#define CLK_PIN 18
-#define CS_PIN 16
-#define DATA_PIN 17
+#define L_CLK 18
+#define L_CS 16
+#define L_DATA 17
 
 #elif defined(CONFIG_IDF_TARGET_ESP32C3)
-// ESP32-C3 Super Mini
-#define CLK_PIN 4
-#define CS_PIN 10
-#define DATA_PIN 6
+#define L_CLK 4
+#define L_CS 10
+#define L_DATA 6
 
 #elif defined(ESP32)
-// Default ESP32 boards (DevKit, WROOM, etc)
-#define CLK_PIN 18
-#define CS_PIN 23
-#define DATA_PIN 5
+#define L_CLK 18
+#define L_CS 23
+#define L_DATA 5
 
 #else
 #error "Unsupported board!"
@@ -74,7 +72,11 @@ WiFiEventHandler mDisConnectHandler;
 WiFiEventHandler mGotIpHandler;
 #endif
 
-MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
+Preferences prefs;
+int CLK_PIN;
+int CS_PIN;
+int DATA_PIN;
+MD_Parola P = MD_Parola(HARDWARE_TYPE, L_DATA, L_CLK, L_CS, MAX_DEVICES);
 AsyncWebServer server(80);
 
 // --- Global Scroll Speed Settings ---
@@ -1804,6 +1806,7 @@ void setupWebServer() {
     dimming["dimEndHour"] = dimEndHour;
     dimming["dimEndMinute"] = dimEndMinute;
     dimming["autoDimmingEnabled"] = autoDimmingEnabled;
+    dimming["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
 
     String response;
     serializeJson(doc, response);
@@ -3144,6 +3147,43 @@ void goToMode(const String &target) {
   lastSwitch = millis();
 }
 
+void loadPins() {
+  prefs.begin("pins", false);
+
+  bool hasCLK  = prefs.isKey("clk");
+  bool hasCS   = prefs.isKey("cs");
+  bool hasDATA = prefs.isKey("data");
+
+  bool hasAll = hasCLK && hasCS && hasDATA;
+
+  // Migration (SAFE: only write missing keys)
+  if (!hasAll) {
+    Serial.println("[PIN CONFIG] Missing NVS keys - MIGRATION TRIGGERED");
+
+    if (!hasCLK)  prefs.putInt("clk", L_CLK);
+    if (!hasCS)   prefs.putInt("cs", L_CS);
+    if (!hasDATA) prefs.putInt("data", L_DATA);
+
+    Serial.println("[PIN CONFIG] Migration complete (non-destructive)");
+  }
+
+  // Load
+  CLK_PIN  = prefs.getInt("clk", L_CLK);
+  CS_PIN   = prefs.getInt("cs", L_CS);
+  DATA_PIN = prefs.getInt("data", L_DATA);
+
+  // Validation + fallback (optional improvement below 👇)
+  if (CLK_PIN < 0 || CS_PIN < 0 || DATA_PIN < 0) {
+    Serial.println("[PIN CONFIG] Invalid pins - fallback to defaults");
+
+    CLK_PIN  = L_CLK;
+    CS_PIN   = L_CS;
+    DATA_PIN = L_DATA;
+  }
+
+  Serial.printf("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n", CLK_PIN, CS_PIN, DATA_PIN);
+}
+
 
 // =============================================================================
 // PHYSICAL BUTTON TEMPLATE
@@ -3215,11 +3255,12 @@ void setup() {
   }
   Serial.println(F("[FS] LittleFS mounted and ready."));
   loadUptime();
-  P.begin();  // Initialize Parola library
+  loadPins();
+  new (&P) MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
+  P.begin();
   P.setCharSpacing(0);
   P.setFont(mFactory);
-  loadConfig();  // This function now has internal yields and prints
-
+  loadConfig(); 
   P.setIntensity(brightness);
   if (displayOff) {
     P.displayShutdown(true);
@@ -3535,6 +3576,7 @@ bool saveConfigRuntime() {
   doc["showDate"] = showDate;
   doc["showHumidity"] = showHumidity;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
+  doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {

@@ -1742,6 +1742,8 @@ void setupWebServer() {
     dimming["dimEndHour"] = dimEndHour;
     dimming["dimEndMinute"] = dimEndMinute;
     dimming["autoDimmingEnabled"] = autoDimmingEnabled;
+    dimming["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
+
 
     String response;
     serializeJsonPretty(doc, response);
@@ -3416,6 +3418,7 @@ bool saveConfigRuntime() {
   doc["showDate"] = showDate;
   doc["showHumidity"] = showHumidity;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
+  doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {

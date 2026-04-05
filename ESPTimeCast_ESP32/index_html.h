@@ -1960,6 +1960,10 @@ const char index_html[] PROGMEM = R"rawliteral(
           document.getElementById("dimBrightness").value,
         );
         formData.set(
+          "clockOnlyDuringDimming",
+          document.getElementById("clockOnlyDuringDimming").checked ? "on" : "",
+        );
+        formData.set(
           "showWeatherDescription",
           document.getElementById("showWeatherDescription").checked ? "on" : "",
         );
