@@ -1496,6 +1496,130 @@ const char index_html[] PROGMEM = R"rawliteral(
           class="sub-collapsible active"
           aria-expanded="false"
         >
+          Buzzer
+        </button>
+        <div class="sub-collapsible-content" aria-hidden="true">
+          <div class="content-wrapper">
+            <div class="toggle-padding">
+              <label class="toggle-row-lg">
+                <span class="label-text">Enable Sound:</span>
+                <span class="toggle-switch">
+                  <input
+                    type="checkbox"
+                    id="buzzerEnabled"
+                    name="buzzerEnabled"
+                    onchange="setBuzzerEnabled(this.checked)"
+                  />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+            </div>
+
+            <label for="buzzerPin">Signal GPIO Pin:</label>
+            <select id="buzzerPin" name="buzzerPin">
+              <option value="-1">— Not configured —</option>
+              <option value="4">GPIO 4 (D2)</option>
+              <option value="5">GPIO 5 (D1)</option>
+              <option value="12">GPIO 12 (D6)</option>
+            </select>
+            <div class="small">
+              Connect KY-006 S → GPIO, GND → GND, + → 3.3V.
+              Changing the pin requires a reboot.
+            </div>
+
+            <div class="form-row two-col" style="margin-top:0.75rem">
+              <button type="button" class="primary-button" onclick="saveBuzzerPin()">
+                Save Pin &amp; Reboot
+              </button>
+              <button type="button" class="primary-button" onclick="testBuzzer()">
+                Test Buzzer
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
+          Physical Button
+        </button>
+        <div class="sub-collapsible-content" aria-hidden="true">
+          <div class="content-wrapper">
+            <div class="toggle-padding">
+              <label class="toggle-row-lg">
+                <span class="label-text">Enable Button:</span>
+                <span class="toggle-switch">
+                  <input
+                    type="checkbox"
+                    id="buttonEnabled"
+                    name="buttonEnabled"
+                    onchange="setButtonEnabled(this.checked)"
+                  />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+            </div>
+
+            <label for="buttonPin">Signal GPIO Pin:</label>
+            <select id="buttonPin" name="buttonPin">
+              <option value="-1">— Not configured —</option>
+              <option value="0">GPIO 0 (D3)</option>
+              <option value="2">GPIO 2 (D4)</option>
+              <option value="4">GPIO 4 (D2)</option>
+              <option value="5">GPIO 5 (D1)</option>
+              <option value="12">GPIO 12 (D6)</option>
+              <option value="13">GPIO 13 (D7)</option>
+              <option value="16">GPIO 16 (D0)</option>
+            </select>
+            <div class="small">
+              ESP8266 safe GPIOs. Connect button between GPIO and GND (INPUT_PULLUP).
+              Changing the pin requires a reboot. Actions take effect immediately.
+            </div>
+
+            <label for="buttonShortPress" style="margin-top:0.75rem">Short Press Action:</label>
+            <select id="buttonShortPress" name="buttonShortPress">
+              <option value="next_mode">Next display mode</option>
+              <option value="prev_mode">Previous display mode</option>
+              <option value="display_off">Toggle display on/off</option>
+              <option value="brightness_up">Increase brightness</option>
+              <option value="brightness_down">Decrease brightness</option>
+              <option value="enable_rotation">Toggle auto-rotation</option>
+              <option value="buzzer_beep">Play a beep</option>
+              <option value="buzzer_stop">Stop buzzer</option>
+              <option value="restart">Reboot device</option>
+            </select>
+
+            <label for="buttonLongPress">Long Press Action (800ms):</label>
+            <select id="buttonLongPress" name="buttonLongPress">
+              <option value="next_mode">Next display mode</option>
+              <option value="prev_mode">Previous display mode</option>
+              <option value="display_off">Toggle display on/off</option>
+              <option value="brightness_up">Increase brightness</option>
+              <option value="brightness_down">Decrease brightness</option>
+              <option value="enable_rotation">Toggle auto-rotation</option>
+              <option value="buzzer_beep">Play a beep</option>
+              <option value="buzzer_stop">Stop buzzer</option>
+              <option value="restart">Reboot device</option>
+            </select>
+
+            <div class="form-row two-col" style="margin-top:0.75rem">
+              <button type="button" class="primary-button" onclick="saveButtonActions()">
+                Save Actions
+              </button>
+              <button type="button" class="primary-button" onclick="saveButtonPin()">
+                Save Pin &amp; Reboot
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
           Device information
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1552,7 +1676,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       <input type="submit" class="primary-button" value="Save Settings" />
     </form>
 
-    <div class="footer">      
+    <div class="footer">
       <a href="https://esptimecast.github.io" target="_blank" rel="noopener noreferrer">
       ESPTimeCast<span class="tm">™</span> by M-Factory</a>
     </div>
@@ -1675,6 +1799,23 @@ const char index_html[] PROGMEM = R"rawliteral(
               !!data.colonBlinkEnabled;
             document.getElementById("showWeatherDescription").checked =
               !!data.showWeatherDescription;
+            document.getElementById("buzzerEnabled").checked =
+              !!data.buzzerEnabled;
+            document.getElementById("buttonEnabled").checked =
+              !!data.buttonEnabled;
+            if (data.buttonShortPressAction) document.getElementById("buttonShortPress").value = data.buttonShortPressAction;
+            if (data.buttonLongPressAction)  document.getElementById("buttonLongPress").value  = data.buttonLongPressAction;
+
+            // --- Buzzer + Button Pins (from /get_pins) ---
+            fetch("/get_pins")
+              .then((r) => r.json())
+              .then((pins) => {
+                const sel = document.getElementById("buzzerPin");
+                if (pins.buzzer !== undefined) sel.value = String(pins.buzzer);
+                const btnSel = document.getElementById("buttonPin");
+                if (pins.button !== undefined) btnSel.value = String(pins.button);
+              })
+              .catch(() => {});
 
             // --- Dimming Controls ---
             const autoDimmingEl = document.getElementById("autoDimmingEnabled");
@@ -1967,6 +2108,16 @@ const char index_html[] PROGMEM = R"rawliteral(
           "showWeatherDescription",
           document.getElementById("showWeatherDescription").checked ? "on" : "",
         );
+        formData.set(
+          "buzzerEnabled",
+          document.getElementById("buzzerEnabled").checked ? "on" : "",
+        );
+        formData.set(
+          "buttonEnabled",
+          document.getElementById("buttonEnabled").checked ? "on" : "",
+        );
+        formData.set("buttonShortPressAction", document.getElementById("buttonShortPress").value);
+        formData.set("buttonLongPressAction",  document.getElementById("buttonLongPress").value);
         formData.set(
           "weatherUnits",
           document.getElementById("weatherUnits").checked
@@ -2459,6 +2610,72 @@ const char index_html[] PROGMEM = R"rawliteral(
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "value=" + (val ? 1 : 0),
         });
+      }
+
+      // --- Buzzer ---
+      function setBuzzerEnabled(val) {
+        fetch("/set_buzzer", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "value=" + (val ? 1 : 0),
+        });
+      }
+
+      function saveBuzzerPin() {
+        const pin = document.getElementById("buzzerPin").value;
+        fetch("/save_pins", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "buzzer=" + encodeURIComponent(pin),
+        })
+          .then((r) => r.json())
+          .then(() => {
+            alert("Buzzer pin saved. Device will reboot...");
+          })
+          .catch((e) => console.error("save_pins failed:", e));
+      }
+
+      function testBuzzer() {
+        fetch("/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "buzzer_test=1",
+        });
+      }
+
+      // --- Physical Button ---
+      function setButtonEnabled(val) {
+        fetch("/set_button", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "value=" + (val ? 1 : 0),
+        });
+      }
+
+      function saveButtonPin() {
+        const pin = document.getElementById("buttonPin").value;
+        fetch("/save_pins", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "button=" + encodeURIComponent(pin),
+        })
+          .then((r) => r.json())
+          .then(() => {
+            alert("Button pin saved. Device will reboot...");
+          })
+          .catch((e) => console.error("save_pins failed:", e));
+      }
+
+      function saveButtonActions() {
+        fetch("/save_button_actions", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "shortPress=" + encodeURIComponent(document.getElementById("buttonShortPress").value)
+              + "&longPress=" + encodeURIComponent(document.getElementById("buttonLongPress").value),
+        })
+          .then((r) => r.json())
+          .then(() => { alert("Button actions saved."); })
+          .catch((e) => console.error("save_button_actions failed:", e));
       }
 
       // --- Clock-only-during-dimming setter (no reboot) ---

@@ -514,6 +514,25 @@ POST http://<device_ip>/action
 | `timer_resume` / `timer_start` | -- | Resume paused timer |
 | `timer_restart` | -- | Restart timer from original duration |
 
+#### 🔔 Buzzer
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `buzzer_beep` | -- | Trigger a single beep. Requires buzzer to be enabled and GPIO configured. |
+| `freq` | `1`–`20000` | Tone frequency in Hz. Default: `2000`. Must be sent alongside `buzzer_beep`. |
+| `durationMs` | `1`–`60000` | Beep duration in milliseconds. Default: `150`. Must be sent alongside `buzzer_beep`. |
+| `buzzer_stop` | -- | Immediately silence the buzzer and set `buzzerEnabled = false`. |
+
+> `freq` and `durationMs` are optional — omit either to use its default value.
+
+```bash
+# Default beep (2000 Hz, 150 ms)
+curl "http://<device_ip>/action?buzzer_beep=1"
+
+# Custom frequency and duration
+curl -X POST -d "buzzer_beep=1&freq=1000&durationMs=500" "http://<device_ip>/action"
+```
+
 #### ⚙️ System
 
 | Parameter | Value | Description |
@@ -521,6 +540,41 @@ POST http://<device_ip>/action
 | `clear_message` | -— | Clear current message, restore persistent UI message |
 | `save` | —- | Persist current settings to flash |
 | `restart` | -— | Reboot the device |
+
+&nbsp;
+### 📌 `/get_pins` Endpoint
+
+Returns the current GPIO pin assignments as JSON. Useful for reading back the active configuration without opening the Web UI.
+
+#### 🔗 Endpoint
+```
+GET http://<device_ip>/get_pins
+```
+
+#### 📤 Response
+
+```json
+{
+  "clk": 18,
+  "cs": 23,
+  "data": 5,
+  "buzzer": 4,
+  "button": 8
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `clk` | CLK / SCK pin connected to MAX7219 |
+| `cs` | CS / SS pin connected to MAX7219 |
+| `data` | DIN / MOSI pin connected to MAX7219 |
+| `buzzer` | GPIO pin for the buzzer (KY-006). `-1` = not configured |
+| `button` | GPIO pin for the physical button. `-1` = not configured |
+
+#### curl Example
+```bash
+curl http://<device_ip>/get_pins
+```
 
 > **Toggle behavior:** Sending a parameter without a value toggles it and jumps to the relevant display mode. 
 &nbsp;
@@ -674,7 +728,7 @@ curl "http://<device_ip>/action?display_off"
 
 ESPTimeCast supports an optional physical button that can be wired directly to your ESP board for hands-free control — no app or network required.
 
-The button template is included in the firmware but **disabled by default**. To enable it, simply uncomment the relevant lines and choose your GPIO pin.
+The button is **fully configurable from the Web UI** — no firmware changes or recompilation needed.
 
 ### Wiring
 
@@ -685,43 +739,43 @@ ESP GPIO pin  ──────────────  Button  ────�
 
 ### Setup
 
-In the firmware, find the **PHYSICAL BUTTON TEMPLATE** section and:
+1. Open the Web UI and go to **Hardware / Accessories → Physical Button**
+2. Select the **GPIO pin** connected to your button and click **Save Pin & Reboot**
+3. After reboot, toggle **Enable Button** to activate it
+4. Use the **Short Press Action** and **Long Press Action** dropdowns to configure what each press does, then click **Save Actions**
 
-1. Uncomment `#define BUTTON_PIN 4` and change `4` to your GPIO pin
-2. Uncomment the `handleButton()` function
-3. Uncomment the `pinMode` line in `setup()`
-4. Uncomment the `handleButton()` call in `loop()`
+No code editing required.
 
 ### Default Behavior
 
 | Press | Default Action | 
 |-------|----------------|
-| **Short press** | Advance to next display mode |
+| **Short press** | Next display mode |
 | **Long press** (800ms+) | Toggle display on/off |
 
-### Customization
+### Configurable Actions
 
-Both actions can be replaced with any `/action` parameter. Some examples:
-```cpp
-// Short press examples:
-executeAction("prev_mode", "");         // Go to previous mode
-executeAction("brightness_up", "");     // Increase brightness
-executeAction("enable_rotation", "");   // Toggle rotation freeze
-executeAction("go_to_mode", "clock");   // Jump to clock
+Both presses are independently configurable from the Web UI. Available options:
 
-// Long press examples:
-executeAction("restart", "");           // Reboot device
-executeAction("brightness_down", "");   // Decrease brightness
-executeAction("go_to_mode", "clock");   // Jump to clock
-executeAction("enable_rotation", "");   // Toggle rotation freeze
-```
+| Action | Description |
+|--------|-------------|
+| `next_mode` | Advance to next display mode *(short press default)* |
+| `prev_mode` | Go to previous display mode |
+| `display_off` | Toggle display on/off *(long press default)* |
+| `brightness_up` | Increase brightness by 1 |
+| `brightness_down` | Decrease brightness by 1 |
+| `enable_rotation` | Toggle automatic display rotation |
+| `buzzer_beep` | Play a confirmation beep (requires buzzer configured) |
+| `buzzer_stop` | Immediately silence and disable the buzzer |
+| `restart` | Reboot the device |
 
-> See the full list of available actions in the API & Home Assistant Integration section.
+Actions take effect immediately — no reboot needed. The selected actions are saved across reboots.
 
 ### Notes
-- The long press threshold defaults to **800ms** — change `BUTTON_LONG_PRESS_MS` to adjust
+- The long press threshold defaults to **800ms** — change `BUTTON_LONG_PRESS_MS` in the firmware to adjust
 - Short press fires on **button release** to avoid conflict with long press
-- Any GPIO pin can be used — check your board's pinout for available pins
+- The GPIO pin and enabled state are saved across reboots
+- ESP8266: all settings stored in `config.json`. ESP32: pin stored in NVS, actions in `config.json`
 - ESP8266 D-pin labels map to GPIO numbers (e.g. D2 = GPIO4)
   
 &nbsp;

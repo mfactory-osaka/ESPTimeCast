@@ -38,6 +38,14 @@ See LICENSE.txt for full terms.
 #define CS_PIN 13    //D7
 #define DATA_PIN 15  //D8
 
+int  buzzerPin     = -1;   // -1 = not configured (stored in config.json)
+bool buzzerEnabled = false;
+int  buttonPin     = -1;   // -1 = not configured (stored in config.json)
+bool buttonEnabled = false;
+String buttonShortPressAction = "next_mode";
+String buttonLongPressAction  = "display_off";
+#define BUTTON_LONG_PRESS_MS 800
+
 #ifdef ESP8266
 WiFiEventHandler mConnectHandler;
 WiFiEventHandler mDisConnectHandler;
@@ -291,6 +299,42 @@ textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isF
 // -----------------------------------------------------------------------------
 // Configuration Load & Save
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Passive Buzzer (KY-006) — tone() driver (ESP8266 has no LEDC)
+// -----------------------------------------------------------------------------
+
+void buzzerInit() {
+  if (buzzerPin < 0) return;
+  pinMode(buzzerPin, OUTPUT);
+  noTone(buzzerPin);
+  Serial.printf("[BUZZER] Initialized on GPIO %d (sound %s)\n", buzzerPin, buzzerEnabled ? "enabled" : "disabled");
+}
+
+// Blocking beep — respects buzzerEnabled flag
+void buzzerBeep(int freq, int durationMs) {
+  if (buzzerPin < 0 || !buzzerEnabled) return;
+  tone(buzzerPin, freq);
+  delay(durationMs);
+  noTone(buzzerPin);
+}
+
+// Test beep — always plays regardless of buzzerEnabled (used from web UI)
+void buzzerTestBeep() {
+  if (buzzerPin < 0) return;
+  tone(buzzerPin, 2000); delay(200); noTone(buzzerPin);
+  delay(80);
+  tone(buzzerPin, 2500); delay(150); noTone(buzzerPin);
+}
+
+// Three-beep alert sequence (countdown / timer finish)
+void buzzerAlert() {
+  if (buzzerPin < 0 || !buzzerEnabled) return;
+  for (int i = 0; i < 3; i++) {
+    tone(buzzerPin, 2000); delay(150); noTone(buzzerPin); delay(100);
+  }
+}
+
+
 void loadConfig() {
   Serial.println(F("[CONFIG] Loading configuration..."));
 
@@ -332,6 +376,13 @@ void loadConfig() {
     doc[F("sunsetHour")] = sunsetHour;
     doc[F("sunsetMinute")] = sunsetMinute;
     doc[F("clockOnlyDuringDimming")] = false;
+
+    doc[F("buzzerPin")]     = -1;
+    doc[F("buzzerEnabled")] = false;
+    doc[F("buttonPin")]     = -1;
+    doc[F("buttonEnabled")] = false;
+    doc[F("buttonShortPressAction")] = "next_mode";
+    doc[F("buttonLongPressAction")]  = "display_off";
 
     // Add countdown defaults when creating a new config.json
     JsonObject countdownObj = doc.createNestedObject("countdown");
@@ -402,6 +453,12 @@ void loadConfig() {
   showHumidity = doc["showHumidity"] | false;
   colonBlinkEnabled = doc.containsKey("colonBlinkEnabled") ? doc["colonBlinkEnabled"].as<bool>() : true;
   showWeatherDescription = doc["showWeatherDescription"] | false;
+  buzzerPin     = doc["buzzerPin"]     | -1;
+  buzzerEnabled = doc["buzzerEnabled"] | false;
+  buttonPin     = doc["buttonPin"]     | -1;
+  buttonEnabled = doc["buttonEnabled"] | false;
+  buttonShortPressAction = doc["buttonShortPressAction"] | String("next_mode");
+  buttonLongPressAction  = doc["buttonLongPressAction"]  | String("display_off");
 
   // --- Dimming settings ---
   if (doc["dimmingEnabled"].is<bool>()) {
@@ -805,6 +862,11 @@ void printConfigToSerial() {
   Serial.println(isDramaticCountdown ? "Yes" : "No");
   Serial.print(F("Custom Message: "));
   Serial.println(customMessage);
+  Serial.print(F("Buzzer Pin (GPIO): "));
+  if (buzzerPin >= 0) Serial.println(buzzerPin);
+  else Serial.println(F("Not configured"));
+  Serial.print(F("Buzzer Sound: "));
+  Serial.println(buzzerEnabled ? "Enabled" : "Disabled");
 
   Serial.print(F("Total Runtime: "));
   if (getTotalRuntimeSeconds() > 0) {
@@ -1245,6 +1307,12 @@ void setupWebServer() {
         if (v == "Off" || v == "off") doc[n] = -1;
         else doc[n] = v.toInt();
       } else if (n == "showWeatherDescription") doc[n] = (v == "true" || v == "on" || v == "1");
+      else if (n == "buzzerEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
+      else if (n == "buzzerPin") doc[n] = v.toInt();
+      else if (n == "buttonEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
+      else if (n == "buttonPin") doc[n] = v.toInt();
+      else if (n == "buttonShortPressAction") doc[n] = v;
+      else if (n == "buttonLongPressAction")  doc[n] = v;
       else if (n == "dimmingEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "clockOnlyDuringDimming") {
         doc[n] = (v == "true" || v == "on" || v == "1");
@@ -1476,6 +1544,66 @@ void setupWebServer() {
   server.on("/set_countdown_enabled", HTTP_POST, setHandler);
   server.on("/set_dramatic_countdown", HTTP_POST, setHandler);
   server.on("/set_clock_only_dimming", HTTP_POST, setHandler);
+  server.on("/set_buzzer", HTTP_POST, setHandler);
+  server.on("/set_button", HTTP_POST, setHandler);
+  server.on(
+    "/save_button_actions", HTTP_POST, [](AsyncWebServerRequest *request) {
+      if (request->hasParam("shortPress", true))
+        buttonShortPressAction = request->getParam("shortPress", true)->value();
+      if (request->hasParam("longPress", true))
+        buttonLongPressAction = request->getParam("longPress", true)->value();
+      configDirty = true;
+      request->send(200, "application/json", "{\"ok\":true}");
+    },
+    NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {});
+
+  // --- Pin info & buzzer pin save ---
+  server.on("/get_pins", HTTP_GET, [](AsyncWebServerRequest *request) {
+    DynamicJsonDocument doc(128);
+    doc["clk"]    = CLK_PIN;
+    doc["cs"]     = CS_PIN;
+    doc["data"]   = DATA_PIN;
+    doc["buzzer"] = buzzerPin;
+    doc["button"] = buttonPin;
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+  });
+
+  server.on(
+    "/save_pins", HTTP_POST, [](AsyncWebServerRequest *request) {
+      bool pinChanged = false;
+      if (request->hasParam("buzzer", true) || request->hasParam("button", true)) {
+        File f = LittleFS.open("/config.json", "r");
+        if (f) {
+          DynamicJsonDocument doc(2048);
+          if (!deserializeJson(doc, f)) {
+            f.close();
+            if (request->hasParam("buzzer", true)) {
+              int newPin = request->getParam("buzzer", true)->value().toInt();
+              doc["buzzerPin"] = newPin;
+              Serial.printf("[PINS] Buzzer pin saved to GPIO %d\n", newPin);
+            }
+            if (request->hasParam("button", true)) {
+              int newPin = request->getParam("button", true)->value().toInt();
+              doc["buttonPin"] = newPin;
+              Serial.printf("[PINS] Button pin saved to GPIO %d\n", newPin);
+            }
+            File w = LittleFS.open("/config.json", "w");
+            if (w) { serializeJson(doc, w); w.close(); }
+            pinChanged = true;
+          } else { f.close(); }
+        }
+      }
+      if (pinChanged) Serial.println(F("[PINS] Pin config saved — rebooting"));
+      request->send(200, "application/json", "{\"ok\":true}");
+      request->onDisconnect([]() {
+        saveUptime();
+        delay(100);
+        ESP.restart();
+      });
+    },
+    NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {});
 
   // --- Custom Message Endpoint ---
   server.on("/set_custom_message", HTTP_ANY, [](AsyncWebServerRequest *request) {
@@ -1519,7 +1647,14 @@ void setupWebServer() {
       } else {
         // Handle other actions (brightness, etc.)
         if (request->params() > 0) {
-          executeAction(request->getParam(0)->name(), request->getParam(0)->value());
+          String actionName = request->getParam(0)->name();
+          if (actionName == "buzzer_beep") {
+            int freq       = request->hasArg("freq")       ? request->arg("freq").toInt()       : 2000;
+            int durationMs = request->hasArg("durationMs") ? request->arg("durationMs").toInt() : 150;
+            buzzerBeep(freq, durationMs);
+          } else {
+            executeAction(actionName, request->getParam(0)->value());
+          }
           request->send(200, "text/plain", "OK");
         } else {
           request->send(400, "text/plain", "No parameters found");
@@ -1636,6 +1771,12 @@ void setupWebServer() {
     doc["message"] = (strlen(customMessage) > 0) ? customMessage : "";
     doc["displayOff"] = displayOff;
     doc["brightness"] = brightness;
+    doc["buzzerEnabled"] = buzzerEnabled;
+    doc["buzzerPin"] = buzzerPin;
+    doc["buttonEnabled"] = buttonEnabled;
+    doc["buttonPin"] = buttonPin;
+    doc["buttonShortPressAction"] = buttonShortPressAction;
+    doc["buttonLongPressAction"]  = buttonLongPressAction;
 
     // --- Runtime ---
     doc["device_runtime"] = formatTotalRuntime();
@@ -2912,6 +3053,26 @@ void executeAction(const String &action, const String &value) {
     clockOnlyDuringDimming = hasValue ? boolVal : !clockOnlyDuringDimming;
     configDirty = true;
 
+  } else if (action == "buzzer") {
+    buzzerEnabled = hasValue ? boolVal : !buzzerEnabled;
+    configDirty = true;
+    if (buzzerEnabled && buzzerPin >= 0) {
+      buzzerBeep(2000, 150);  // confirmation beep
+    }
+
+  } else if (action == "buzzer_test") {
+    buzzerTestBeep();
+
+  } else if (action == "buzzer_stop") {
+    buzzerEnabled = false;
+    if (buzzerPin >= 0) noTone(buzzerPin);
+    configDirty = true;
+
+  } else if (action == "button") {
+    buttonEnabled = hasValue ? boolVal : !buttonEnabled;
+    if (buttonEnabled && buttonPin >= 0) pinMode(buttonPin, INPUT_PULLUP);
+    configDirty = true;
+
   } else if (action == "go_to_mode") {
     goToMode(value);
 
@@ -3087,37 +3248,36 @@ void goToMode(const String &target) {
 
 
 // =============================================================================
-// PHYSICAL BUTTON TEMPLATE
-// To enable: uncomment ALL lines below, and set BUTTON_PIN to your GPIO pin.
+// PHYSICAL BUTTON
+// Configured via web UI: enable/disable + GPIO pin stored in config.json.
+// Short press: next mode. Long press (800ms): toggle display off.
 // =============================================================================
 
-// #define BUTTON_PIN 4               // ← Change to your GPIO pin
-// #define BUTTON_LONG_PRESS_MS 800   // ← Hold duration for long press (ms)
-
-// void handleButton() {
-//   static unsigned long lastPress = 0;
-//   static unsigned long pressStart = 0;
-//   static bool lastState = HIGH;
-//   static bool longPressHandled = false;
-//   bool currentState = digitalRead(BUTTON_PIN);
-//   if (currentState == LOW && lastState == HIGH) {
-//     pressStart = millis();
-//     longPressHandled = false;
-//   }
-//   if (currentState == LOW && !longPressHandled) {
-//     if (millis() - pressStart >= BUTTON_LONG_PRESS_MS) {
-//       longPressHandled = true;
-//       executeAction("display_off", "");   // ← LONG PRESS action
-//     }
-//   }
-//   if (currentState == HIGH && lastState == LOW) {
-//     if (!longPressHandled && millis() - lastPress > 200) {
-//       lastPress = millis();
-//       executeAction("next_mode", "");     // ← SHORT PRESS action
-//     }
-//   }
-//   lastState = currentState;
-// }
+void handleButton() {
+  if (!buttonEnabled || buttonPin < 0) return;
+  static unsigned long lastPress = 0;
+  static unsigned long pressStart = 0;
+  static bool lastState = HIGH;
+  static bool longPressHandled = false;
+  bool currentState = digitalRead(buttonPin);
+  if (currentState == LOW && lastState == HIGH) {
+    pressStart = millis();
+    longPressHandled = false;
+  }
+  if (currentState == LOW && !longPressHandled) {
+    if (millis() - pressStart >= BUTTON_LONG_PRESS_MS) {
+      longPressHandled = true;
+      executeAction(buttonLongPressAction, "");
+    }
+  }
+  if (currentState == HIGH && lastState == LOW) {
+    if (!longPressHandled && millis() - lastPress > 200) {
+      lastPress = millis();
+      executeAction(buttonShortPressAction, "");
+    }
+  }
+  lastState = currentState;
+}
 
 
 // -----------------------------------------------------------------------------
@@ -3134,7 +3294,7 @@ DisplayMode key:
   6: Custom Message
 */
 void setup() {
-  // pinMode(BUTTON_PIN, INPUT_PULLUP);  // ← Uncomment if using button
+  if (buttonEnabled && buttonPin >= 0) pinMode(buttonPin, INPUT_PULLUP);
   
   Serial.begin(115200);
   delay(1000);
@@ -3150,6 +3310,7 @@ void setup() {
   P.setCharSpacing(0);
   P.setFont(mFactory);
   loadConfig();
+  buzzerInit();
   P.setIntensity(brightness);
   if (displayOff) {
     P.displayShutdown(true);
@@ -3419,6 +3580,10 @@ bool saveConfigRuntime() {
   doc["showHumidity"] = showHumidity;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
   doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
+  doc["buzzerEnabled"] = buzzerEnabled;
+  doc["buttonEnabled"] = buttonEnabled;
+  doc["buttonShortPressAction"] = buttonShortPressAction;
+  doc["buttonLongPressAction"]  = buttonLongPressAction;
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {
@@ -3474,7 +3639,7 @@ String getFormattedDateText(const char *rawText) {
 }
 
 void loop() {
-  // handleButton();  // ← Uncomment if using button
+  handleButton();
 
   // --- WIFI RECONNECTION ---
   static unsigned long lastReconnectAttempt = 0;
@@ -4105,7 +4270,8 @@ void loop() {
         countdownShowFinishedMessage = true;           // Confirm we are in the finished sequence
         countdownFinishedMessageStartTime = millis();  // Start the 15-second timer for the flashing duration
 
-        // 1. Play Hourglass Animation (Blocking)
+        // 1. Play alert beeps then hourglass animation (blocking)
+        buzzerAlert();
         const char *hourglassFrames[] = { "¡", "¢", "£", "¤" };
         for (int repeat = 0; repeat < 3; repeat++) {
           for (int i = 0; i < 4; i++) {
@@ -4740,6 +4906,7 @@ void showTimerMode7() {
       if (now >= timerEndTime) {
         timerFinished = true;
         timerFinishStartTime = now;
+        buzzerAlert();
       } else {
         remaining = (long)((timerEndTime - now) / 1000);
         if (remaining < 0) remaining = 0;
