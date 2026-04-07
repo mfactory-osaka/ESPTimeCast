@@ -31,12 +31,30 @@ See LICENSE.txt for full terms.
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
+#include <EEPROM.h>
+
+#define EEPROM_SIZE  16
+#define EEPROM_ADDR  0
+#define EEPROM_MAGIC 0xAB
+#define PIN_EEPROM_SECTOR 1019   // fixed, safe for 4MB flash (0x3FB000)
+EEPROMClass PinStorage(PIN_EEPROM_SECTOR);
+
+// Fallback defaults (Wemos D1 Mini) — only used if EEPROM is blank
+// (manual flash users who skipped the installer)
+#define L_CLK  14
+#define L_CS   13
+#define L_DATA 15
+
+struct PinConfig {
+    uint8_t magic;  // byte 0
+    uint8_t clk;    // byte 1
+    uint8_t cs;     // byte 2
+    uint8_t data;   // byte 3
+};
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
-#define CLK_PIN 14   //D5
-#define CS_PIN 13    //D7
-#define DATA_PIN 15  //D8
+
 
 #ifdef ESP8266
 WiFiEventHandler mConnectHandler;
@@ -44,7 +62,10 @@ WiFiEventHandler mDisConnectHandler;
 WiFiEventHandler mGotIpHandler;
 #endif
 
-MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
+int CLK_PIN  = L_CLK;
+int CS_PIN   = L_CS;
+int DATA_PIN = L_DATA;
+MD_Parola P = MD_Parola(HARDWARE_TYPE, L_DATA, L_CLK, L_CS, MAX_DEVICES);
 AsyncWebServer server(80);
 
 // --- Global Scroll Speed Settings ---
@@ -3085,6 +3106,38 @@ void goToMode(const String &target) {
   lastSwitch = millis();
 }
 
+void loadPins() {
+    PinStorage.begin(EEPROM_SIZE);
+    PinConfig cfg;
+    PinStorage.get(EEPROM_ADDR, cfg);
+
+    if (cfg.magic != EEPROM_MAGIC) {
+        // Installer didn't write EEPROM — manual flash user
+        // Write defaults so this only runs once
+        Serial.println("[PIN CONFIG] No EEPROM data - writing defaults");
+        cfg.magic = EEPROM_MAGIC;
+        cfg.clk   = L_CLK;
+        cfg.cs    = L_CS;
+        cfg.data  = L_DATA;
+        EEPROM.put(EEPROM_ADDR, cfg);
+        EEPROM.commit();
+    }
+
+    // Basic validation
+    if (cfg.clk == 0 || cfg.cs == 0 || cfg.data == 0 ||
+        cfg.clk == cfg.cs || cfg.clk == cfg.data || cfg.cs == cfg.data) {
+        Serial.println("[PIN CONFIG] Invalid pins - fallback to defaults");
+        cfg.clk  = L_CLK;
+        cfg.cs   = L_CS;
+        cfg.data = L_DATA;
+    }
+
+    CLK_PIN  = cfg.clk;
+    CS_PIN   = cfg.cs;
+    DATA_PIN = cfg.data;
+
+    Serial.printf("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n", CLK_PIN, CS_PIN, DATA_PIN);
+}
 
 // =============================================================================
 // PHYSICAL BUTTON TEMPLATE
@@ -3146,7 +3199,9 @@ void setup() {
     }
   }
   loadUptime();
-  P.begin();
+loadPins();
+new (&P) MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
+P.begin();
   P.setCharSpacing(0);
   P.setFont(mFactory);
   loadConfig();
