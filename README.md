@@ -1,3 +1,46 @@
+# 🚨 IMPORTANT NOTICE — PLEASE READ
+
+⚠️ If you arrived here from MakerWorld **via any account other than M-Factory** you may have been redirected here from a third-party model that **reproduces this original design without authorization**, including multiple distinctive elements such as its layout, proportions, and overall form factor, originally developed for ESPTimeCast.
+&nbsp;
+### ❤️ Support the Original Work
+
+The ESPTimeCast enclosure was originally released on **June 2, 2025** and is officially distributed through **Printables and Cults3D**, where it is actively maintained and supported.
+
+If you want to ensure you are using the **authentic design**, support continued updates and improvements, and get the intended experience, please refer to the official sources below.
+&nbsp;
+### ⬇️ Get the Original Files
+
+
+  <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
+    <img src="https://img.shields.io/badge/Printables-481%20Downloads-orange?logo=prusa" width="210">
+  </a>
+  <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
+    <img src="https://img.shields.io/badge/Cults3D-141%20Downloads-blue?logo=cults3d" width="200">
+  </a>
+
+
+Two enclosure versions are included in the official downloads:
+
+- 🧱 **Stylish Version** — stylized variant with a minimalsitic aesthetic   
+- 🕹️ **Retro Version** — Fun Retro vibes 
+
+Both versions are part of the original ESPTimeCast project and are actively maintained by the creator.
+
+👉 Please use the **official sources only**, and thank you for supporting original creators.
+&nbsp;
+### 💬 Questions or Need Clarification?
+
+If you have any questions about this project, its origin, or official releases:
+
+👉 Please visit the official community:  
+https://www.reddit.com/r/ESPTimeCast/
+
+This is the central place for updates, discussions, and accurate information about ESPTimeCast.
+
+&nbsp;
+---
+
+&nbsp;&nbsp;
 ![ESPTimeCast](assets/logo.svg)
 
 ![GitHub stars](https://img.shields.io/github/stars/mfactory-osaka/ESPTimeCast?style=social)
@@ -6,6 +49,7 @@
 [![Hackaday](https://img.shields.io/badge/Featured%20on-Hackaday-black?logo=hackaday&logoColor=white)](https://hackaday.com/2025/10/02/building-a-desk-display-for-time-and-weather-data)
 [![XDA Developers](https://img.shields.io/badge/Featured%20on-XDA%20Developers-blueviolet?logo=android&logoColor=white)](https://www.xda-developers.com/super-sleek-esp32-weather-station)
 [![Hackster](https://img.shields.io/badge/Featured%20on-Hackster-orange?logo=hackster&logoColor=white)](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
+
 
 🎉 **1,300+ GitHub stars - thank you to the community!**  
 
