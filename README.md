@@ -76,7 +76,8 @@ https://esptimecast.github.io
 - ESP8266 Wemos D1 Mini / ESP12-F
 - ESP32 Dev Module
 - ESP32-C3 SuperMini
-- Wemos S2 Mini (ESP32-S2)
+- ESP32-S2 (Wemos S2 Mini)
+- ESP32-S2 (Adafruit ESP32-S2 Feather)
 - ESP32-S3 WROOM-1 (Camera/SD board)
 - ESP32-S3-Zero
 
@@ -251,6 +252,7 @@ If you are compiling manually, ensure your pin definitions match this table.
 | ESP8266    | ESP12-F / ESP8266MOD               | 14  | 13 | 12  | 5V  | GND |
 | ESP32      | ESP32 Dev Module / D1 Mini ESP32 (not ESP8266) | 18 | 23 | 5 | 5V | GND |
 | ESP32-S2   | S2 Mini                            | 7   | 11 | 12  | 5V  | GND |
+| ESP32-S2   | Adafruit ESP32-S2 Feather          | 36  | 10 | 35  | 5V  | GND |
 | ESP32-C3   | SuperMini (Updated GPIO Mapping as of v1.3.2)                        | 4   | 10 | 6   | 5V  | GND |
 | ESP32-S3   | WROOM-1 (Camera / SD board)        | 18 | 16 | 17  | 5V  | GND |
 | ESP32-S3   | Zero                               | 12 | 11 | 10  | 5V  | GND |
