@@ -12,10 +12,10 @@ If you want to ensure you are using the **authentic design**, support continued 
 
 
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-481%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-482%20Downloads-orange?logo=prusa" width="210">
   </a>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
-    <img src="https://img.shields.io/badge/Cults3D-141%20Downloads-blue?logo=cults3d" width="200">
+    <img src="https://img.shields.io/badge/Cults3D-142%20Downloads-blue?logo=cults3d" width="200">
   </a>
 
 
@@ -155,11 +155,11 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-481%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-482%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
-    <img src="https://img.shields.io/badge/Cults3D-141%20Downloads-blue?logo=cults3d" width="180">
+    <img src="https://img.shields.io/badge/Cults3D-142%20Downloads-blue?logo=cults3d" width="180">
   </a>
 </p>
 
