@@ -250,7 +250,7 @@ If you are compiling manually, ensure your pin definitions match this table.
 |------------|------------------------------------|:---:|:--:|:---:|:---:|:---:|
 | ESP8266    | D1 Mini (USB-C / Micro-USB)        | 14  | 13 | 15  | 5V  | GND |
 | ESP8266    | ESP12-F / ESP8266MOD               | 14  | 13 | 12  | 5V  | GND |
-| ESP32      | ESP32 Dev Module / D1 Mini ESP32 (not ESP8266) | 18 | 5 | 23 | 5V | GND |
+| ESP32      | ESP32 Dev Module / D1 Mini ESP32 (not ESP8266) | 18 | 23 | 5 | 5V | GND |
 | ESP32-S2   | S2 Mini                            | 7   | 11 | 12  | 5V  | GND |
 | ESP32-S2   | Adafruit ESP32-S2 Feather          | 36  | 10 | 35  | 5V  | GND |
 | ESP32-C3   | SuperMini (Updated GPIO Mapping as of v1.3.2)                        | 4   | 10 | 6   | 5V  | GND |
