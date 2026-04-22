@@ -1,46 +1,3 @@
-# 🚨 IMPORTANT NOTICE — PLEASE READ
-
-⚠️ If you arrived here from MakerWorld **via any account other than M-Factory** you may have been redirected here from a third-party model that **reproduces this original design without authorization**, including multiple distinctive elements such as its layout, proportions, and overall form factor, originally developed for ESPTimeCast.
-&nbsp;
-### ❤️ Support the Original Work
-
-The ESPTimeCast enclosure was originally released on **June 2, 2025** and is officially distributed through **Printables and Cults3D**, where it is actively maintained and supported.
-
-If you want to ensure you are using the **authentic design**, support continued updates and improvements, and get the intended experience, please refer to the official sources below.
-&nbsp;
-### ⬇️ Get the Original Files
-
-
-  <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-489%20Downloads-orange?logo=prusa" width="210">
-  </a>
-  <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
-    <img src="https://img.shields.io/badge/Cults3D-144%20Downloads-blue?logo=cults3d" width="200">
-  </a>
-
-
-Two enclosure versions are included in the official downloads:
-
-- 🧱 **Stylish Version** — stylized variant with a minimalsitic aesthetic   
-- 🕹️ **Retro Version** — Fun Retro vibes 
-
-Both versions are part of the original ESPTimeCast project and are actively maintained by the creator.
-
-👉 Please use the **official sources only**, and thank you for supporting original creators.
-&nbsp;
-### 💬 Questions or Need Clarification?
-
-If you have any questions about this project, its origin, or official releases:
-
-👉 Please visit the official community:  
-https://www.reddit.com/r/ESPTimeCast/
-
-This is the central place for updates, discussions, and accurate information about ESPTimeCast.
-
-&nbsp;
----
-
-&nbsp;&nbsp;
 ![ESPTimeCast](assets/logo.svg)
 
 ![GitHub stars](https://img.shields.io/github/stars/mfactory-osaka/ESPTimeCast?style=social)
@@ -51,7 +8,7 @@ This is the central place for updates, discussions, and accurate information abo
 [![Hackster](https://img.shields.io/badge/Featured%20on-Hackster-orange?logo=hackster&logoColor=white)](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
 
 
-🎉 **1,300+ GitHub stars - thank you to the community!**  
+🎉 **1,350+ GitHub stars - thank you to the community!**  
 
 **ESPTimeCast™** is a sleek, WiFi-connected LED matrix clock and weather display built on **ESP8266/ESP32** and **MAX7219**.
 It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern web-based configuration interface — all in one compact design.
@@ -156,7 +113,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-489%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-490%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
