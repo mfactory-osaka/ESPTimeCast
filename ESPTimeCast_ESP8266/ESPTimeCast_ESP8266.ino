@@ -33,23 +33,23 @@ See LICENSE.txt for full terms.
 #include "index_html.h"     // Web UI
 #include <EEPROM.h>
 
-#define EEPROM_SIZE  16
-#define EEPROM_ADDR  0
+#define EEPROM_SIZE 16
+#define EEPROM_ADDR 0
 #define EEPROM_MAGIC 0xAB
-#define PIN_EEPROM_SECTOR 1019   // fixed, safe for 4MB flash (0x3FB000)
+#define PIN_EEPROM_SECTOR 1019  // fixed, safe for 4MB flash (0x3FB000)
 EEPROMClass PinStorage(PIN_EEPROM_SECTOR);
 
 // Fallback defaults (Wemos D1 Mini) — only used if EEPROM is blank
 // (manual flash users who skipped the installer)
-#define L_CLK  14
-#define L_CS   13
+#define L_CLK 14
+#define L_CS 13
 #define L_DATA 15
 
 struct PinConfig {
-    uint8_t magic;  // byte 0
-    uint8_t clk;    // byte 1
-    uint8_t cs;     // byte 2
-    uint8_t data;   // byte 3
+  uint8_t magic;  // byte 0
+  uint8_t clk;    // byte 1
+  uint8_t cs;     // byte 2
+  uint8_t data;   // byte 3
 };
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
@@ -62,8 +62,8 @@ WiFiEventHandler mDisConnectHandler;
 WiFiEventHandler mGotIpHandler;
 #endif
 
-int CLK_PIN  = L_CLK;
-int CS_PIN   = L_CS;
+int CLK_PIN = L_CLK;
+int CS_PIN = L_CS;
 int DATA_PIN = L_DATA;
 MD_Parola P = MD_Parola(HARDWARE_TYPE, L_DATA, L_CLK, L_CS, MAX_DEVICES);
 AsyncWebServer server(80);
@@ -1272,11 +1272,10 @@ void setupWebServer() {
       } else if (n == "weatherUnits") doc[n] = v;
       else if (n == "hostname") doc[n] = v;
       else if (n == "password") {
-        if (v != "********" && v.length() > 0) {
-          doc[n] = v;  // user entered a new password
+        if (v != "********") {
+          doc[n] = v;  // saves new password OR empty string (open network)
         } else {
-          Serial.println(F("[SAVE] Password unchanged."));
-          // do nothing, keep the one already in doc
+          Serial.println(F("[SAVE] Password unchanged (masked)."));
         }
       } else if (n == "ssid") {
         if (v != "********" && v.length() > 0) {
@@ -3107,36 +3106,35 @@ void goToMode(const String &target) {
 }
 
 void loadPins() {
-    PinStorage.begin(EEPROM_SIZE);
-    PinConfig cfg;
-    PinStorage.get(EEPROM_ADDR, cfg);
+  PinStorage.begin(EEPROM_SIZE);
+  PinConfig cfg;
+  PinStorage.get(EEPROM_ADDR, cfg);
 
-    if (cfg.magic != EEPROM_MAGIC) {
-        // Installer didn't write EEPROM — manual flash user
-        // Write defaults so this only runs once
-        Serial.println("[PIN CONFIG] No EEPROM data - writing defaults");
-        cfg.magic = EEPROM_MAGIC;
-        cfg.clk   = L_CLK;
-        cfg.cs    = L_CS;
-        cfg.data  = L_DATA;
-        EEPROM.put(EEPROM_ADDR, cfg);
-        EEPROM.commit();
-    }
+  if (cfg.magic != EEPROM_MAGIC) {
+    // Installer didn't write EEPROM — manual flash user
+    // Write defaults so this only runs once
+    Serial.println("[PIN CONFIG] No EEPROM data - writing defaults");
+    cfg.magic = EEPROM_MAGIC;
+    cfg.clk = L_CLK;
+    cfg.cs = L_CS;
+    cfg.data = L_DATA;
+    EEPROM.put(EEPROM_ADDR, cfg);
+    EEPROM.commit();
+  }
 
-    // Basic validation
-    if (cfg.clk == 0 || cfg.cs == 0 || cfg.data == 0 ||
-        cfg.clk == cfg.cs || cfg.clk == cfg.data || cfg.cs == cfg.data) {
-        Serial.println("[PIN CONFIG] Invalid pins - fallback to defaults");
-        cfg.clk  = L_CLK;
-        cfg.cs   = L_CS;
-        cfg.data = L_DATA;
-    }
+  // Basic validation
+  if (cfg.clk == 0 || cfg.cs == 0 || cfg.data == 0 || cfg.clk == cfg.cs || cfg.clk == cfg.data || cfg.cs == cfg.data) {
+    Serial.println("[PIN CONFIG] Invalid pins - fallback to defaults");
+    cfg.clk = L_CLK;
+    cfg.cs = L_CS;
+    cfg.data = L_DATA;
+  }
 
-    CLK_PIN  = cfg.clk;
-    CS_PIN   = cfg.cs;
-    DATA_PIN = cfg.data;
+  CLK_PIN = cfg.clk;
+  CS_PIN = cfg.cs;
+  DATA_PIN = cfg.data;
 
-    Serial.printf("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n", CLK_PIN, CS_PIN, DATA_PIN);
+  Serial.printf("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n", CLK_PIN, CS_PIN, DATA_PIN);
 }
 
 // =============================================================================
@@ -3188,7 +3186,7 @@ DisplayMode key:
 */
 void setup() {
   // pinMode(BUTTON_PIN, INPUT_PULLUP);  // ← Uncomment if using button
-  
+
   Serial.begin(115200);
   delay(1000);
   if (!LittleFS.begin()) {
@@ -3199,9 +3197,9 @@ void setup() {
     }
   }
   loadUptime();
-loadPins();
-new (&P) MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
-P.begin();
+  loadPins();
+  new (&P) MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
+  P.begin();
   P.setCharSpacing(0);
   P.setFont(mFactory);
   loadConfig();

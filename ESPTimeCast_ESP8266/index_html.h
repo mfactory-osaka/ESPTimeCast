@@ -899,7 +899,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       </div>
       <label for="password">Enter your Wi-Fi password</label>
       <div style="position: relative">
-        <input type="password" id="password" name="password" required />
+        <input type="password" id="password" name="password" />
         <label class="small">
           <input
             type="checkbox"

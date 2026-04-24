@@ -1286,11 +1286,10 @@ void setupWebServer() {
       } else if (n == "weatherUnits") doc[n] = v;
       else if (n == "hostname") doc[n] = v;
       else if (n == "password") {
-        if (v != "********" && v.length() > 0) {
-          doc[n] = v;  // user entered a new password
+        if (v != "********") {
+          doc[n] = v;  // saves new password OR empty string (open network)
         } else {
-          Serial.println(F("[SAVE] Password unchanged."));
-          // do nothing, keep the one already in doc
+          Serial.println(F("[SAVE] Password unchanged (masked)."));
         }
       } else if (n == "ssid") {
         if (v != "********" && v.length() > 0) {
@@ -3150,8 +3149,8 @@ void goToMode(const String &target) {
 void loadPins() {
   prefs.begin("pins", false);
 
-  bool hasCLK  = prefs.isKey("clk");
-  bool hasCS   = prefs.isKey("cs");
+  bool hasCLK = prefs.isKey("clk");
+  bool hasCS = prefs.isKey("cs");
   bool hasDATA = prefs.isKey("data");
 
   bool hasAll = hasCLK && hasCS && hasDATA;
@@ -3160,24 +3159,24 @@ void loadPins() {
   if (!hasAll) {
     Serial.println("[PIN CONFIG] Missing NVS keys - MIGRATION TRIGGERED");
 
-    if (!hasCLK)  prefs.putInt("clk", L_CLK);
-    if (!hasCS)   prefs.putInt("cs", L_CS);
+    if (!hasCLK) prefs.putInt("clk", L_CLK);
+    if (!hasCS) prefs.putInt("cs", L_CS);
     if (!hasDATA) prefs.putInt("data", L_DATA);
 
     Serial.println("[PIN CONFIG] Migration complete (non-destructive)");
   }
 
   // Load
-  CLK_PIN  = prefs.getInt("clk", L_CLK);
-  CS_PIN   = prefs.getInt("cs", L_CS);
+  CLK_PIN = prefs.getInt("clk", L_CLK);
+  CS_PIN = prefs.getInt("cs", L_CS);
   DATA_PIN = prefs.getInt("data", L_DATA);
 
-  // Validation + fallback (optional improvement below 👇)
+  // Validation + fallback (optional improvement below)
   if (CLK_PIN < 0 || CS_PIN < 0 || DATA_PIN < 0) {
     Serial.println("[PIN CONFIG] Invalid pins - fallback to defaults");
 
-    CLK_PIN  = L_CLK;
-    CS_PIN   = L_CS;
+    CLK_PIN = L_CLK;
+    CS_PIN = L_CS;
     DATA_PIN = L_DATA;
   }
 
@@ -3260,7 +3259,7 @@ void setup() {
   P.begin();
   P.setCharSpacing(0);
   P.setFont(mFactory);
-  loadConfig(); 
+  loadConfig();
   P.setIntensity(brightness);
   if (displayOff) {
     P.displayShutdown(true);
