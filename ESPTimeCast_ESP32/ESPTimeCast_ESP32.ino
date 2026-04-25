@@ -106,6 +106,7 @@ int currentGlucose = -1;
 String currentDirection = "?";
 time_t lastGlucoseTime = 0;  // store timestamp from JSON
 bool isNetworkBusy = false;
+bool nightscoutMmol = false;
 
 // --- Device identity ---
 const char *DEFAULT_HOSTNAME = "esptimecast";
@@ -274,6 +275,7 @@ unsigned long timerRemainingAtPause = 0;
 unsigned long timerOriginalDuration = 0;  // For RESTART command
 unsigned long timerFinishStartTime = 0;
 unsigned long timerEndTime = 0;
+bool isStopwatch = false;
 int global_scrolltimes = 0;  // Persisted from HTTP request
 int global_msgSeconds = 0;
 
@@ -2608,24 +2610,114 @@ void fetchWeather() {
 
 void fetchNightscout() {
   if (WiFi.status() != WL_CONNECTED) return;
+  if (ESP.getFreeHeap() < 10000 || isNetworkBusy) return;
 
-  String url = String(ntpServer2);
-  if (url.indexOf('?') == -1) url += "?count=1";
-  else if (url.indexOf("count=") == -1) url += "&count=1";
+#ifdef ESP8266
+  // --- URL encode helper ---
+  auto urlEncode = [](String str) -> String {
+    String encoded = "";
+    for (int i = 0; i < str.length(); i++) {
+      char c = str.charAt(i);
+      if (isalnum(c)) {
+        encoded += c;
+      } else {
+        char code1 = (c & 0xf) + '0';
+        if ((c & 0xf) > 9) code1 = (c & 0xf) - 10 + 'A';
+        char c2 = (c >> 4) & 0xf;
+        char code0 = c2 + '0';
+        if (c2 > 9) code0 = c2 - 10 + 'A';
+        encoded += '%';
+        encoded += code0;
+        encoded += code1;
+      }
+    }
+    return encoded;
+  };
+
+  // --- Detect and strip mmol=1 ---
+  nightscoutMmol = false;
+  String rawUrl = String(ntpServer2);
+  int mmolIdx = rawUrl.indexOf("mmol=1");
+  if (mmolIdx != -1) {
+    nightscoutMmol = true;
+    char before = (mmolIdx > 0) ? rawUrl[mmolIdx - 1] : 0;
+    if (before == '&' || before == '?')
+      rawUrl.remove(mmolIdx - 1, 7);
+    else
+      rawUrl.remove(mmolIdx, 6);
+  }
+
+  String bridgeUrl = "http://kimochiyaten.com/nightscout-bridge.php?url=";
+  bridgeUrl += urlEncode(rawUrl);
 
   isNetworkBusy = true;
+  Serial.println("[NIGHTSCOUT] Fetching via PHP bridge");
+
+  WiFiClient client;
+  HTTPClient http;
+  http.addHeader("User-Agent", "Mozilla/5.0");
+  if (http.begin(client, bridgeUrl)) {
+    http.setTimeout(4000);
+    int httpCode = http.GET();
+    if (httpCode == 200) {
+      String payload = http.getString();
+      payload.trim();
+      Serial.printf("[NIGHTSCOUT] Payload: %s\n", payload.c_str());
+
+      int space1 = payload.indexOf(' ');
+      int space2 = payload.lastIndexOf(' ');
+      if (space1 != -1 && space2 != -1 && space1 != space2) {
+        int parsedGlucose = payload.substring(0, space1).toInt();
+        if (parsedGlucose > 0) {
+          currentGlucose = parsedGlucose;
+          currentDirection = payload.substring(space1 + 1, space2);
+          long long date = (long long)payload.substring(space2 + 1).toFloat();
+          if (date > 0) lastGlucoseTime = date;  // already in seconds from PHP
+          Serial.printf("[NIGHTSCOUT] Fetched: %d (%s) %s\n",
+                        currentGlucose,
+                        nightscoutMmol ? "will display as mmol" : "mg/dL",
+                        currentDirection.c_str());
+          lastNightscoutFetchTime = millis();
+        } else {
+          Serial.println("[NIGHTSCOUT] Bridge returned error response, will retry");
+          lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
+        }
+      } else {
+        Serial.println("[NIGHTSCOUT] Failed to parse payload");
+        lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
+      }
+    } else {
+      Serial.printf("[NIGHTSCOUT] HTTP failed: %s\n", http.errorToString(httpCode).c_str());
+      lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
+    }
+    http.end();
+  }
+
+#else
+  // --- ESP32: direct HTTPS + JSON ---
+  nightscoutMmol = false;
+  String rawUrl = String(ntpServer2);
+  int mmolIdx = rawUrl.indexOf("mmol=1");
+  if (mmolIdx != -1) {
+    nightscoutMmol = true;
+    char before = (mmolIdx > 0) ? rawUrl[mmolIdx - 1] : 0;
+    if (before == '&' || before == '?')
+      rawUrl.remove(mmolIdx - 1, 7);
+    else
+      rawUrl.remove(mmolIdx, 6);
+  }
+
+  if (rawUrl.indexOf("count=") == -1)
+    rawUrl += (rawUrl.indexOf('?') == -1) ? "?count=1" : "&count=1";
+
+  isNetworkBusy = true;
+  Serial.printf("[NIGHTSCOUT] Fetching%s direct\n", nightscoutMmol ? " (mmol)" : " (mg/dL)");
 
   WiFiClientSecure client;
   client.setInsecure();
-#ifdef ESP8266
-  client.setBufferSizes(512, 512);  // MUST be before begin()
-#endif
-
   HTTPClient https;
-  https.begin(client, url);
-  https.setTimeout(5000);
-  Serial.println("[HTTPS] Nightscout fetch initiated...");
-
+  https.begin(client, rawUrl);
+  https.setTimeout(8000);
   int httpCode = https.GET();
   if (httpCode == HTTP_CODE_OK) {
     WiFiClient *stream = https.getStreamPtr();
@@ -2633,21 +2725,29 @@ void fetchNightscout() {
     DeserializationError error = deserializeJson(doc, *stream);
     if (!error && doc.is<JsonArray>() && doc.size() > 0) {
       JsonObject firstReading = doc[0].as<JsonObject>();
-      currentGlucose = firstReading["glucose"] | firstReading["sgv"] | -1;
+      currentGlucose = firstReading["sgv"] | firstReading["glucose"] | -1;
       currentDirection = firstReading["direction"] | "?";
       long long dateMs = firstReading["date"] | 0LL;
-      if (dateMs > 0) lastGlucoseTime = dateMs / 1000;
-      Serial.printf("[NIGHTSCOUT] Fetched: %d mg/dL %s\n", currentGlucose, currentDirection.c_str());
+      if (dateMs > 0) lastGlucoseTime = dateMs / 1000;  // JSON returns ms, convert to seconds
+      Serial.printf("[NIGHTSCOUT] Fetched: %d (%s) %s\n",
+                    currentGlucose,
+                    nightscoutMmol ? "will display as mmol" : "mg/dL",
+                    currentDirection.c_str());
+      lastNightscoutFetchTime = millis();
     } else {
       Serial.println("[NIGHTSCOUT] Failed to parse JSON");
+      lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
     }
   } else {
-    Serial.printf("[HTTPS] GET failed: %s\n", https.errorToString(httpCode).c_str());
+    Serial.printf("[NIGHTSCOUT] HTTPS failed: %s\n", https.errorToString(httpCode).c_str());
+    lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
   }
-
   https.end();
+  client.stop();
+#endif
+
+  delay(100);
   isNetworkBusy = false;
-  lastNightscoutFetchTime = millis();
 }
 
 
@@ -2791,6 +2891,11 @@ char getWeatherIconChar(const String &iconCode) {
 // Timer Helper
 bool handleTimerCommand(String cmd) {
   cmd.toUpperCase();
+  if (cmd.indexOf("[STOPWATCH]") != -1) cmd = "[TIMER STOPWATCH]";
+  if (cmd.indexOf("[STOPWATCH PAUSE]") != -1) cmd = "[TIMER PAUSE]";
+  if (cmd.indexOf("[STOPWATCH RESUME]") != -1) cmd = "[TIMER RESUME]";
+  if (cmd.indexOf("[STOPWATCH STOP]") != -1) cmd = "[TIMER STOP]";
+  if (cmd.indexOf("[STOPWATCH RESTART]") != -1) cmd = "[TIMER STOPWATCH]";
   if (cmd.indexOf("[TIMER") == -1) return false;
 
   int start = cmd.indexOf("[TIMER") + 6;
@@ -2802,6 +2907,7 @@ bool handleTimerCommand(String cmd) {
     timerActive = false;
     timerFinished = false;
     timerPaused = false;
+    isStopwatch = false;
     displayMode = 0;      // Force back to Clock
     prevDisplayMode = 6;  // Ensure rotation logic knows where we came from
     clockScrollDone = false;
@@ -2814,14 +2920,15 @@ bool handleTimerCommand(String cmd) {
   if (payload == "PAUSE") {
     if (timerActive && !timerPaused && !timerFinished) {
       timerPaused = true;
-      timerRemainingAtPause = timerEndTime - millis();
+      timerRemainingAtPause = isStopwatch ? (millis() - timerEndTime) : (timerEndTime - millis());
     }
     return true;
   }
 
   if (payload == "RESUME" || payload == "START") {
     if (timerActive && timerPaused) {
-      timerEndTime = millis() + timerRemainingAtPause;
+      timerEndTime = isStopwatch ? millis() - timerRemainingAtPause   // rewind start time
+                                 : millis() + timerRemainingAtPause;  // existing countdown logic
       timerPaused = false;
     }
     return true;
@@ -2829,6 +2936,7 @@ bool handleTimerCommand(String cmd) {
 
   if (payload == "RESTART") {
     if (timerOriginalDuration > 0) {
+      isStopwatch = false;
       timerEndTime = millis() + timerOriginalDuration;
       timerActive = true;
       timerPaused = false;
@@ -2840,6 +2948,19 @@ bool handleTimerCommand(String cmd) {
       return true;
     }
     return false;
+  }
+
+  if (payload == "STOPWATCH") {
+    isStopwatch = true;
+    timerActive = true;
+    timerPaused = false;
+    timerFinished = false;
+    timerEndTime = millis();  // reuse as startTime
+    timerSubState = 0;
+    displayMode = 7;
+    lastSwitch = millis();
+    forceMessageRestart = true;
+    return true;
   }
 
   long totalMs = 0;
@@ -2860,6 +2981,7 @@ bool handleTimerCommand(String cmd) {
   if (totalMs > 86400000) totalMs = 86400000;  // 24h Cap
 
   if (totalMs > 0) {
+    isStopwatch = false;
     timerOriginalDuration = totalMs;
     timerEndTime = millis() + totalMs;
     timerActive = true;
@@ -2993,6 +3115,14 @@ void executeAction(const String &action, const String &value) {
     handleTimerCommand("[TIMER RESTART]");
   } else if (action == "timer") {
     handleTimerCommand("[TIMER " + value + "]");
+  } else if (action == "stopwatch" || action == "stopwatch_start") {
+    handleTimerCommand("[TIMER STOPWATCH]");
+  } else if (action == "stopwatch_pause") {
+    handleTimerCommand("[TIMER PAUSE]");
+  } else if (action == "stopwatch_resume") {
+    handleTimerCommand("[TIMER RESUME]");
+  } else if (action == "stopwatch_stop" || action == "stopwatch_cancel") {
+    handleTimerCommand("[TIMER STOP]");
 
   } else if (action == "restart") {
     pendingRestart = true;
@@ -4546,7 +4676,6 @@ void loop() {
     P.setCharSpacing(1);
     if (forceMessageRestart) return;
 
-    // --- Display the data ---
     if (currentGlucose != -1) {
       time_t nowUTC = time(nullptr);
 
@@ -4570,30 +4699,48 @@ void loop() {
       else if (currentDirection == "FortyFiveDown") arrow = 140;
       else arrow = '?';
 
+      // --- Build glucose display string ---
+      String glucoseDisplay;
+      if (nightscoutMmol) {
+        char tmp[8];
+        dtostrf(currentGlucose / 18.018f, 4, 1, tmp);
+        glucoseDisplay = String(tmp);
+        glucoseDisplay.trim();
+      } else {
+        glucoseDisplay = String(currentGlucose);
+      }
+
       String displayText = "";
       if (isOutdated) {
-        String glucoseStr = String(currentGlucose);
-        for (int i = 0; i < glucoseStr.length(); i++) {
-          if (isDigit(glucoseStr[i])) {
-            int num = glucoseStr[i] - '0';
-            glucoseStr[i] = 195 + ((num + 9) % 10);
+        // First pass: convert digits to dimmed variants, dot to char(206)
+        String styledStr = "";
+        for (int i = 0; i < glucoseDisplay.length(); i++) {
+          char c = glucoseDisplay[i];
+          if (c == '.') {
+            styledStr += char(206);  // mid-line dot for decimal point
+          } else if (isDigit(c)) {
+            int num = c - '0';
+            styledStr += char(195 + ((num + 9) % 10));  // dimmed digit
+          } else {
+            styledStr += c;
           }
         }
+
+        // Second pass: wrap and separate every character with char(205)
+        // Result: (205)(char)(205)(char)(205)...(char)(205)
         String separatedStr = "";
-        for (int i = 0; i < glucoseStr.length(); i++) {
-          separatedStr += glucoseStr[i];
-          if (i < glucoseStr.length() - 1) separatedStr += char(255);
+        separatedStr += char(205);  // leading cap
+        for (int i = 0; i < styledStr.length(); i++) {
+          separatedStr += styledStr[i];
+          separatedStr += char(205);  // after every character including last
         }
-        displayText += char(255);
-        displayText += char(255);
+
         displayText += separatedStr;
-        displayText += char(255);
-        displayText += char(255);
         displayText += " ";
         displayText += arrow;
         P.setCharSpacing(0);
       } else {
-        displayText += String(currentGlucose) + String(arrow);
+        displayText += glucoseDisplay + String(arrow);
         P.setCharSpacing(1);
       }
 
@@ -4884,6 +5031,25 @@ void showTimerMode7() {
       lastSwitch = now;
       return;
     }
+  }
+
+  if (isStopwatch) {
+    unsigned long elapsed = timerPaused ? timerRemainingAtPause : (millis() - timerEndTime);
+    unsigned long totalSec = elapsed / 1000;
+    int cs = (elapsed % 1000) / 10;
+    int m = totalSec / 60;
+    int s = totalSec % 60;
+    char buf[12];
+    if (m > 59) {
+      int h = m / 60;
+      m = m % 60;
+      sprintf(buf, "%02d:%02d:%02d", h, m, s);  // HH:MM:SS when over 1 hour
+    } else {
+      sprintf(buf, "%02d:%02d.%02d", m, s, cs);  // MM:SS.cs standard format
+    }
+    P.setTextAlignment(PA_CENTER);
+    P.print(buf);
+    return;
   }
 
   // 2. Timer Logic
