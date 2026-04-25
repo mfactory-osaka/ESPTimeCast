@@ -113,7 +113,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-491%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-493%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -186,7 +186,7 @@ Advanced and developer-focused information is available below.
   - **Auto dimming** (sunrise/sunset) or custom schedule  
 
 - **Optional Integrations:**
-  - **Nightscout glucose display** (alternates with weather)  
+  - **Nightscout glucose display** with mg/dL and mmol/L support (alternates with weather)
   - **Config export/import** via `/export` and `/upload` endpoints  
     
   &nbsp;
@@ -511,7 +511,7 @@ POST http://<device_ip>/action
 | `metric` | -- | Set metric units |
 | `language` | e.g. `en`, `ja`, `sv` | Set display language |
 
-#### ⏱️ Timer
+#### ⏱️ Timer and Stopwatch
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -520,6 +520,13 @@ POST http://<device_ip>/action
 | `timer_pause` | -- | Pause running timer |
 | `timer_resume` / `timer_start` | -- | Resume paused timer |
 | `timer_restart` | -- | Restart timer from original duration |
+
+| Parameter | Description |
+|-----------|-------------|
+| `stopwatch` / `stopwatch_start` | Start a stopwatch |
+| `stopwatch_pause` | Pause the stopwatch |
+| `stopwatch_resume` | Resume the stopwatch |
+| `stopwatch_stop` / `stopwatch_cancel` | Stop and clear |
 
 #### ⚙️ System
 
@@ -763,7 +770,7 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 &nbsp;
 </details>
 <details>
-<summary>⏱️ Timer Feature</summary>
+<summary>⏱️ Timer and Stopwatch Feature</summary>
 &nbsp;
   
 ESPTimeCast includes a built-in countdown timer that can be triggered via the **Custom Message** field in the Web UI or through **Home Assistant** (or any HTTP client).
@@ -830,6 +837,41 @@ curl -X POST -d "message=[TIMER STOP]" "http://esptimecast.local/set_custom_mess
 > Replace `esptimecast.local` with your device's IP address if mDNS is not available on your network.
 
 &nbsp;
+### Stopwatch
+
+ESPTimeCast also includes a built-in stopwatch, triggered the same way as timers:
+
+| Command | Description |
+|---------|-------------|
+| `[STOPWATCH]` | Start a stopwatch from zero |
+| `[STOPWATCH PAUSE]` | Pause the stopwatch |
+| `[STOPWATCH RESUME]` | Resume a paused stopwatch |
+| `[STOPWATCH STOP]` | Stop and clear the stopwatch |
+| `[STOPWATCH RESTART]` | Reset and restart from zero |
+
+The stopwatch displays in `MM:SS.cs` format (minutes, seconds, centiseconds), automatically switching to `HH:MM:SS` after one hour.
+
+```bash
+# Start a stopwatch
+curl -X POST -d "message=[STOPWATCH]" "http://esptimecast.local/action"
+
+# Pause it
+curl -X POST -d "message=[STOPWATCH PAUSE]" "http://esptimecast.local/action"
+
+# Stop it
+curl -X POST -d "message=[STOPWATCH STOP]" "http://esptimecast.local/action"
+```
+
+You can also control the stopwatch via the `/action` endpoint:
+
+| Parameter | Description |
+|-----------|-------------|
+| `stopwatch` / `stopwatch_start` | Start a stopwatch |
+| `stopwatch_pause` | Pause the stopwatch |
+| `stopwatch_resume` | Resume the stopwatch |
+| `stopwatch_stop` / `stopwatch_cancel` | Stop and clear |
+
+&nbsp;
 </details>
 <details>
 <summary>🧩 Power User Features</summary>
@@ -870,22 +912,41 @@ Perfect for restoring a backup or quickly switching between setups.
 
 > *Tip:* You can export → edit the file on your computer → re-upload to test new settings without using the web interface.
 
-
+&nbsp;
 #### ⚕️ Nightscout Integration
-ESPTimeCast supports displaying glucose data from **Nightscout** servers alongside weather information.
 
-When the secondary NTP/URL field (`ntpServer2`) contains a valid Nightscout API endpoint for example:  
+ESPTimeCast supports displaying glucose data from **Nightscout** servers alongside weather information.
+When the secondary NTP/URL field (`ntpServer2`) contains a valid Nightscout API endpoint, the device automatically enables **Glucose Display Mode**.
 ```
 https://your-cgm-server/api/v1/entries/current.json?token=xxxxxxxxxxxxx
 ```
-the device automatically enables **Glucose Display Mode**.
 
-In this mode:
-- The device fetches glucose data every 5 minutes.
-- Glucose value and trend direction are displayed alternately with time and weather.
-- The display duration for Nightscout data is the same as the weather display duration.
-- Weather data continues to display normally.
-- Debug logs confirm updates and Nightscout responses in the Serial Monitor.
+#### 📐 Unit Selection: mg/dL and mmol/L
+
+By default, glucose is displayed in **mg/dL**. To display in **mmol/L**, add `&mmol=1` to your Nightscout URL:
+```
+https://your-cgm-server/api/v1/entries/current.json?token=xxxxxxxxxxxxx&mmol=1
+```
+The conversion (`mg/dL ÷ 18.018`) is handled automatically on the device. No other changes are needed.
+
+- Glucose value and trend arrow are displayed alternately with time and weather
+- **Outdated data** (older than 10 minutes) is shown with dimmed characters so you can tell at a glance the reading is stale
+- Display duration matches the weather display duration setting
+- Data is fetched every 2.5 minutes
+
+#### ⚠️ ESP8266 vs ESP32
+
+> **ESP32 is strongly recommended for Nightscout users.**
+
+| | ESP8266 | ESP32 |
+|---|---|---|
+| Connection | Via PHP bridge (HTTP) | Direct HTTPS |
+| Reliability | Good | Excellent |
+| Setup | Standard URL | Standard URL |
+
+The ESP8266 connects to Nightscout via an intermediate PHP bridge due to TLS memory constraints. While functional, **ESP32 provides a more stable and direct connection** and is the recommended platform for anyone using Nightscout.
+
+If you are currently using an ESP8266 for Nightscout display, consider migrating to an ESP32 for the best experience. The firmware, web UI, and all settings are identical — only the hardware changes.
 
 #### ⚠️ Notes
 - These features are optional and hidden from the main interface to avoid clutter.  
