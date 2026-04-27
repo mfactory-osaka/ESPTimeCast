@@ -26,7 +26,7 @@ Flash ESPTimeCast directly from your browser — no Arduino IDE, no drivers setu
 👉 **Web Installer:**  
 https://esptimecast.github.io
 
-<img src="assets/webinstaller2.png" alt="ESPTimeCast Web Installer" width="640" />
+<img src="assets/webinstaller3.png" alt="ESPTimeCast Web Installer" width="640" />
 
 > After flashing, connect to the ESPTimeCast WiFi access point to complete setup.
 
