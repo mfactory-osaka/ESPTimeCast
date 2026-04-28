@@ -1523,6 +1523,19 @@ const char index_html[] PROGMEM = R"rawliteral(
               <span
                 >Total Lifetime: <span id="totalDisplay">Loading...</span></span
               >
+
+              <hr class="donation-divider" />
+              <label class="toggle-row-lg" style="margin-top: 0.5rem;">
+                <span class="label-text">Already supporting ESPTimeCast ❤️:</span>
+                <span class="toggle-switch">
+                  <input type="checkbox" id="hideDonationMsg" />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+              <p style="font-size: 0.78rem; color: rgba(255,255,255,0.45); margin: 0.25rem 0 0.5rem 0;">
+                Turn this on to silence the occasional encouragement messages on your display.
+              </p>
+
               <hr />
               <div id="ota-container" style="text-align: center">
                 <button
@@ -1696,6 +1709,15 @@ const char index_html[] PROGMEM = R"rawliteral(
             setDimmingFieldsEnabled();
 
             initClockOnlyDuringDimming(data);
+
+            // --- Donation message toggle ---
+            const hideDonationEl = document.getElementById("hideDonationMsg");
+            if (hideDonationEl) {
+              hideDonationEl.checked = !!data.hideDonationMsg;
+              hideDonationEl.addEventListener("change", function () {
+                setHideDonationMsg(this.checked);
+              });
+            }
 
             if (apiInputEl)
               apiInputEl.addEventListener("input", setDimmingFieldsEnabled);
@@ -2472,6 +2494,17 @@ const char index_html[] PROGMEM = R"rawliteral(
         });
       }
 
+      // --- Donation message opt-out toggle (no reboot) ---
+      function setHideDonationMsg(val) {
+        fetch("/set_hide_donation", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "value=" + (val ? 1 : 0),
+        }).catch((e) => {
+          console.error("Failed to set hideDonationMsg:", e);
+        });
+      }
+
       // Initialize the checkbox from cfg and wire up immediate save (no reboot)
       function initClockOnlyDuringDimming(cfg) {
         const el = document.getElementById("clockOnlyDuringDimming");
@@ -3164,18 +3197,13 @@ const char index_html[] PROGMEM = R"rawliteral(
               document.body.style.height = "100vh";
               updateSavingModal(
                 "<h3>✅ Update Successful!</h3>" +
-                  "<p><b>ESPTimeCast</b> is free for personal use.<br>If you enjoy it, consider supporting its development.</p>" +
-                  "<div class='modal-buttons'>" +
-                  "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/5USD','_blank','noopener')\">$5</button>" +
-                  "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto/10USD','_blank','noopener')\">$10</button>" +
-                  "<button type='button' class='primary-button cmsg1' onclick=\"window.open('https://paypal.me/officialuphoto','_blank','noopener')\">Custom</button>" +
-                  "</div>" +
+                  "<p><b>ESPTimeCast</b> has been updated to the latest version.<br>Thank you for being part of the community.</p>" +
                   "<p>❤️ <b>Built with love in Osaka!</b></p>" +
-                  "<p><span id='modal-countdown'>Device is rebooting in 35s</span></p>",
+                  "<p><span id='modal-countdown'>Device is rebooting in 25</span></p>",
                 false,
               );
               // Start countdown for page refresh
-              let count = 35;
+              let count = 25;
               const timer = setInterval(() => {
                 count--;
                 const counter = document.getElementById("modal-countdown");

@@ -118,6 +118,7 @@ String detailedDesc = "";
 bool credentialsExist() {
   return (strlen(ssid) > 0);
 }
+bool isRebooting = false;
 
 // Timing and display settings
 unsigned long clockDuration = 10000;
@@ -268,6 +269,11 @@ bool isStopwatch = false;
 int global_scrolltimes = 0;  // Persisted from HTTP request
 int global_msgSeconds = 0;
 
+// --- Donation / Encouragement Message ---
+bool hideDonationMsg = false;    // true = user opted out (or is an existing customer)
+bool donationFirstBoot = false;  // true only on a fresh install (no prior config.json)
+time_t nextDonationTime = 0;     // Unix timestamp for next scheduled message
+
 // Forward declarations
 void advanceDisplayMode(bool forced = false);
 void previousDisplayMode(bool forced = false);
@@ -362,6 +368,12 @@ void loadConfig() {
     countdownObj["targetTimestamp"] = 0;
     countdownObj["label"] = "";
     countdownObj["isDramaticCountdown"] = true;
+
+    // Fresh install: donation messages enabled, schedule for next day
+    doc[F("hideDonationMsg")] = false;
+    doc[F("nextDonationTime")] = 0;
+    donationFirstBoot = true;
+    Serial.println(F("[DONATION] Fresh install — messages enabled, will schedule for day 2."));
 
     File f = LittleFS.open("/config.json", "w");
     if (f) {
@@ -512,6 +524,20 @@ void loadConfig() {
     doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
     configChanged = true;
     Serial.println(F("[CONFIG] Migrated: added clockOnlyDuringDimming default."));
+  }
+
+  // --- DONATION MESSAGE LOADING / MIGRATION ---
+  if (doc.containsKey("hideDonationMsg")) {
+    hideDonationMsg = doc["hideDonationMsg"].as<bool>();
+    nextDonationTime = (time_t)(doc["nextDonationTime"] | 0);
+  } else {
+    // Existing customer upgrading — silence donation messages silently
+    hideDonationMsg = true;
+    nextDonationTime = 0;
+    doc["hideDonationMsg"] = true;
+    doc["nextDonationTime"] = 0;
+    configChanged = true;
+    Serial.println(F("[CONFIG] Migrated: existing user detected, hideDonationMsg set to true."));
   }
 
   // --- Save migrated config if needed ---
@@ -828,7 +854,18 @@ void printConfigToSerial() {
   Serial.println(isDramaticCountdown ? "Yes" : "No");
   Serial.print(F("Custom Message: "));
   Serial.println(customMessage);
-
+  Serial.print(F("Donation Messages: "));
+  Serial.println(hideDonationMsg ? "Hidden (user opted out)" : "Enabled");
+  Serial.print(F("Next Donation Message: "));
+  if (hideDonationMsg || nextDonationTime == 0) {
+    Serial.println(F("N/A"));
+  } else {
+    struct tm t;
+    localtime_r(&nextDonationTime, &t);
+    char buf[32];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", &t);
+    Serial.println(buf);
+  }
   Serial.print(F("Total Runtime: "));
   if (getTotalRuntimeSeconds() > 0) {
     Serial.println(formatTotalRuntime());
@@ -1406,6 +1443,7 @@ void setupWebServer() {
     request->onDisconnect([]() {
       Serial.println(F("[WEBSERVER] Client disconnected, rebooting ESP..."));
       saveUptime();
+      isRebooting = true;
       delay(100);  // ensure file is written
       ESP.restart();
     });
@@ -1510,6 +1548,19 @@ void setupWebServer() {
       return;
     }
     handleCustomMessageLogic(request);
+  });
+
+  server.on("/set_hide_donation", HTTP_POST, [](AsyncWebServerRequest *request) {
+    String value = "";
+    if (request->hasParam("value", true)) {
+      value = request->getParam("value", true)->value();
+    } else if (request->params() > 0) {
+      value = request->getParam(0)->value();
+    }
+    hideDonationMsg = (value == "1" || value == "true" || value == "on");
+    saveConfigRuntime();
+    Serial.printf("[DONATION] hideDonationMsg set to %s\n", hideDonationMsg ? "true" : "false");
+    request->send(200, "application/json", "{\"ok\":true}");
   });
 
   server.onNotFound([](AsyncWebServerRequest *request) {
@@ -1766,6 +1817,17 @@ void setupWebServer() {
     dimming["autoDimmingEnabled"] = autoDimmingEnabled;
     dimming["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
 
+    // --- Donations ---
+    doc["hideDonationMsg"] = hideDonationMsg;
+    if (!hideDonationMsg && nextDonationTime > 0) {
+      struct tm t;
+      localtime_r(&nextDonationTime, &t);
+      char buf[32];
+      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", &t);
+      doc["nextDonationTime"] = String(buf);
+    } else {
+      doc["nextDonationTime"] = "N/A";
+    }
 
     String response;
     serializeJsonPretty(doc, response);
@@ -3345,6 +3407,10 @@ void setup() {
     Serial.println("[WIFI EVENT] Connected");
   });
   mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
+    if (isRebooting) {
+      Serial.println(F("[WIFI] Disconnect ignored during reboot."));
+      return;
+    }
     Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
     MDNS.end();
   });
@@ -3598,6 +3664,8 @@ bool saveConfigRuntime() {
   doc["showHumidity"] = showHumidity;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
   doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
+  doc["hideDonationMsg"] = hideDonationMsg;
+  doc["nextDonationTime"] = (uint32_t)nextDonationTime;
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {
@@ -3652,6 +3720,78 @@ String getFormattedDateText(const char *rawText) {
   return output;
 }
 
+// -----------------------------------------------------------------------------
+// Donation / Encouragement Message Scheduler
+// -----------------------------------------------------------------------------
+const char *const DONATION_MESSAGES[3] = {
+  "SUPPORTING ESPTIMECAST KEEPS THE PROJECT ALIVE",
+  "SUPPORTING ESPTIMECAST MAKES FUTURE UPDATES POSSIBLE",
+  "SUPPORTING ESPTIMECAST HELPS KEEP IT GROWING"
+};
+
+time_t calcNextDonationTime(bool forceTomorrow) {
+  time_t now = time(nullptr);
+  struct tm local_tm;
+  localtime_r(&now, &local_tm);
+
+  struct tm midnight = local_tm;
+  midnight.tm_hour = 0;
+  midnight.tm_min = 0;
+  midnight.tm_sec = 0;
+  midnight.tm_isdst = -1;
+  time_t todayMidnight = mktime(&midnight);
+
+  const int windowStart = 10 * 60;  // 10:00
+  const int windowEnd = 21 * 60;    // 21:00
+  int curMinOfDay = local_tm.tm_hour * 60 + local_tm.tm_min;
+
+  if (!forceTomorrow && curMinOfDay < windowEnd) {
+    int rangeStart = max(curMinOfDay + 1, windowStart);
+    if (rangeStart < windowEnd) {
+      int chosen = random(rangeStart, windowEnd);
+      Serial.printf("[DONATION] Scheduled today at %02d:%02d\n", chosen / 60, chosen % 60);
+      return todayMidnight + ((time_t)chosen * 60L);
+    }
+  }
+
+  time_t tomorrowMidnight = todayMidnight + 86400L;
+  int chosen = random(windowStart, windowEnd);
+  Serial.printf("[DONATION] Scheduled tomorrow at %02d:%02d\n", chosen / 60, chosen % 60);
+  return tomorrowMidnight + ((time_t)chosen * 60L);
+}
+
+void triggerDonationMessage() {
+  if (hideDonationMsg) return;
+  if (isAPMode) return;
+  if (!ntpSyncSuccessful) return;
+  if (isNetworkBusy) return;
+  if (timerActive) return;
+  if (clockOnlyDuringDimming && dimActive) return;
+  if (!allowInterrupt) return;
+
+  int idx = random(0, 3);
+  String msg = String(DONATION_MESSAGES[idx]);
+  msg.toCharArray(customMessage, sizeof(customMessage));
+
+  messageScrollSpeed = 60;
+  messageScrollTimes = 1;
+  messageDisplaySeconds = 0;
+  messageBigNumbers = false;
+  allowInterrupt = true;
+  displayMode = 6;
+  prevDisplayMode = 0;
+  messageStartTime = millis();
+  currentScrollCount = 0;
+  currentDisplayCycleCount = 0;
+  clockScrollDone = false;
+  forceMessageRestart = true;
+
+  Serial.printf("[DONATION] Showing message %d: %s\n", idx, DONATION_MESSAGES[idx]);
+
+  nextDonationTime = calcNextDonationTime(true);  // always tomorrow after firing
+  saveConfigRuntime();
+}
+
 void loop() {
   // handleButton();  // ← Uncomment if using button
 
@@ -3660,29 +3800,32 @@ void loop() {
   static unsigned long reconnectInterval = 5000;
   static bool wasConnected = true;
 
-  if (WiFi.status() != WL_CONNECTED) {
-    if (wasConnected) {
-      Serial.println(F("[WIFI] Connection lost. Will attempt reconnection..."));
-      wasConnected = false;
-      reconnectInterval = 5000;  // reset backoff on first disconnect
-    }
-    if (millis() - lastReconnectAttempt > reconnectInterval) {
-      lastReconnectAttempt = millis();
-      Serial.printf("[WIFI] Reconnecting... (next attempt in %lus)\n", min(reconnectInterval * 2, 300000UL) / 1000);
-      WiFi.disconnect();  // ← clean slate first
-      delay(100);
+  if (!isRebooting) {
+    if (WiFi.status() != WL_CONNECTED) {
+      if (wasConnected) {
+        Serial.println(F("[WIFI] Connection lost. Will attempt reconnection..."));
+        wasConnected = false;
+        reconnectInterval = 5000;
+      }
+      if (millis() - lastReconnectAttempt > reconnectInterval) {
+        lastReconnectAttempt = millis();
+
+        Serial.printf(
+          "[WIFI] Reconnecting... (next attempt in %lus)\n",
+          min(reconnectInterval * 2, 300000UL) / 1000);
+        WiFi.disconnect();
+        delay(100);
 #ifdef ESP8266
-      WiFi.begin(ssid, password);
+        WiFi.begin(ssid, password);
 #else
-      WiFi.reconnect();
+        WiFi.reconnect();
 #endif
-      reconnectInterval = min(reconnectInterval * 2, 300000UL);  // backoff up to 5 min
-    }
-  } else {
-    if (!wasConnected) {
+        reconnectInterval = min(reconnectInterval * 2, 300000UL);
+      }
+    } else if (!wasConnected) {
       Serial.println(F("[WIFI] Reconnected!"));
       wasConnected = true;
-      reconnectInterval = 5000;  // reset backoff
+      reconnectInterval = 5000;
     }
   }
 
@@ -3911,6 +4054,12 @@ void loop() {
         setenv("TZ", posixTz, 1);
         tzset();
         tzSetAfterSync = true;
+        // Schedule donation time now that we know the real local time
+        if (!hideDonationMsg && nextDonationTime == 0) {
+          nextDonationTime = calcNextDonationTime(donationFirstBoot);
+          saveConfigRuntime();
+          Serial.println(F("[DONATION] NTP synced. First donation time scheduled."));
+        }
       }
       ntpAnimTimer = 0;
       ntpAnimFrame = 0;
@@ -3946,6 +4095,14 @@ void loop() {
   unsigned long displayDuration = (displayMode == 0) ? clockDuration : weatherDuration;
   if (rotationEnabled && (displayMode == 0 || displayMode == 1) && millis() - lastSwitch > displayDuration) {
     advanceDisplayMode();
+  }
+
+  // --- DONATION MESSAGE CHECK ---
+  if (!hideDonationMsg && ntpSyncSuccessful && !isAPMode && nextDonationTime > 0) {
+    time_t now_d = time(nullptr);
+    if (now_d >= nextDonationTime) {
+      triggerDonationMessage();
+    }
   }
 
   // --- MODIFIED WEATHER FETCHING LOGIC ---
