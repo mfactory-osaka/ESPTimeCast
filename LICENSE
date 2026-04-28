@@ -7,8 +7,10 @@ LICENSE: Source-available for personal, non-commercial use only.
 
 PERMISSION GRANTED:
 - To use and modify this software for private, non-commercial projects.
-- To fork this repository for personal modification, provided this license
-  is retained in full in any fork or derivative work.
+- To fork this repository solely for personal, non-commercial modification, provided that:
+    - The fork remains private and is not publicly accessible;
+    - This license is retained in full in any fork or derivative work;
+    - No modified or unmodified versions are redistributed in any form.
 - Personal use includes display in a home, personal workspace, hobby environment,
   or in a physical location (e.g., home, office, shop, or public space),
   provided the software itself is not sold, licensed, or used as part of a
