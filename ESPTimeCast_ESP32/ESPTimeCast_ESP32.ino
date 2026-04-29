@@ -277,6 +277,15 @@ unsigned long timerOriginalDuration = 0;  // For RESTART command
 unsigned long timerFinishStartTime = 0;
 unsigned long timerEndTime = 0;
 bool isStopwatch = false;
+
+// Pomodoro
+bool isPomodoroActive = false;
+unsigned long pomodoroWorkMs = 0;                  // Work phase duration in ms
+unsigned long pomodoroBreakMs = 0;                 // Break phase duration in ms
+bool pomodoroInBreak = false;                      // false = work phase, true = break phase
+int pomodoroSession = 1;                           // 1–4, resets after long break
+unsigned long pomodoroLongBreakMs = 15 * 60000UL;  // default 15 min
+
 int global_scrolltimes = 0;  // Persisted from HTTP request
 int global_msgSeconds = 0;
 
@@ -289,6 +298,7 @@ time_t nextDonationTime = 0;     // Unix timestamp for next scheduled message
 void advanceDisplayMode(bool forced = false);
 void previousDisplayMode(bool forced = false);
 void goToMode(const String &target);
+bool handlePomodoroCommand(String cmd);
 
 // --- Safe WiFi credential and API getters ---
 const char *getSafeSsid() {
@@ -1104,6 +1114,13 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
     if (!isClearRequest && clockOnlyDuringDimming && dimActive) {
       Serial.printf("[MESSAGE] Rejected (Dimming Mode): '%s'\n", msg.c_str());
       request->send(409, "text/plain", "Clock-only dimming mode active");
+      return;
+    }
+
+    // Handle Pomodoro Commands (checked before Timer)
+    if (handlePomodoroCommand(msg)) {
+      Serial.println(F("[MESSAGE] Pomodoro command executed."));
+      request->send(200, "text/plain", "Pomodoro Command Executed");
       return;
     }
 
@@ -2951,6 +2968,122 @@ char getWeatherIconChar(const String &iconCode) {
   return '\x0D';  // fallback = cloud
 }
 
+// -----------------------------------------------------------------------------
+// Pomodoro Command Handler
+// Syntax: [POMODORO W-B]  where W = work minutes (1-60), B = break minutes (1-60)
+//         [POMODORO STOP]    — stop and return to clock
+//         [POMODORO RESTART] — restart from the beginning of the work phase
+// -----------------------------------------------------------------------------
+bool handlePomodoroCommand(String cmd) {
+  cmd.toUpperCase();
+  if (cmd.indexOf("[POMODORO") == -1 && cmd.indexOf("[POM]") == -1 && cmd.indexOf("[POM ") == -1) return false;
+
+  // --- STOP ---
+  if (cmd.indexOf("[POM STOP]") != -1 || cmd.indexOf("[POMODORO STOP]") != -1) {
+    isPomodoroActive = false;
+    pomodoroInBreak = false;
+    timerActive = false;
+    timerFinished = false;
+    timerPaused = false;
+    isStopwatch = false;
+    displayMode = 0;
+    prevDisplayMode = 6;
+    clockScrollDone = false;
+    forceMessageRestart = true;
+    lastSwitch = millis();
+    Serial.println(F("[POMODORO] Stopped. Returning to Clock."));
+    return true;
+  }
+
+  // --- RESTART — restart from the beginning of the work phase ---
+  if (cmd.indexOf("[POM RESTART]") != -1 || cmd.indexOf("[POMODORO RESTART]") != -1) {
+    if (isPomodoroActive && pomodoroWorkMs > 0) {
+      pomodoroInBreak = false;
+      isStopwatch = false;
+      timerOriginalDuration = pomodoroWorkMs;
+      timerEndTime = millis() + pomodoroWorkMs;
+      timerActive = true;
+      timerPaused = false;
+      timerFinished = false;
+      timerSubState = 0;
+      displayMode = 7;
+      lastSwitch = millis();
+      forceMessageRestart = true;
+      Serial.println(F("[POMODORO] Restarted — beginning work phase."));
+      return true;
+    }
+    return false;
+  }
+
+  // Shortcuts: [POM] or bare [POMODORO] (no params) default to 25-5-15
+  String trimmed = cmd;
+  trimmed.trim();
+  if (cmd.indexOf("[POM]") != -1 || (cmd.indexOf("[POMODORO]") != -1 && cmd.indexOf("[POMODORO ") == -1)) {
+    pomodoroWorkMs = 25 * 60000UL;
+    pomodoroBreakMs = 5 * 60000UL;
+    pomodoroLongBreakMs = 15 * 60000UL;
+    pomodoroSession = 1;
+    isPomodoroActive = true;
+    pomodoroInBreak = false;
+    isStopwatch = false;
+    timerOriginalDuration = pomodoroWorkMs;
+    timerEndTime = millis() + pomodoroWorkMs;
+    timerActive = true;
+    timerPaused = false;
+    timerFinished = false;
+    timerSubState = 0;
+    displayMode = 7;
+    lastSwitch = millis();
+    forceMessageRestart = true;
+    Serial.println(F("[POMODORO] Default 25-5-15 started."));
+    return true;
+  }
+
+  // --- [POMODORO W-B] — parse work and break minutes ---
+  int pomStart = cmd.indexOf("[POMODORO ") + 10;
+  int pomEnd = cmd.indexOf("]", pomStart);
+  if (pomEnd == -1) return false;
+  String params = cmd.substring(pomStart, pomEnd);
+  params.trim();
+
+  int dash1 = params.indexOf('-');
+  if (dash1 == -1) return false;
+  int dash2 = params.indexOf('-', dash1 + 1);
+
+  int workMin = params.substring(0, dash1).toInt();
+  int breakMin = params.substring(dash1 + 1, dash2 == -1 ? params.length() : dash2).toInt();
+  int longMin = (dash2 != -1) ? params.substring(dash2 + 1).toInt() : 15;
+
+  if (workMin < 1) workMin = 1;
+  if (workMin > 60) workMin = 60;
+  if (breakMin < 1) breakMin = 1;
+  if (breakMin > 60) breakMin = 60;
+  if (longMin < 1) longMin = 1;
+  if (longMin > 60) longMin = 60;
+
+  pomodoroWorkMs = (unsigned long)workMin * 60000UL;
+  pomodoroBreakMs = (unsigned long)breakMin * 60000UL;
+  pomodoroLongBreakMs = (unsigned long)longMin * 60000UL;
+  pomodoroSession = 1;
+  isPomodoroActive = true;
+  pomodoroInBreak = false;
+
+  // Start the work-phase countdown
+  isStopwatch = false;
+  timerOriginalDuration = pomodoroWorkMs;
+  timerEndTime = millis() + pomodoroWorkMs;
+  timerActive = true;
+  timerPaused = false;
+  timerFinished = false;
+  timerSubState = 0;
+  displayMode = 7;
+  lastSwitch = millis();
+  forceMessageRestart = true;
+
+  Serial.printf("[POMODORO] Started: %d min work / %d min break\n", workMin, breakMin);
+  return true;
+}
+
 // Timer Helper
 bool handleTimerCommand(String cmd) {
   cmd.toUpperCase();
@@ -3015,6 +3148,8 @@ bool handleTimerCommand(String cmd) {
 
   if (payload == "STOPWATCH") {
     isStopwatch = true;
+    isPomodoroActive = false;
+    pomodoroInBreak = false;
     timerActive = true;
     timerPaused = false;
     timerFinished = false;
@@ -3047,6 +3182,8 @@ bool handleTimerCommand(String cmd) {
     isStopwatch = false;
     timerOriginalDuration = totalMs;
     timerEndTime = millis() + totalMs;
+    isPomodoroActive = false;
+    pomodoroInBreak = false;
     timerActive = true;
     timerPaused = false;
     timerFinished = false;
@@ -3186,6 +3323,18 @@ void executeAction(const String &action, const String &value) {
     handleTimerCommand("[TIMER RESUME]");
   } else if (action == "stopwatch_stop" || action == "stopwatch_cancel") {
     handleTimerCommand("[TIMER STOP]");
+  } else if (action == "pomodoro_start" || action == "pom") {
+    handlePomodoroCommand("[POMODORO]");
+  } else if (action == "pomodoro") {
+    handlePomodoroCommand("[POMODORO " + value + "]");
+  } else if (action == "pomodoro_stop") {
+    handlePomodoroCommand("[POMODORO STOP]");
+  } else if (action == "pomodoro_restart") {
+    handlePomodoroCommand("[POMODORO RESTART]");
+  } else if (action == "pomodoro_pause") {
+    handleTimerCommand("[TIMER PAUSE]");
+  } else if (action == "pomodoro_resume") {
+    handleTimerCommand("[TIMER RESUME]");
 
   } else if (action == "restart") {
     pendingRestart = true;
@@ -5171,14 +5320,23 @@ void loop() {
   yield();
 }
 
+char getPomodoroWorkIcon() {
+  switch (pomodoroSession) {
+    case 1: return '\xBC';  // quarter
+    case 2: return '\xBD';  // half
+    case 3: return '\xBE';  // three quarters
+    case 4: return '\x83';  // full
+    default: return '\xBC';
+  }
+}
+
 void showTimerMode7() {
   unsigned long now = millis();
   P.setCharSpacing(1);
+
   // --- 1. INTERRUPT LOGIC ---
-  // Updated to use allowInterrupt check as requested
   if (allowInterrupt == false) {
     unsigned long waitTime = (unsigned long)clockDuration;
-    // Wait for the specified clockDuration to elapse before switching
     if (now - lastSwitch >= waitTime) {
       Serial.println(F("[TIMER] clockDuration reached. Switching to Mode 6 (Infinite)"));
       displayMode = 6;
@@ -5187,8 +5345,35 @@ void showTimerMode7() {
     }
   }
 
+  // --- 2. STOPWATCH / POMODORO BREAK ---
   if (isStopwatch) {
     unsigned long elapsed = timerPaused ? timerRemainingAtPause : (millis() - timerEndTime);
+
+    if (isPomodoroActive) {
+      if (!timerPaused && elapsed >= pomodoroBreakMs) {
+        pomodoroSession++;
+        if (pomodoroSession > 4) pomodoroSession = 1;
+        pomodoroInBreak = false;
+        isStopwatch = false;
+        timerOriginalDuration = pomodoroWorkMs;
+        timerEndTime = millis() + pomodoroWorkMs;
+        timerFinished = false;
+        timerPaused = false;
+        Serial.printf("[POMODORO] Break over. Starting session %d.\n", pomodoroSession);
+        return;
+      }
+      unsigned long remaining = (pomodoroBreakMs > elapsed) ? (pomodoroBreakMs - elapsed) : 0;
+      unsigned long totalSec = remaining / 1000;
+      int m = totalSec / 60;
+      int s = totalSec % 60;
+      char buf[10];
+      sprintf(buf, "%c %02d:%02d", '\xBF', m, s);
+      P.setTextAlignment(PA_CENTER);
+      P.print(buf);
+      return;
+    }
+
+    // Normal stopwatch with centiseconds
     unsigned long totalSec = elapsed / 1000;
     int cs = (elapsed % 1000) / 10;
     int m = totalSec / 60;
@@ -5197,16 +5382,16 @@ void showTimerMode7() {
     if (m > 59) {
       int h = m / 60;
       m = m % 60;
-      sprintf(buf, "%02d:%02d:%02d", h, m, s);  // HH:MM:SS when over 1 hour
+      sprintf(buf, "%02d:%02d:%02d", h, m, s);
     } else {
-      sprintf(buf, "%02d:%02d.%02d", m, s, cs);  // MM:SS.cs standard format
+      sprintf(buf, "%02d:%02d.%02d", m, s, cs);
     }
     P.setTextAlignment(PA_CENTER);
     P.print(buf);
     return;
   }
 
-  // 2. Timer Logic
+  // --- 3. COUNTDOWN TIMER ---
   if (!timerFinished) {
     long remaining = 0;
     if (timerPaused) {
@@ -5224,8 +5409,14 @@ void showTimerMode7() {
         int s = remaining % 60;
 
         char buf[12];
-        if (h > 0) sprintf(buf, "%02d:%02d:%02d", h, m, s);
-        else sprintf(buf, "%02d:%02d", m, s);
+        if (isPomodoroActive) {
+          char icon = getPomodoroWorkIcon();
+          if (h > 0) sprintf(buf, "%c %02d:%02d:%02d", icon, h, m, s);
+          else sprintf(buf, "%c %02d:%02d", icon, m, s);
+        } else {
+          if (h > 0) sprintf(buf, "%02d:%02d:%02d", h, m, s);
+          else sprintf(buf, "%02d:%02d", m, s);
+        }
 
         P.setTextAlignment(PA_CENTER);
         P.print(buf);
@@ -5238,16 +5429,37 @@ void showTimerMode7() {
       int m = (remaining % 3600) / 60;
       int s = remaining % 60;
       char buf[12];
-      if (h > 0) sprintf(buf, "%02d:%02d:%02d", h, m, s);
-      else sprintf(buf, "%02d:%02d", m, s);
+      if (isPomodoroActive) {
+        char icon = getPomodoroWorkIcon();
+        if (h > 0) sprintf(buf, "%c %02d:%02d:%02d", icon, h, m, s);
+        else sprintf(buf, "%c %02d:%02d", icon, m, s);
+      } else {
+        if (h > 0) sprintf(buf, "%02d:%02d:%02d", h, m, s);
+        else sprintf(buf, "%02d:%02d", m, s);
+      }
       P.setTextAlignment(PA_CENTER);
       P.print(buf);
       return;
     }
   }
 
-  // 3. Finished State (Alarm Animation)
+  // --- 4. FINISHED STATE ---
   if (timerFinished) {
+    if (isPomodoroActive) {
+      pomodoroInBreak = true;
+      isStopwatch = true;
+      // Session 4 gets the long break
+      pomodoroBreakMs = (pomodoroSession == 4) ? pomodoroLongBreakMs : pomodoroBreakMs;
+      timerEndTime = millis();
+      timerActive = true;
+      timerPaused = false;
+      timerFinished = false;
+      Serial.printf("[POMODORO] Session %d done. Starting %s break.\n",
+                    pomodoroSession, pomodoroSession == 4 ? "long" : "short");
+      return;
+    }
+
+    // Normal timer: alarm animation for 5 seconds
     if (now - timerFinishStartTime > 5000) {
       timerActive = false;
       timerFinished = false;
