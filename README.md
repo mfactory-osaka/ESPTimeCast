@@ -38,7 +38,9 @@ https://esptimecast.github.io
 - ESP32-S2 (Wemos S2 Mini)
 - ESP32-S2 (Adafruit ESP32-S2 Feather)
 - ESP32-S3 WROOM-1 (Camera/SD board)
+- ESP32-S3 SuperMini
 - ESP32-S3-Zero
+
 
 
 ### Compatible Chip Families
@@ -214,6 +216,7 @@ If you are compiling manually, ensure your pin definitions match this table.
 | ESP32-S2   | Adafruit ESP32-S2 Feather          | 36  | 10 | 35  | 5V  | GND |
 | ESP32-C3   | SuperMini (Updated GPIO Mapping as of v1.3.2)                        | 4   | 10 | 6   | 5V  | GND |
 | ESP32-S3   | WROOM-1 (Camera / SD board)        | 18 | 16 | 17  | 5V  | GND |
+| ESP32-S3   | SuperMini                          | 4 | 5 | 6  | 5V  | GND |
 | ESP32-S3   | Zero                               | 12 | 11 | 10  | 5V  | GND |
 
 
