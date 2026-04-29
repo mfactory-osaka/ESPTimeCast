@@ -38,7 +38,9 @@ https://esptimecast.github.io
 - ESP32-S2 (Wemos S2 Mini)
 - ESP32-S2 (Adafruit ESP32-S2 Feather)
 - ESP32-S3 WROOM-1 (Camera/SD board)
+- ESP32-S3 SuperMini
 - ESP32-S3-Zero
+
 
 
 ### Compatible Chip Families
@@ -115,7 +117,7 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-493%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-495%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
@@ -214,6 +216,7 @@ If you are compiling manually, ensure your pin definitions match this table.
 | ESP32-S2   | Adafruit ESP32-S2 Feather          | 36  | 10 | 35  | 5V  | GND |
 | ESP32-C3   | SuperMini (Updated GPIO Mapping as of v1.3.2)                        | 4   | 10 | 6   | 5V  | GND |
 | ESP32-S3   | WROOM-1 (Camera / SD board)        | 18 | 16 | 17  | 5V  | GND |
+| ESP32-S3   | SuperMini                          | 4 | 5 | 6  | 5V  | GND |
 | ESP32-S3   | Zero                               | 12 | 11 | 10  | 5V  | GND |
 
 
@@ -513,7 +516,7 @@ POST http://<device_ip>/action
 | `metric` | -- | Set metric units |
 | `language` | e.g. `en`, `ja`, `sv` | Set display language |
 
-#### ⏱️ Timer and Stopwatch
+#### ⏱️ Timer, Stopwatch and Pomodoro
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -529,6 +532,15 @@ POST http://<device_ip>/action
 | `stopwatch_pause` | Pause the stopwatch |
 | `stopwatch_resume` | Resume the stopwatch |
 | `stopwatch_stop` / `stopwatch_cancel` | Stop and clear |
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `pom` / `pomodoro_start` | — | Start default 25-5-15 Pomodoro |
+| `pomodoro` | e.g. `25-5-15` | Start with custom durations |
+| `pomodoro_stop` | — | Stop and return to clock |
+| `pomodoro_restart` | — | Restart from session 1 |
+| `pomodoro_pause` | — | Pause current phase |
+| `pomodoro_resume` | — | Resume paused phase |
 
 #### ⚙️ System
 
@@ -872,6 +884,92 @@ You can also control the stopwatch via the `/action` endpoint:
 | `stopwatch_pause` | Pause the stopwatch |
 | `stopwatch_resume` | Resume the stopwatch |
 | `stopwatch_stop` / `stopwatch_cancel` | Stop and clear |
+
+&nbsp;
+</details>
+<details>
+<summary>🍅 Pomodoro Timer</summary>
+&nbsp;
+
+ESPTimeCast includes a built-in Pomodoro timer that follows the classic technique: focused work sessions separated by short breaks, with a longer break after every 4th session.
+
+### How it works
+
+The Pomodoro cycle runs automatically once started — no manual switching required:
+
+1. **Work phase** counts down (default 25 min) with a session progress icon
+2. **Short break** counts down (default 5 min) with a clock icon
+3. Repeats for 4 sessions — the 4th break is a **long break** (default 15 min)
+4. After the long break, the cycle restarts from session 1
+
+The display shows the current session progress using a fill indicator:
+
+| Session | Work Icon | Break Icon |
+|---------|-----------|------------|
+| 1 | ¼ circle | Clock |
+| 2 | ½ circle | Clock |
+| 3 | ¾ circle | Clock |
+| 4 | Full circle | Clock |
+
+### Starting a Pomodoro
+
+| Command | Description |
+|---------|-------------|
+| `[POM]` | Start default 25 min work / 5 min break / 15 min long break |
+| `[POMODORO]` | Same as `[POM]` |
+| `[POMODORO W-B]` | Custom work and break (e.g. `[POMODORO 50-10]`), long break default 15 min|
+| `[POMODORO W-B-L]` | Custom work, short break, and long break (e.g. `[POMODORO 25-5-20]`) |
+
+Both work and break durations are capped at **60 minutes**.
+
+### Pomodoro Commands
+
+| Command | Description |
+|---------|-------------|
+| `[POM STOP]` or `[POMODORO STOP]` | Stop the Pomodoro and return to clock |
+| `[POM RESTART]` or `[POMODORO RESTART]` | Restart from session 1, work phase |
+| `[TIMER PAUSE]` | Pause the current phase |
+| `[TIMER RESUME]` | Resume a paused phase |
+
+> Starting a `[TIMER]` or `[STOPWATCH]` while a Pomodoro is active will automatically cancel the Pomodoro.
+
+### `/action` Endpoint
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `pom` / `pomodoro_start` | — | Start default 25-5-15 Pomodoro |
+| `pomodoro` | e.g. `25-5-15` | Start with custom durations |
+| `pomodoro_stop` | — | Stop and return to clock |
+| `pomodoro_restart` | — | Restart from session 1 |
+| `pomodoro_pause` | — | Pause current phase |
+| `pomodoro_resume` | — | Resume paused phase |
+
+### curl Examples
+
+```bash
+# Start default Pomodoro
+curl "http://esptimecast.local/action?pom"
+
+# Start with custom times
+curl "http://esptimecast.local/action?pomodoro=50-10-30"
+
+# Stop
+curl "http://esptimecast.local/action?pomodoro_stop"
+
+# Or use message commands
+curl -X POST -d "message=[POM]" "http://esptimecast.local/action"
+curl -X POST -d "message=[POMODORO 50-10-30]" "http://esptimecast.local/action"
+```
+
+### Home Assistant Example
+
+```yaml
+alias: Start Pomodoro
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "pom"
+```
 
 &nbsp;
 </details>
