@@ -9,7 +9,7 @@
 [![Hackster](https://img.shields.io/badge/Featured%20on-Hackster-orange?logo=hackster&logoColor=white)](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
 
 
-🎉 **1,350+ GitHub stars - thank you to the community!**  
+🎉 **1,400+ GitHub stars - thank you to the community!**  
 
 **ESPTimeCast™** is a sleek, WiFi-connected LED matrix clock and weather display built on **ESP8266/ESP32** and **MAX7219**.
 It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern web-based configuration interface — all in one compact design.
@@ -117,11 +117,11 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-511%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/badge/Printables-514%20Downloads-orange?logo=prusa" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
-    <img src="https://img.shields.io/badge/Cults3D-148%20Downloads-blue?logo=cults3d" width="180">
+    <img src="https://img.shields.io/badge/Cults3D-149%20Downloads-blue?logo=cults3d" width="180">
   </a>
 </p>
 
