@@ -372,7 +372,9 @@ Follow these steps to prepare your Arduino IDE for ESP32 development:
     * Go to `Tools > Board > Boards Manager...`. Search for `esp32` by `Espressif Systems` and click "Install".
 2.  **Select Your Board:**
     * Go to `Tools > Board` and select your specific board, e.g., **LOLIN S2 Mini** (or your ESP32 variant).
-3.  **Configure Partition Scheme:**
+3.  **USB CDC On Boot**
+    * Go to `Tools > USB CDC On Boot` and set it to **"Enabled"** if present (not all boards have this option).
+4.  **Configure Partition Scheme:**
     * Go to `Tools > Partition Scheme` and choose one of the following:
         * **For OTA support (recommended):**  
           `Minimal SPIFFS (1.9MB APP with OTA / 128KB SPIFFS)`  
@@ -385,7 +387,7 @@ Follow these steps to prepare your Arduino IDE for ESP32 development:
     > Manual builds are fully supported as well - just make sure you're using the recommended pinout for your specific board as documented in this repository.  
     > **Important:** If the `Minimal SPIFFS` option does not appear, make sure you have selected **Dev Module** for your specific ESP32 chip family (e.g., ESP32 Dev Module, ESP32-S2 Dev Module, ESP32-C3 Dev Module).  
 
-4.  **Install Libraries:**
+5.  **Install Libraries:**
     * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
         * `ArduinoJson` by Benoit Blanchon
         * `MD_Parola` by majicDesigns (this will typically also install its dependency: `MD_MAX72xx`)
