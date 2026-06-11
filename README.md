@@ -1110,7 +1110,7 @@ If you have ideas, feature requests, bug reports, or improvements, please open a
 &nbsp;
 ## 🛡️ Branding & Visual Policy
 
-ESPTimeCast™ is an open-source project, but its **name, logo, and visual identity are protected**.
+ESPTimeCast™ is source-available for personal, non-commercial use only and its **name, logo, and visual identity are protected**.
 
 #### ✅ You are welcome to:
 - Build and sell compatible hardware  
