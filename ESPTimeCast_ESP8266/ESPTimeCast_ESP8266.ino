@@ -336,7 +336,7 @@ void loadConfig() {
   // Check if config.json exists, if not, create default
   if (!LittleFS.exists("/config.json")) {
     Serial.println(F("[CONFIG] config.json not found, creating with defaults..."));
-    DynamicJsonDocument doc(1024);
+    DynamicJsonDocument doc(2048);
     doc[F("ssid")] = "";
     doc[F("password")] = "";
     doc[F("openWeatherApiKey")] = "";
@@ -1115,10 +1115,6 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
       Serial.println(F("[MESSAGE] Timer command executed."));
       request->send(200, "text/plain", "Timer Command Executed");
       return;
-    }
-
-    if (request->hasParam("allowInterrupt")) {
-      incomingAllowInterrupt = (request->getParam("allowInterrupt")->value() == "1");
     }
 
     // PROTECTION: Timer Active
@@ -3423,9 +3419,6 @@ void goToMode(const String &target) {
     hourglassPlayed = false;
   }
 
-  prevDisplayMode = displayMode;
-  displayMode = targetMode;
-
   // ---- SYNC modeIndex ----
   for (int i = 0; i < MODE_COUNT; i++) {
     if (modeOrder[i] == displayMode) {
@@ -3457,8 +3450,8 @@ void loadPins() {
     cfg.clk = L_CLK;
     cfg.cs = L_CS;
     cfg.data = L_DATA;
-    EEPROM.put(EEPROM_ADDR, cfg);
-    EEPROM.commit();
+    PinStorage.put(EEPROM_ADDR, cfg);
+    PinStorage.commit();
   }
 
   // Basic validation
@@ -4649,6 +4642,7 @@ void loop() {
         countdownLabel[0] = '\0';
         saveCountdownConfig(false, 0, "");
 
+        P.displayClear();
         P.setInvert(false);
         advanceDisplayMode();
         yield();
@@ -4709,7 +4703,7 @@ void loop() {
                 time_t segmentNow = time(nullptr);
                 unsigned long segmentStartMillis = millis();
 
-                long nowRemaining = countdownTargetTimestamp - segmentStartTime;
+                long nowRemaining = countdownTargetTimestamp - segmentNow;
                 long currentSecond = nowRemaining % 60;
                 char secondsBuf[10];
                 sprintf(secondsBuf, "%02ld %s", currentSecond, currentSecond == 1 ? "SEC" : "SECS");
@@ -4722,7 +4716,7 @@ void loop() {
                 delay(SEGMENT_DISPLAY_DURATION - 400);
 
                 unsigned long elapsed = millis() - segmentStartMillis;
-                long adjustedSecond = (countdownTargetTimestamp - segmentStartTime - (elapsed / 1000)) % 60;
+                long adjustedSecond = (countdownTargetTimestamp - segmentNow - (elapsed / 1000)) % 60;
                 sprintf(secondsBuf, "%02ld %s", adjustedSecond, adjustedSecond == 1 ? "SEC" : "SECS");
                 secondsText = String(secondsBuf);
                 P.displayClear();

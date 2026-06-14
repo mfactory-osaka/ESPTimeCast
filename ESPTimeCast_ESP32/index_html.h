@@ -2569,13 +2569,6 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
       // --- END Countdown Controls Logic ---
 
-      // --- Dimming Controls Logic ---
-      function setDimmingFieldsEnabled(enabled) {
-        document.getElementById("dimStartTime").disabled = !enabled;
-        document.getElementById("dimEndTime").disabled = !enabled;
-        document.getElementById("dimBrightness").disabled = !enabled;
-      }
-
       async function getLocation() {
         const normalize = (v) => {
           if (v === null || v === undefined) return "";
@@ -3069,7 +3062,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
           // STEP 2: Fetch latest info from GitHub
           const githubRes = await fetch(
-            "https://esptimecast.github.io/ota.json?t=" + Date.now(),
+            "https://esptimecast.github.io/firmware.json?t=" + Date.now(),
           );
           if (!githubRes.ok)
             throw new Error(`GitHub returned ${githubRes.status}`);
