@@ -722,11 +722,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         top: 0.9rem;
       }
 
-      .content-wrapper .small {
-        text-align: center;
-        opacity: 0.75;
-      }
-
       .toggle-row {
         display: flex;
         align-items: center;
@@ -759,7 +754,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-top: 1.75rem;
       }
 
-      #configForm > div.collapsible-content > div:nth-child(2) > div > div {
+      #configForm > div.collapsible-content > div:nth-child(2) > div > div.toggles.toggle-padding {
         margin-top: 2rem;
       }
 
@@ -1189,13 +1184,14 @@ const char index_html[] PROGMEM = R"rawliteral(
               placeholder="Enter NTP address"
             />
 
-            <label>Secondary NTP Server:</label>
+            <label>Secondary NTP Server / Integration URL:</label>
             <input
               type="text"
               name="ntpServer2"
               id="ntpServer2"
-              placeholder="Enter NTP address"
+              placeholder="Enter URL"
             />
+            <div class="small">Enter a Nightscout URL, YouTube channel URL or secondary NTP server.</div>
 
             <div class="toggles toggle-padding">
               <label class="toggle-row-lg">
@@ -1532,7 +1528,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                   <span class="toggle-slider"></span>
                 </span>
               </label>
-              <p style="font-size: 0.78rem; color: rgba(255,255,255,0.45); margin: 0.25rem 0 0.5rem 0;">
+              <p style="font-size: 0.78rem; color: rgba(255,255,255,0.45); margin: 1rem 0 0.5rem 0;">
                 Turn this on to silence the occasional encouragement messages on your display.
               </p>
 
@@ -1566,7 +1562,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     </form>
 
     <div class="footer">      
-      <a href="https://esptimecast.github.io" target="_blank" rel="noopener noreferrer">
+      <a href="https://esptimecast.com" target="_blank" rel="noopener noreferrer">
       ESPTimeCast<span class="tm">™</span> by M-Factory</a>
     </div>
 
@@ -3060,15 +3056,15 @@ const char index_html[] PROGMEM = R"rawliteral(
           const currentVersion = localData.version;
           const board = localData.board; // e.g., "esp32s3"
 
-          // STEP 2: Fetch latest info from GitHub
-          const githubRes = await fetch(
-            "https://esptimecast.github.io/firmware.json?t=" + Date.now(),
+          // STEP 2: Fetch latest info from update server
+          const updateRes = await fetch(
+            "https://esptimecast.com/firmware.json?t=" + Date.now(),
           );
-          if (!githubRes.ok)
-            throw new Error(`GitHub returned ${githubRes.status}`);
+          if (!updateRes.ok)
+            throw new Error(`Update server returned ${updateRes.status}`);
 
-          const githubData = await githubRes.json();
-          const latestVersion = githubData.version;
+          const updateData = await updateRes.json();
+          const latestVersion = updateData.version;
 
           // STEP 3: Semantic Comparison
           const parseV = (v) =>
@@ -3094,7 +3090,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           if (isNewer) {
             // DYNAMIC LINK SELECTION:
             // Matches "esp32s3" from device to "esp32s3" in ota.json
-            pendingBinUrl = githubData.bins[board];
+            pendingBinUrl = updateData.bins[board];
 
             if (!pendingBinUrl) {
               throw new Error(`No binary found for board: ${board}`);

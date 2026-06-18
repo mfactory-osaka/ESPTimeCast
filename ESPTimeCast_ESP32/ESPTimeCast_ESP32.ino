@@ -108,6 +108,24 @@ time_t lastGlucoseTime = 0;  // store timestamp from JSON
 bool isNetworkBusy = false;
 bool nightscoutMmol = false;
 
+// --- SNS (YouTube / Instagram) sniffing & settings ---
+enum SnsType { SNS_NTP,
+               SNS_NIGHTSCOUT,
+               SNS_YOUTUBE,
+               SNS_INSTAGRAM };
+
+SnsType detectSnsType(const String &val) {
+  if (val.indexOf("youtube.com") != -1 || val.indexOf("youtu.be") != -1) return SNS_YOUTUBE;
+  if (val.indexOf("instagram.com") != -1) return SNS_INSTAGRAM;
+  if (val.startsWith("https://")) return SNS_NIGHTSCOUT;
+  return SNS_NTP;
+}
+
+const unsigned long SNS_FETCH_INTERVAL = 3600000UL;  // 1 hour
+unsigned long lastSnsFetchTime = 0;
+long youtubeSubscribers = -1;
+long instagramFollowers = -1;
+
 // --- Device identity ---
 const char *DEFAULT_HOSTNAME = "esptimecast";
 const char *DEFAULT_AP_PASSWORD = "12345678";
@@ -734,9 +752,29 @@ void connectWiFi() {
       animTimer = now;
       P.setTextAlignment(PA_CENTER);
       switch (animFrame % 3) {
-        case 0: P.print(F("\003 ©")); break;
-        case 1: P.print(F("\003 ª")); break;
-        case 2: P.print(F("\003 «")); break;
+        case 0:
+          {
+            String s = "\003 ";
+            s += char(169);
+            P.print(s.c_str());
+            break;
+          }
+
+        case 1:
+          {
+            String s = "\003 ";
+            s += char(170);
+            P.print(s.c_str());
+            break;
+          }
+
+        case 2:
+          {
+            String s = "\003 ";
+            s += char(171);
+            P.print(s.c_str());
+            break;
+          }
       }
       animFrame++;
     }
@@ -1750,12 +1788,17 @@ void setupWebServer() {
     doc["displayBusy"] = (displayMode == 6 || displayMode == 7);
     doc["allowInterrupt"] = allowInterrupt;
 
+    SnsType snsType = detectSnsType(String(ntpServer2));
     switch (displayMode) {
       case 0: doc["mode"] = "clock"; break;
       case 1: doc["mode"] = "weather"; break;
       case 2: doc["mode"] = "weather_desc"; break;
       case 3: doc["mode"] = "countdown"; break;
-      case 4: doc["mode"] = "nightscout"; break;
+      case 4:
+        if (snsType == SNS_YOUTUBE) doc["mode"] = "youtube";
+        else if (snsType == SNS_INSTAGRAM) doc["mode"] = "instagram";
+        else doc["mode"] = "nightscout";
+        break;
       case 5: doc["mode"] = "date"; break;
       case 6: doc["mode"] = "message"; break;
       case 7: doc["mode"] = "timer"; break;
@@ -1835,6 +1878,17 @@ void setupWebServer() {
       ns["isOutdated"] = true;
     }
 #endif
+
+    // --- SNS info (YouTube / Instagram) ---
+    JsonObject sns = doc.createNestedObject("sns");
+    switch (snsType) {
+      case SNS_YOUTUBE: sns["type"] = "youtube"; break;
+      case SNS_INSTAGRAM: sns["type"] = "instagram"; break;
+      case SNS_NIGHTSCOUT: sns["type"] = "nightscout"; break;
+      default: sns["type"] = "none"; break;
+    }
+    sns["youtubeSubscribers"] = (youtubeSubscribers >= 0) ? youtubeSubscribers : JsonVariant();
+    sns["instagramFollowers"] = (instagramFollowers >= 0) ? instagramFollowers : JsonVariant();
 
     // --- Saved Config ---
     JsonObject config = doc.createNestedObject("config");
@@ -2556,7 +2610,7 @@ void fetchWeather() {
 
     if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("temp"))) {
       float temp = doc[F("main")][F("temp")];
-      currentTemp = String((int)round(temp)) + "°";
+      currentTemp = String((int)round(temp)) + char(176);
       Serial.printf("[WEATHER] Temp: %s\n", currentTemp.c_str());
       weatherAvailable = true;
     } else {
@@ -2723,7 +2777,7 @@ void fetchNightscout() {
       rawUrl.remove(mmolIdx, 6);
   }
 
-  String bridgeUrl = "http://kimochiyaten.com/nightscout-bridge.php?url=";
+  String bridgeUrl = "http://esptimecast.com/nightscout-bridge.php?url=";
   bridgeUrl += urlEncode(rawUrl);
 
   isNetworkBusy = true;
@@ -3822,15 +3876,13 @@ void previousDisplayMode(bool forced) {
 }
 
 bool isModeAvailable(int mode) {
-  String ntpField = String(ntpServer2);
-  bool nightscoutConfigured = ntpField.startsWith("https://");
-
+  SnsType snsType = detectSnsType(String(ntpServer2));
   switch (mode) {
     case 0: return true;  // CLOCK always available
     case 1: return weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
     case 2: return showWeatherDescription && weatherAvailable && weatherDescription.length() > 0;
     case 3: return countdownEnabled && !countdownFinished && ntpSyncSuccessful;
-    case 4: return nightscoutConfigured;
+    case 4: return snsType != SNS_NTP;  // nightscout, youtube, or instagram all use mode 4
     case 5: return showDate;
     case 6: return strlen(customMessage) > 0;
   }
@@ -4371,11 +4423,85 @@ void loop() {
   }
 
   // --- NIGHTSCOUT FETCH TIMER ---
-  String ntpFieldCheck = String(ntpServer2);
-  if (ntpFieldCheck.startsWith("https://") && WiFi.status() == WL_CONNECTED && ntpSyncSuccessful) {
+  SnsType snsTypeLoop = detectSnsType(String(ntpServer2));
+  if (snsTypeLoop == SNS_NIGHTSCOUT && WiFi.status() == WL_CONNECTED && ntpSyncSuccessful) {
     if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
       fetchNightscout();
       lastNightscoutFetchTime = millis();
+    }
+  }
+
+  // --- SNS (YouTube / Instagram) FETCH TIMER ---
+  if ((snsTypeLoop == SNS_YOUTUBE || snsTypeLoop == SNS_INSTAGRAM) && WiFi.status() == WL_CONNECTED) {
+    if (lastSnsFetchTime == 0 || millis() - lastSnsFetchTime >= SNS_FETCH_INTERVAL) {
+
+      if (snsTypeLoop == SNS_YOUTUBE && !isNetworkBusy) {
+        isNetworkBusy = true;
+
+        // Grab the user input from the stored variable
+        String rawUrl = String(ntpServer2);
+        String targetId = "";
+
+        // Check if the input contains an "@" handle
+        int atIndex = rawUrl.indexOf("@");
+        if (atIndex != -1) {
+          // Extract everything from the "@" to the end (e.g., "@linustech")
+          targetId = rawUrl.substring(atIndex);
+        }
+        // Check if it's a traditional channel URL
+        else if (rawUrl.indexOf("channel/") != -1) {
+          int channelIdx = rawUrl.indexOf("channel/");
+          targetId = rawUrl.substring(channelIdx + 8);
+        }
+        // Fallback: assume they pasted the raw ID directly
+        else {
+          targetId = rawUrl;
+        }
+
+        // Send the extracted ID or Handle to the PHP bridge
+        String bridgeUrl = "http://esptimecast.com/youtube-bridge.php?id=" + targetId;
+        Serial.println("[YOUTUBE] Fetching via PHP bridge: " + bridgeUrl);
+
+        WiFiClient client;
+        HTTPClient http;
+        http.begin(client, bridgeUrl);
+        http.setUserAgent("ESPTimeCast-Firmware");
+        http.setTimeout(4000);
+
+        int httpCode = http.GET();
+        if (httpCode == 200) {
+          String payload = http.getString();
+          payload.trim();
+
+          // Find the key inside the JSON payload
+          int subKeyIdx = payload.indexOf("\"subscribers\":");
+          if (subKeyIdx != -1) {
+            // Cut the string starting right after '"subscribers":'
+            String subValueStr = payload.substring(subKeyIdx + 14);
+
+            // Remove the closing brace '}' if any, and convert to integer
+            subValueStr.replace("}", "");
+            subValueStr.trim();
+
+            long parsedSubs = subValueStr.toInt();
+            if (parsedSubs >= 0) {
+              youtubeSubscribers = parsedSubs;
+              Serial.printf("[YOUTUBE] Subscribers fetched from JSON: %ld\n", youtubeSubscribers);
+            } else {
+              Serial.println("[YOUTUBE] Bridge JSON reported an error count (-1)");
+            }
+          } else {
+            Serial.println("[YOUTUBE] Failed to find 'subscribers' key in JSON payload");
+          }
+        } else {
+          Serial.printf("[YOUTUBE] HTTP failed! Code: %d, Message: %s\n", httpCode, http.errorToString(httpCode).c_str());
+        }
+
+        http.end();
+        isNetworkBusy = false;
+      }
+
+      lastSnsFetchTime = millis();
     }
   }
 
@@ -4462,9 +4588,27 @@ void loop() {
         if (forceMessageRestart) return;
         ntpAnimTimer = millis();
         switch (ntpAnimFrame % 3) {
-          case 0: P.print(F("S Y N C ®")); break;
-          case 1: P.print(F("S Y N C ¯")); break;
-          case 2: P.print(F("S Y N C º")); break;
+          case 0:
+            {
+              String s = F("S Y N C ");
+              s += char(174);
+              P.print(s.c_str());
+              break;
+            }
+          case 1:
+            {
+              String s = F("S Y N C ");
+              s += char(175);
+              P.print(s.c_str());
+              break;
+            }
+          case 2:
+            {
+              String s = F("S Y N C ");
+              s += char(186);
+              P.print(s.c_str());
+              break;
+            }
         }
         ntpAnimFrame++;
       }
@@ -4968,10 +5112,110 @@ void loop() {
   }  // End of if (displayMode == 3 && ...)
 
 
-  // --- NIGHTSCOUT Display Mode ---
+  // --- SNS Display Mode (Nightscout / YouTube / Instagram) ---
   if (displayMode == 4) {
-    P.setCharSpacing(1);
     if (forceMessageRestart) return;
+    SnsType snsType = detectSnsType(String(ntpServer2));
+
+    if (snsType == SNS_YOUTUBE || snsType == SNS_INSTAGRAM) {
+      long count = (snsType == SNS_YOUTUBE) ? youtubeSubscribers : instagramFollowers;
+      char icon = (snsType == SNS_YOUTUBE) ? 157 : 155;
+
+      if (count < 0) {
+        P.setTextAlignment(PA_CENTER);
+        P.setCharSpacing(0);
+
+        String displayText = "";
+        displayText += icon;
+        displayText += " - - ";
+
+        P.print(displayText.c_str());
+
+        unsigned long snsStart = millis();
+        while (millis() - snsStart < weatherDuration) {
+          if (displayMode != 4) return;
+          if (forceMessageRestart) return;
+          yield();
+        }
+
+        advanceDisplayMode();
+        return;
+      }
+
+      String countStr;
+
+      if (count < 10000) {
+        countStr = String(count);
+      } else if (count < 100000) {
+        float v = count / 1000.0f;
+        countStr = (v == (int)v) ? String((int)v) : String(v, 1);
+        countStr += char(193);  // K
+      } else if (count < 1000000) {
+        countStr = String(count / 1000);
+        countStr += char(193);  // K
+      } else if (count < 100000000) {
+        float v = count / 1000000.0f;
+        countStr = (v == (int)v) ? String((int)v) : String(v, 1);
+        countStr += char(192);  // M
+      } else {
+        countStr = String(count / 1000000);
+        countStr += char(192);  // M
+      }
+
+      if (countStr.length() <= 5) {
+        // --- STATIC: icon + up to 5 digits fits the 32px display ---
+        P.setTextAlignment(PA_CENTER);
+        P.setCharSpacing(0);  // explicit 2px gap below, not auto-spacing
+        String iconStr = String(icon) + " ";
+        // 1. Manually add a 1px space between each digit of the number
+        String spacedCountStr = "";
+        for (unsigned int i = 0; i < countStr.length(); i++) {
+          spacedCountStr += countStr[i];
+          if (i < countStr.length() - 1) {
+            spacedCountStr += " ";  // Inject a 1px font space between digits
+          }
+        }
+        String endpaddedCount = String(spacedCountStr) + " ";
+        String displayText = String(iconStr) + " " + endpaddedCount;
+        P.print(displayText.c_str());
+
+        unsigned long snsStart = millis();
+        while (millis() - snsStart < weatherDuration) {
+          if (displayMode != 4) return;
+          if (forceMessageRestart) return;
+          yield();
+        }
+        advanceDisplayMode();
+        return;
+      }
+
+      // --- SCROLL: more than 5 digits, same technique as Custom Message ---
+      P.setTextAlignment(PA_LEFT);
+      P.setCharSpacing(0);  // explicit 2px gap below, not auto-spacing
+      String iconStr = String(icon) + " ";
+      // 1. Manually add a 1px space between each digit of the number
+      String spacedCountStr = "";
+      for (unsigned int i = 0; i < countStr.length(); i++) {
+        spacedCountStr += countStr[i];
+        if (i < countStr.length() - 1) {
+          spacedCountStr += " ";  // Inject a 1px font space between digits
+        }
+      }
+      String scrollText = String(iconStr) + " " + spacedCountStr;
+      textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+      P.displayScroll(scrollText.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
+
+      while (!P.displayAnimate()) {
+        if (displayMode != 4) return;
+        if (forceMessageRestart) return;
+        yield();
+      }
+
+      advanceDisplayMode();
+      return;
+    }
+
+    P.setCharSpacing(1);
 
     if (currentGlucose != -1) {
       time_t nowUTC = time(nullptr);
