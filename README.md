@@ -24,7 +24,7 @@ Flash ESPTimeCast directly from your browser — no Arduino IDE, no drivers setu
 
 
 👉 **Web Installer:**  
-https://esptimecast.github.io
+https://esptimecast.com
 
 <img src="assets/webinstaller3.png" alt="ESPTimeCast Web Installer" width="640" />
 
@@ -155,7 +155,7 @@ ESPTimeCast™ has been featured on major maker and tech platforms highlighting 
 ## 🛠 Advanced Setup & Technical Details
 
 Most users should start here:
-👉 https://esptimecast.github.io
+👉 https://esptimecast.com
 
 Looking for manual setup, wiring details, or advanced configuration?
 Advanced and developer-focused information is available below.  
@@ -341,7 +341,7 @@ There are two ways to install ESPTimeCast:
 
 ### 🥇 Recommended: Web Installer (Fastest)
 Flash directly from your browser in under a minute:
-https://esptimecast.github.io
+https://esptimecast.com
 
 ### 🛠 Manual Installation (Arduino IDE)
 If you prefer compiling and uploading manually, follow the instructions below.
