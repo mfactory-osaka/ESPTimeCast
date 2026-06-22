@@ -976,59 +976,54 @@ action:
 &nbsp;
 </details>
 <details>
-<summary>🧩 Power User Features</summary>
+<summary>📡 Bridge Mode (YouTube, RSS, Nightscout)</summary>
 &nbsp;
 
-ESPTimeCast™ includes a few optional “power-user” features that aren’t visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
+ESPTimeCast can display live data from external services using the secondary NTP/URL field (`ntpServer2`). The device automatically detects which service to connect to based on the URL you enter — no extra configuration needed. Paste your URL into the field and the device does the rest.
 
-#### ⚙️ /factory_reset
-Erases all saved configuration data, Wi-Fi credentials, and uptime history.
-Used to restore the device to its original state. Only available in **AP mode**.
+### 📺 YouTube Subscriber Counter
 
-**Example:**  
-```
-http://192.168.4.1/factory_reset
-```
+Paste any YouTube channel URL or handle into the `ntpServer2` field:  
 
-#### 💾 /export
-Downloads your current configuration (`config.json`) directly from the device.  
-This is useful for creating backups or migrating settings between devices.
+`https://www.youtube.com/@mkbhd`  
+`https://www.youtube.com/channel/UCxxxxxxxxxxxxxx`  
 
-**Example:**  
-```
-http://your-device-ip/export
-```
-The file will download automatically with your saved WiFi credentials (safely masked for security) and all other settings.
+The subscriber count is fetched via a PHP bridge, formatted to fit the display (e.g. `42.1K`, `3.5M`), and shown with the YouTube icon. Data is refreshed every hour.
 
-#### 📂 /upload
-Lets you manually upload a configuration file (`config.json`) to the device.  
-Perfect for restoring a backup or quickly switching between setups.
+### 📰 RSS Feed Headlines
 
-**Usage:**
-1. Go to  
-   ```
-   http://your-device-ip/upload
-   ```
-2. Select your edited or backup `config.json` file.  
-3. The device will confirm the upload and automatically reboot with the new configuration.
+Paste any RSS, Atom, or RDF feed URL into the `ntpServer2` field:  
 
-> *Tip:* You can export → edit the file on your computer → re-upload to test new settings without using the web interface.
+`https://hackaday.com/feed`  
+`https://feeds.bbci.co.uk/news/rss.xml`  
+`https://www.nasa.gov/rss/dyn/breaking_news.rss`  
 
-&nbsp;
-#### ⚕️ Nightscout Integration
+The title of the most recent article scrolls across the display with the RSS icon. Most standard feed formats are detected automatically — if the URL contains `feed`, `rss`, or `atom`, or ends in `.rss` / `.atom`, it will be picked up correctly.
 
-ESPTimeCast supports displaying glucose data from **Nightscout** servers alongside weather information.
-When the secondary NTP/URL field (`ntpServer2`) contains a valid Nightscout API endpoint, the device automatically enables **Glucose Display Mode**.
-```
-https://your-cgm-server/api/v1/entries/current.json?token=xxxxxxxxxxxxx
-```
+### RSS Feed Display Frequency
 
-#### 📐 Unit Selection: mg/dL and mmol/L
+By default RSS shows once every 3 display rotations to avoid it dominating the screen. You can override this per-feed with the `show_every` parameter:
 
-By default, glucose is displayed in **mg/dL**. To display in **mmol/L**, add `&mmol=1` to your Nightscout URL:
-```
-https://your-cgm-server/api/v1/entries/current.json?token=xxxxxxxxxxxxx&mmol=1
-```
+| URL | Behaviour |
+|-----|-----------|
+| `https://hackaday.com/feed` | Every 3 rotations (default) |
+| `https://hackaday.com/feed?show_every=1` | Every rotation |
+| `https://hackaday.com/feed?show_every=5` | Every 5 rotations |
+
+The parameter is stripped before the URL is sent to the bridge. Data is refreshed every hour.
+
+### ⚕️ Nightscout Integration
+
+Paste your Nightscout API endpoint into the `ntpServer2` field:  
+
+`https://your-cgm-server/api/v1/entries/current.json?token=xxxxxxxxxxxxx`  
+
+### Unit Selection: mg/dL and mmol/L
+
+By default, glucose is displayed in **mg/dL**. To display in **mmol/L**, add `&mmol=1` to your Nightscout URL:  
+
+`https://your-cgm-server/api/v1/entries/current.json?token=xxxxxxxxxxxxx&mmol=1`  
+
 The conversion (`mg/dL ÷ 18.018`) is handled automatically on the device. No other changes are needed.
 
 - Glucose value and trend arrow are displayed alternately with time and weather
@@ -1036,7 +1031,7 @@ The conversion (`mg/dL ÷ 18.018`) is handled automatically on the device. No ot
 - Display duration matches the weather display duration setting
 - Data is fetched every 2.5 minutes
 
-#### ⚠️ ESP8266 vs ESP32
+### ⚠️ ESP8266 vs ESP32
 
 > **ESP32 is strongly recommended for Nightscout users.**
 
@@ -1048,13 +1043,46 @@ The conversion (`mg/dL ÷ 18.018`) is handled automatically on the device. No ot
 
 The ESP8266 connects to Nightscout via an intermediate PHP bridge due to TLS memory constraints. While functional, **ESP32 provides a more stable and direct connection** and is the recommended platform for anyone using Nightscout.
 
-If you are currently using an ESP8266 for Nightscout display, consider migrating to an ESP32 for the best experience. The firmware, web UI, and all settings are identical — only the hardware changes.
+&nbsp;
+</details>
+<details>
+<summary>🧩 Power User Features</summary>
+&nbsp;
+
+ESPTimeCast™ includes a few optional "power-user" features that aren't visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
+
+#### ⚙️ /factory_reset
+Erases all saved configuration data, Wi-Fi credentials, and uptime history.
+Used to restore the device to its original state. Only available in **AP mode**.
+
+**Example:**
+http://192.168.4.1/factory_reset
+
+#### 💾 /export
+Downloads your current configuration (`config.json`) directly from the device.
+This is useful for creating backups or migrating settings between devices.
+
+**Example:**
+http://your-device-ip/export
+The file will download automatically with your saved WiFi credentials (safely masked for security) and all other settings.
+
+#### 📂 /upload
+Lets you manually upload a configuration file (`config.json`) to the device.
+Perfect for restoring a backup or quickly switching between setups.
+
+**Usage:**
+1. Go to
+http://your-device-ip/upload
+2. Select your edited or backup `config.json` file.
+3. The device will confirm the upload and automatically reboot with the new configuration.
+
+> *Tip:* You can export → edit the file on your computer → re-upload to test new settings without using the web interface.
 
 #### ⚠️ Notes
-- These features are optional and hidden from the main interface to avoid clutter.  
-- `/upload` and `/export` are intentionally unlinked from the UI to prevent accidental access.  
+- These features are optional and hidden from the main interface to avoid clutter.
+- `/upload` and `/export` are intentionally unlinked from the UI to prevent accidental access.
 - Always verify your WiFi credentials and tokens before uploading edited configurations.
-  
+
 &nbsp;
 </details>
 <details>
