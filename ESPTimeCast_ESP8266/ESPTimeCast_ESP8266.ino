@@ -70,6 +70,7 @@ AsyncWebServer server(80);
 
 // --- Global Scroll Speed Settings ---
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
+const int RSS_SCROLL_SPEED = 65;      // Faster than general scroll for RSS headlines
 int IP_SCROLL_SPEED = 115;            // Default: Adjust this for the IP Address display (slower for readability)
 int messageScrollSpeed = 85;          // default fallback
 
@@ -80,7 +81,7 @@ const uint8_t modeOrder[] = {
   5,  // DATE
   2,  // WEATHER DESCRIPTION
   3,  // COUNTDOWN
-  4,  // NIGHTSCOUT
+  4,  // BRIDGE
   6   // CUSTOM MESSAGE
 };
 
@@ -101,11 +102,14 @@ bool nightscoutMmol = false;
 enum SnsType { SNS_NTP,
                SNS_NIGHTSCOUT,
                SNS_YOUTUBE,
-               SNS_INSTAGRAM };
+               SNS_INSTAGRAM,
+               SNS_RSS };
 
 SnsType detectSnsType(const String &val) {
   if (val.indexOf("youtube.com") != -1 || val.indexOf("youtu.be") != -1) return SNS_YOUTUBE;
   if (val.indexOf("instagram.com") != -1) return SNS_INSTAGRAM;
+  // RSS sniff: common feed path patterns, checked before the Nightscout https:// catch-all
+  if (val.indexOf("feed") != -1 || val.indexOf("/rss") != -1 || val.indexOf("/atom") != -1 || val.endsWith(".rss") || val.endsWith(".atom") || val.endsWith(".xml")) return SNS_RSS;
   if (val.startsWith("https://")) return SNS_NIGHTSCOUT;
   return SNS_NTP;
 }
@@ -114,6 +118,9 @@ const unsigned long SNS_FETCH_INTERVAL = 3600000UL;  // 1 hour
 unsigned long lastSnsFetchTime = 0;
 long youtubeSubscribers = -1;
 long instagramFollowers = -1;
+String rssTitle = "";
+int RSS_SHOW_EVERY = 3;  // Show RSS every N rotations, overridable via show_every=N in URL
+int rssRotationCount = 0;
 
 // --- Device identity ---
 const char *DEFAULT_HOSTNAME = "esptimecast";
@@ -1842,10 +1849,12 @@ void setupWebServer() {
       case SNS_YOUTUBE: sns["type"] = "youtube"; break;
       case SNS_INSTAGRAM: sns["type"] = "instagram"; break;
       case SNS_NIGHTSCOUT: sns["type"] = "nightscout"; break;
+      case SNS_RSS: sns["type"] = "rss"; break;
       default: sns["type"] = "none"; break;
     }
     sns["youtubeSubscribers"] = (youtubeSubscribers >= 0) ? youtubeSubscribers : JsonVariant();
     sns["instagramFollowers"] = (instagramFollowers >= 0) ? instagramFollowers : JsonVariant();
+    sns["rssTitle"] = (rssTitle.length() > 0) ? rssTitle : JsonVariant();
 
     // --- Saved Config ---
     JsonObject config = doc.createNestedObject("config");
@@ -3428,7 +3437,7 @@ void goToMode(const String &target) {
   else if (v == "1" || v == "weather") targetMode = 1;
   else if (v == "2" || v == "weather_desc") targetMode = 2;
   else if (v == "3" || v == "countdown") targetMode = 3;
-  else if (v == "4" || v == "nightscout") targetMode = 4;
+  else if (v == "4" || v == "nightscout" || v == "bridge") targetMode = 4;
   else if (v == "5" || v == "date") targetMode = 5;
   else if (v == "6" || v == "message") targetMode = 6;
   else if (v == "7" || v == "timer") targetMode = 7;
@@ -3564,7 +3573,7 @@ DisplayMode key:
   1: Weather
   2: Weather Description
   3: Countdown
-  4: Nightscout
+  4: Bridge
   5: Date
   6: Custom Message
 */
@@ -3701,7 +3710,7 @@ void advanceDisplayMode(bool forced) {
 
       displayMode = nextMode;
 
-      const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "NIGHTSCOUT", "DATE", "CUSTOM MESSAGE", "TIMER" };
+      const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "BRIDGE", "DATE", "CUSTOM MESSAGE", "TIMER" };
       const char *newName = displayMode < 8 ? modeNames[displayMode] : "UNKNOWN";
       const char *prevName = prevDisplayMode < 8 ? modeNames[prevDisplayMode] : "UNKNOWN";
       Serial.printf("[DISPLAY] Switching to display mode: %s (from %s)\n", newName, prevName);
@@ -3756,7 +3765,7 @@ void previousDisplayMode(bool forced) {
 
       displayMode = nextMode;
 
-      const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "NIGHTSCOUT", "DATE", "CUSTOM MESSAGE", "TIMER" };
+      const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "BRIDGE", "DATE", "CUSTOM MESSAGE", "TIMER" };
       const char *newName = displayMode < 8 ? modeNames[displayMode] : "UNKNOWN";
       const char *prevName = prevDisplayMode < 8 ? modeNames[prevDisplayMode] : "UNKNOWN";
       Serial.printf("[DISPLAY] Switching to display mode: %s (from %s)\n", newName, prevName);
@@ -4329,8 +4338,8 @@ void loop() {
     }
   }
 
-  // --- SNS (YouTube / Instagram) FETCH TIMER ---
-  if ((snsTypeLoop == SNS_YOUTUBE || snsTypeLoop == SNS_INSTAGRAM) && WiFi.status() == WL_CONNECTED) {
+  // --- SNS (YouTube / Instagram / RSS) FETCH TIMER ---
+  if ((snsTypeLoop == SNS_YOUTUBE || snsTypeLoop == SNS_INSTAGRAM || snsTypeLoop == SNS_RSS) && WiFi.status() == WL_CONNECTED) {
     if (lastSnsFetchTime == 0 || millis() - lastSnsFetchTime >= SNS_FETCH_INTERVAL) {
 
       if (snsTypeLoop == SNS_YOUTUBE && !isNetworkBusy) {
@@ -4393,6 +4402,75 @@ void loop() {
           }
         } else {
           Serial.printf("[YOUTUBE] HTTP failed! Code: %d, Message: %s\n", httpCode, http.errorToString(httpCode).c_str());
+        }
+
+        http.end();
+        isNetworkBusy = false;
+      }
+
+      if (snsTypeLoop == SNS_RSS && !isNetworkBusy) {
+        isNetworkBusy = true;
+
+        auto urlEncode = [](String str) -> String {
+          String encoded = "";
+          for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            if (isalnum(c)) {
+              encoded += c;
+            } else {
+              char code1 = (c & 0xf) + '0';
+              if ((c & 0xf) > 9) code1 = (c & 0xf) - 10 + 'A';
+              char c2 = (c >> 4) & 0xf;
+              char code0 = c2 + '0';
+              if (c2 > 9) code0 = c2 - 10 + 'A';
+              encoded += '%';
+              encoded += code0;
+              encoded += code1;
+            }
+          }
+          return encoded;
+        };
+
+        String feedUrl = String(ntpServer2);
+
+        // Detect and strip show_every=N (e.g. https://feed.com/rss?show_every=5)
+        int showEveryIdx = feedUrl.indexOf("show_every=");
+        if (showEveryIdx != -1) {
+          String valStr = feedUrl.substring(showEveryIdx + 11);
+          int ampIdx = valStr.indexOf('&');
+          if (ampIdx != -1) valStr = valStr.substring(0, ampIdx);
+          valStr.trim();
+          int val = valStr.toInt();
+          if (val >= 1) RSS_SHOW_EVERY = val;
+          char before = (showEveryIdx > 0) ? feedUrl[showEveryIdx - 1] : 0;
+          if (before == '&' || before == '?')
+            feedUrl.remove(showEveryIdx - 1, 1 + 11 + valStr.length());
+          else
+            feedUrl.remove(showEveryIdx, 11 + valStr.length());
+        }
+
+        String bridgeUrl = "http://esptimecast.com/rss-bridge.php?url=" + urlEncode(feedUrl);
+        Serial.println("[RSS] Fetching via PHP bridge: " + bridgeUrl);
+
+        WiFiClient client;
+        HTTPClient http;
+        http.begin(client, bridgeUrl);
+        http.setUserAgent("ESPTimeCast-Firmware");
+        http.setTimeout(4000);
+
+        int httpCode = http.GET();
+        if (httpCode == 200) {
+          String payload = http.getString();
+          payload.trim();
+          bool isError = (payload == "RSS ERROR" || payload == "INVALID RSS" || payload == "NO ENTRY" || payload == "FORBIDDEN" || payload == "NO URL" || payload == "INVALID URL");
+          if (!isError && payload.length() > 0) {
+            rssTitle = payload;
+            Serial.println("[RSS] Title fetched: " + rssTitle);
+          } else {
+            Serial.println("[RSS] Bridge returned error: " + payload);
+          }
+        } else {
+          Serial.printf("[RSS] HTTP failed! Code: %d\n", httpCode);
         }
 
         http.end();
@@ -5009,7 +5087,7 @@ void loop() {
   }  // End of if (displayMode == 3 && ...)
 
 
-  // --- SNS Display Mode (Nightscout / YouTube / Instagram) ---
+  // --- BRIDGE Display Mode ---
   if (displayMode == 4) {
     if (forceMessageRestart) return;
     SnsType snsType = detectSnsType(String(ntpServer2));
@@ -5101,6 +5179,57 @@ void loop() {
       String scrollText = String(iconStr) + " " + spacedCountStr;
       textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
       P.displayScroll(scrollText.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
+
+      while (!P.displayAnimate()) {
+        if (displayMode != 4) return;
+        if (forceMessageRestart) return;
+        yield();
+      }
+
+      advanceDisplayMode();
+      return;
+    }
+
+    // --- RSS display ---
+    if (snsType == SNS_RSS) {
+      rssRotationCount++;
+      if (rssRotationCount % RSS_SHOW_EVERY != 0) {
+        advanceDisplayMode();
+        return;
+      }
+      P.setCharSpacing(1);
+      char charIcon = 194;
+      String rssIcon = String(charIcon) + " ";
+
+      if (rssTitle.length() == 0) {
+        // Not yet fetched
+        P.setTextAlignment(PA_CENTER);
+        P.setCharSpacing(0);
+        String waitText = String(rssIcon) + " - -";
+        P.print(waitText.c_str());
+        unsigned long rssStart = millis();
+        while (millis() - rssStart < weatherDuration) {
+          if (displayMode != 4) return;
+          if (forceMessageRestart) return;
+          yield();
+        }
+        advanceDisplayMode();
+        return;
+      }
+
+      // Title is ready — remap digits to small font glyphs, then scroll
+      String rssDisplay = rssTitle;
+      for (int i = 0; i < rssDisplay.length(); i++) {
+        if (isDigit(rssDisplay[i])) {
+          int num = rssDisplay[i] - '0';
+          rssDisplay[i] = 145 + ((num + 9) % 10);
+        }
+      }
+      textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+      String scrollText = String(rssIcon) + rssDisplay;
+      P.setTextAlignment(PA_LEFT);
+      P.setCharSpacing(1);
+      P.displayScroll(scrollText.c_str(), PA_LEFT, actualScrollDirection, RSS_SCROLL_SPEED);
 
       while (!P.displayAnimate()) {
         if (displayMode != 4) return;
