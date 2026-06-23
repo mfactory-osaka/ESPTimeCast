@@ -4177,9 +4177,24 @@ void loop() {
     }
     P.setTextAlignment(PA_CENTER);
     switch (apAnimFrame % 3) {
-      case 0: P.print(F("\005 ©")); break;
-      case 1: P.print(F("\005 ª")); break;
-      case 2: P.print(F("\005 «")); break;
+      case 0:
+        {
+          char buf[] = { 5, ' ', (char)169, '\0' };
+          P.print(buf);
+          break;
+        }
+      case 1:
+        {
+          char buf[] = { 5, ' ', (char)170, '\0' };
+          P.print(buf);
+          break;
+        }
+      case 2:
+        {
+          char buf[] = { 5, ' ', (char)171, '\0' };
+          P.print(buf);
+          break;
+        }
     }
     yield();
     return;
@@ -5292,7 +5307,7 @@ void loop() {
       advanceDisplayMode();
       return;
     }
-    
+
     // --- RSS display ---
     if (snsType == SNS_RSS) {
       rssRotationCount++;
