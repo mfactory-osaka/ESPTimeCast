@@ -77,8 +77,8 @@ int messageScrollSpeed = 85;          // default fallback
 // Order for safe advance display mode
 const uint8_t modeOrder[] = {
   0,  // CLOCK
-  1,  // WEATHER
   5,  // DATE
+  1,  // WEATHER
   2,  // WEATHER DESCRIPTION
   3,  // COUNTDOWN
   4,  // BRIDGE
@@ -3702,6 +3702,18 @@ void advanceDisplayMode(bool forced) {
 
     int nextMode = modeOrder[modeIndex];
 
+    // --- RSS throttle skip ---
+    if (nextMode == 4) {
+      SnsType snsType = detectSnsType(String(ntpServer2));
+      if (snsType == SNS_RSS) {
+        if (rssRotationCount % RSS_SHOW_EVERY != 0) {
+          rssRotationCount++;
+          continue;
+        }
+        rssRotationCount++;
+      }
+    }
+
     if (isModeAvailable(nextMode)) {
       if (displayMode == 6 || displayMode == 2 || displayMode == 3) {
         // P.displayReset();
@@ -4821,15 +4833,14 @@ void loop() {
         countdownFinishedMessageStartTime = millis();  // Start the 15-second timer for the flashing duration
 
         // 1. Play Hourglass Animation (Blocking)
-        const char *hourglassFrames[] = { "¡", "¢", "£", "¤" };
         for (int repeat = 0; repeat < 3; repeat++) {
           for (int i = 0; i < 4; i++) {
             if (displayMode != 3) return;
             if (forceMessageRestart) return;
             P.setTextAlignment(PA_CENTER);
             P.setCharSpacing(0);
-            P.print(hourglassFrames[i]);
-            delay(350);  // This is blocking! (Total ~4.2 seconds for hourglass)
+            P.write(161 + i);
+            delay(350);
           }
         }
         Serial.println("[COUNTDOWN-FINISH] Played hourglass animation.");
@@ -5207,11 +5218,6 @@ void loop() {
 
     // --- RSS display ---
     if (snsType == SNS_RSS) {
-      rssRotationCount++;
-      if (rssRotationCount % RSS_SHOW_EVERY != 0) {
-        advanceDisplayMode();
-        return;
-      }
       P.setCharSpacing(1);
       char charIcon = 194;
       String rssIcon = String(charIcon) + " ";
@@ -5240,18 +5246,29 @@ void loop() {
           rssDisplay[i] = 145 + ((num + 9) % 10);
         }
       }
+
       textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+
+      // Padding logic (same as weather scroll)
+      bool addPadding = false;
+      bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;
+      if (prevDisplayMode == 0 && (showDayOfWeek || colonBlinkEnabled)) {
+        addPadding = true;
+      } else if (prevDisplayMode == 1 && humidityVisible) {
+        addPadding = true;
+      }
       String scrollText = String(rssIcon) + rssDisplay;
+      if (addPadding) {
+        scrollText = "   " + scrollText;  // 3 spaces
+      }
       P.setTextAlignment(PA_LEFT);
       P.setCharSpacing(1);
       P.displayScroll(scrollText.c_str(), PA_LEFT, actualScrollDirection, RSS_SCROLL_SPEED);
-
       while (!P.displayAnimate()) {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
         yield();
       }
-
       advanceDisplayMode();
       return;
     }
