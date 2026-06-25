@@ -441,7 +441,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       .geo-disabled:hover {
         transform: none;
         box-shadow: none;
-        background-color: none;
+        background-color: transparent;
         background: none;
       }
 
@@ -574,7 +574,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
       .collapsible-content {
         overflow: hidden;
-        height: none;
+        height: 0;
         transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         color: #fff;
         margin-bottom: 3rem;
@@ -816,6 +816,122 @@ const char index_html[] PROGMEM = R"rawliteral(
       .no-ap{
         display: none;
       }
+
+      /* -------------------------------------------------------
+         Extracted from inline styles
+      ------------------------------------------------------- */
+      .logo path {
+        fill: currentColor;
+        paint-order: markers fill stroke;
+      }
+
+      .arrow-icon { opacity: 1; }
+
+      .arrow-icon-bg {
+        fill: none;
+        stroke-width: 0.0127174;
+        paint-order: markers fill stroke;
+      }
+
+      .arrow-icon-fg {
+        fill: #fff;
+        stroke-width: 0.0600023;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .password-field-wrapper { position: relative; }
+
+      .toggle-password-cb { margin-right: 0.3rem; }
+
+      .geo-note { display: none; }
+
+      #geo-button { margin-top: 1rem; }
+
+      .loading-hint { opacity: 0.5; }
+
+      .btn-apply-wrap { text-align: center; }
+
+      .btn-apply-top { margin-top: 1.5rem; min-width: 120px; }
+
+      #btn-save-status {
+        text-align: center;
+        margin-top: 0.5rem;
+        min-height: 1.2em;
+      }
+
+      .btn-gpio-hints {
+        font-size: 0.9rem;
+        opacity: 0.75;
+        margin: 0 0 1rem 0;
+        line-height: 1.5;
+      }
+
+      .donation-toggle-row { margin-top: 0.5rem; }
+
+      .donation-note {
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.45);
+        margin: 1rem 0 0.5rem 0;
+      }
+
+      #ota-container { text-align: center; }
+
+      #ota-update-found { display: none; }
+
+      #ota-status-text { text-align: center; }
+
+      /* Dynamically generated button-config classes */
+      .btn-add-button {
+        background: none;
+        border: 1px dashed rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        width: 100%;
+        padding: 0.6rem;
+        color: rgba(255, 255, 255, 0.5);
+        cursor: pointer;
+        font-size: 0.9rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .btn-config-separator {
+        border: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        margin: 0 0 2.5rem;
+      }
+
+      .btn-config-row { margin-bottom: 1.5rem; }
+
+      .btn-config-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        margin-top: 0.75rem;
+      }
+
+      .btn-config-label {
+        font-weight: 600;
+        margin: 0;
+      }
+
+      .btn-config-remove {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.35);
+        cursor: pointer;
+        font-size: 0.8rem;
+      }
+
+      .btn-config-gpio-label { margin-top: 0.5rem; }
+
+      .btn-config-action-label { margin-top: 0.75rem; }
+
+      .ota-progress-value {
+        font-size: 1.35em;
+        font-weight: bold;
+        color: #2ecc71;
+      }
     </style>
   </head>
   <body>
@@ -829,13 +945,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           xmlns="http://www.w3.org/2000/svg"
         >
           <path
-            style="
-              fill: currentColor;
-              font-variation-settings:
-                &quot;wdth&quot; 87,
-                &quot;wght&quot; 700;
-              paint-order: markers fill stroke;
-            "
+            class="logo-path"
             d="M.75 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 .75 0m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 24.654 0m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 48.558 0m29.987 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 78.545 0M80.5 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M114.4 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 1.955a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .002-1.5m11.952 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m4.126 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .002-1.5m7.826 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m8.039 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m36.069 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m29.986 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498M.75 3.91a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m11.952 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m11.952 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m7.826 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m13.908 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.125 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 5.866a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.5m1.957 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m1.956 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.956 0a.749.749 0 1 0 0 1.497.75.75 0 1 0 0-1.498m8.039 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.957 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.956 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m6.083 0a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.5m1.957 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m1.956 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m1.956 0a.749.749 0 1 0 0 1.497.75.75 0 1 0 0-1.498m9.996 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m8.04 0a.75.75 0 1 0-.003 1.499.75.75 0 0 0 .002-1.5m4.125 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m7.827 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m11.951 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m7.827 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m13.908 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497M.75 7.82a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m19.778 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m15.865 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.5m3.913 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.125 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.5m11.951 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m7.827 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m8.038 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 9.776a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.499m11.952 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m7.826 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.499m15.865 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m8.04 0a.75.75 0 1 0-.003 1.499.75.75 0 0 0 .002-1.499m4.125 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m11.953 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m5.87 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m1.957 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m11.952 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m6.082 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497M.75 11.731a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m15.865 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m3.913 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m9.995 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498"
           />
         </svg>
@@ -853,34 +963,15 @@ const char index_html[] PROGMEM = R"rawliteral(
               fill="none"
               viewBox="0 0 0.48 0.48"
             >
-              <g style="opacity: 1">
+              <g class="arrow-icon">
                 <path
                   d="M-24.679 12.619h.48v.48h-.48z"
-                  style="
-                    font-variation-settings:
-                      &quot;wdth&quot; 87,
-                      &quot;wght&quot; 700;
-                    fill: none;
-                    stroke-width: 0.0127174;
-                    paint-order: markers fill stroke;
-                  "
+                  class="arrow-icon-bg"
                   transform="translate(24.679 -12.62)"
                 />
                 <path
                   d="M-24.661 12.732a.06.06 0 0 0 0 .085l.162.162a.086.086 0 0 0 .12 0l.163-.162a.06.06 0 0 0 0-.085.06.06 0 0 0-.085 0l-.138.138-.137-.138a.06.06 0 0 0-.085 0z"
-                  style="
-                    baseline-shift: baseline;
-                    display: inline;
-                    overflow: visible;
-                    vector-effect: none;
-                    fill: #fff;
-                    stroke-width: 0.0600023;
-                    stroke-linecap: round;
-                    stroke-linejoin: round;
-                    enable-background: accumulate;
-                    stop-color: #000;
-                    stop-opacity: 1;
-                  "
+                  class="arrow-icon-fg"
                   transform="translate(24.679 -12.62)"
                 />
               </g>
@@ -893,13 +984,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div id="ssidList"></div>
       </div>
       <label for="password">Enter your Wi-Fi password</label>
-      <div style="position: relative">
+      <div class="password-field-wrapper">
         <input type="password" id="password" name="password" />
         <label class="small">
           <input
             type="checkbox"
             id="togglePassword"
-            style="margin-right: 0.3rem"
+            class="toggle-password-cb"
           />
           Show Password
         </label>
@@ -954,7 +1045,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         <option value="Asia/Ulaanbaatar">Asia/Ulaanbaatar</option>
         <option value="Asia/Yekaterinburg">Asia/Yekaterinburg</option>
         <option value="Atlantic/Azores">Atlantic/Azores</option>
-        <option value="Atlantic/Azores">Atlantic/Canary</option>
+        <option value="Atlantic/Canary">Atlantic/Canary</option>
         <option value="Atlantic/Reykjavik">Atlantic/Reykjavik</option>
         <option value="Australia/Adelaide">Australia/Adelaide</option>
         <option value="Australia/Brisbane">Australia/Brisbane</option>
@@ -1098,7 +1189,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         class="primary-button no-ap"
         id="geo-button"
         onclick="getLocation()"
-        style="margin-top: 1rem"
       >
         Get My Location
       </button>
@@ -1141,7 +1231,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         </button>
       </div>
 
-      <div class="geo-note" style="display: none">
+      <div class="geo-note">
         <br />
         <span class="small">
           Enter your Wi-Fi details and press “Save Settings” to unlock Weather, Custom Messages, and Advanced Features.
@@ -1492,6 +1582,35 @@ const char index_html[] PROGMEM = R"rawliteral(
           class="sub-collapsible active"
           aria-expanded="false"
         >
+          Physical Buttons
+        </button>
+        <div class="sub-collapsible-content" aria-hidden="true">
+          <div class="content-wrapper">
+            <div id="btn-config-container">
+              <p class="small loading-hint">Loading...</p>
+            </div>
+            <div class="btn-apply-wrap">
+            <button
+              type="button"
+              class="primary-button cmsg1 btn-apply-top"
+              onclick="saveButtonConfig()"
+            >
+              Apply
+            </button></div>
+            <p id="btn-save-status"></p>
+            <div class="btn-gpio-hints"> 
+              • GPIO pins already used by ESPTimeCast are hidden automatically.<br>
+              • Buttons should connect the selected GPIO pin to GND when pressed (no external resistor required).<br>
+              • Select <em>- Disable -</em> if you do not want to use a button.
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
           Device information
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
@@ -1521,19 +1640,19 @@ const char index_html[] PROGMEM = R"rawliteral(
               >
 
               <hr class="donation-divider" />
-              <label class="toggle-row-lg" style="margin-top: 0.5rem;">
+              <label class="toggle-row-lg donation-toggle-row">
                 <span class="label-text">Already supporting ESPTimeCast ❤️:</span>
                 <span class="toggle-switch">
                   <input type="checkbox" id="hideDonationMsg" />
                   <span class="toggle-slider"></span>
                 </span>
               </label>
-              <p style="font-size: 0.78rem; color: rgba(255,255,255,0.45); margin: 1rem 0 0.5rem 0;">
+              <p class="donation-note">
                 Turn this on to silence the occasional encouragement messages on your display.
               </p>
 
               <hr />
-              <div id="ota-container" style="text-align: center">
+              <div id="ota-container">
                 <button
                   type="button"
                   id="btn-check-ota"
@@ -1542,7 +1661,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 >
                   Check for Updates
                 </button>
-                <div id="ota-update-found" style="display: none">
+                <div id="ota-update-found">
                   <button
                     type="button"
                     onclick="performUpdate()"
@@ -1551,7 +1670,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     Install Update
                   </button>
                 </div>
-                <p id="ota-status-text" style="text-align: center"></p>
+                <p id="ota-status-text"></p>
               </div>
             </div>
           </div>
@@ -1570,6 +1689,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <script>
       let isSaving = false;
       let isAPMode = false;
+      let pendingBinUrl = null;
       const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<h3>(){}!.:?,'_+%\/\[\]\\-]/g;
       let originalHostname = "";
 
@@ -1837,7 +1957,6 @@ const char index_html[] PROGMEM = R"rawliteral(
               document.getElementById("timeZone").value = data.timeZone;
             }
 
-            // SURGICAL CHANGE: Fetch secondary info only AFTER config is loaded
             setTimeout(() => {
               fetch("/ip")
                 .then((r) => r.text())
@@ -1845,6 +1964,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                   document.getElementById("ipDisplay").textContent = ip || "—";
                 });
               fetchUptime();
+              fetch("/get_buttons").then(r => r.json()).then(d => { _btnData = d; _renderBtnConfig(); }).catch(() => {});
             }, 100);
 
             document.querySelector("html").style.height = "unset";
@@ -2779,7 +2899,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           .then((res) => {
             showSavingModal("");
             updateSavingModal(
-              "<h3>✅ Message sent successfully!<h3><p>Now displaying your custom message.</p>",
+              "<h3>✅ Message sent successfully!</h3><p>Now displaying your custom message.</p>",
               false,
             );
             setTimeout(hideSavingModal, 2000);
@@ -2790,7 +2910,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             // Use the specific error message if it's the 409, otherwise use generic
             const errorMsg = err.message.includes("protected")
               ? "<h3>⚠️ " + err.message + "</h3>"
-              : "<h3>⚠️ Failed to send message.<h3><p>Check connection.<p>";
+              : "<h3>⚠️ Failed to send message.</h3><p>Check connection.</p>";
             updateSavingModal(errorMsg, false);
             setTimeout(
               hideSavingModal,
@@ -2818,7 +2938,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             document.getElementById("customMessage").value = "";
             showSavingModal("");
             updateSavingModal(
-              "<h3>✅ Custom message cleared.<h3><p>Display reverted to normal.</p>",
+              "<h3>✅ Custom message cleared.</h3><p>Display reverted to normal.</p>",
               false,
             );
             setTimeout(hideSavingModal, 2000);
@@ -2827,7 +2947,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             console.error("Error clearing custom message:", err);
             showSavingModal("");
             updateSavingModal(
-              "<h3>⚠️ Failed to clear message.<h3><p>Check connection.</p>",
+              "<h3>⚠️ Failed to clear message.</h3><p>Check connection.</p>",
               false,
             );
             setTimeout(hideSavingModal, 3000);
@@ -3158,7 +3278,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           updateSavingModal(
             "<h3>Step 2/2: Uploading...</h3>" +
               "<p>Writing to flash memory.</p>" +
-              "<span id='ota-progress-bar' style='font-size: 1.35em; font-weight: bold; color: #2ecc71;'>0%</span>",
+              "<span id='ota-progress-bar' class='ota-progress-value'>0%</span>",
             true,
           );
 
@@ -3251,6 +3371,231 @@ const char index_html[] PROGMEM = R"rawliteral(
 
       function resizeHostname(el) {
         el.style.width = `calc(1rem + ${el.value.length}ch)`;
+      }
+
+      // ---------------------------------------------------------------
+      // Physical Buttons Configuration
+      // ---------------------------------------------------------------
+      const BTN_ACTIONS = [
+        ["",                  "- Disabled -"],
+        ["next_mode",         "Next Mode"],
+        ["prev_mode",         "Previous Mode"],
+        ["brightness_up",     "Brightness +"],
+        ["brightness_down",   "Brightness −"],
+        ["display_off",       "Toggle Display Off"],
+        ["flip",              "Flip Display"],
+        ["twelvehour",        "Toggle 12h Clock"],
+        ["dayofweek",         "Toggle Day of Week"],
+        ["showdate",          "Toggle Show Date"],
+        ["colon_blink",       "Toggle Colon Blink"],
+        ["humidity",          "Toggle Humidity"],
+        ["weatherdesc",       "Toggle Weather Description"],
+        ["countdown_enabled", "Toggle Countdown"],
+        ["enable_rotation",   "Toggle Rotation"],
+        ["timer_pause",       "Pause Timer"],
+        ["timer_resume",      "Resume Timer"],
+        ["timer_stop",        "Stop Timer"],
+        ["stopwatch",         "Start Stopwatch"],
+        ["stopwatch_stop",    "Stop Stopwatch"],
+        ["pomodoro_start",    "Start Pomodoro"],
+        ["pomodoro_stop",     "Stop Pomodoro"],
+        ["pomodoro_pause",    "Pause Pomodoro"],
+        ["pomodoro_resume",   "Resume Pomodoro"],
+        ["clear_message",     "Clear Message"],
+        ["restart",           "Restart Device"],
+      ];
+
+      // Common safe-to-use GPIO (excludes 6-11 flash pins on most ESP32 modules)
+      const ALL_GPIO = [0,1,2,3,4,5,12,13,14,15,16,17,18,19,21,22,23,25,26,27,32,33,34,35,36,39];
+
+      let _btnData = null;
+
+      function _btnActionOpts(sel) {
+        return BTN_ACTIONS.map(([v, l]) =>
+          `<option value="${v}"${v === sel ? " selected" : ""}>${l}</option>`
+        ).join("");
+      }
+
+      function _syncBtnData() {
+        if (!_btnData) return;
+
+        for (let i = 0; i < 4; i++) {
+          const p = document.getElementById(`btn${i+1}_pin`);
+          const s = document.getElementById(`btn${i+1}_short`);
+          const l = document.getElementById(`btn${i+1}_long`);
+
+          if (p) _btnData.buttons[i].pin = parseInt(p.value);
+          if (s) _btnData.buttons[i].shortAction = s.value;
+          if (l) _btnData.buttons[i].longAction = l.value;
+        }
+      }
+
+      function _btnPinOpts(selPin, excludePins) {
+        const ex = new Set(excludePins.map(Number));
+        let out = `<option value="-1"${selPin === -1 ? " selected" : ""}>- Disabled -</option>`;
+        ALL_GPIO.forEach(p => {
+          if (!ex.has(p))
+            out += `<option value="${p}"${selPin === p ? " selected" : ""}>GPIO ${p}</option>`;
+        });
+        return out;
+      }
+
+let _btnExpanded = [true, false, false, false]; // btn1 always open
+
+      function _renderBtnConfig() {
+        const el = document.getElementById("btn-config-container");
+        if (!el || !_btnData) return;
+
+        // Auto-expand if a pin is already configured
+        _btnData.buttons.forEach((b, i) => { if (b.pin >= 0) _btnExpanded[i] = true; });
+
+        el.innerHTML = _btnData.buttons.map((b, i) => {
+          const exclude = [
+            ...(_btnData.usedPins || []),
+            ..._btnData.buttons.filter((_, j) => j !== i).map(x => x.pin).filter(p => p >= 0)
+          ];
+
+        if (!_btnExpanded[i]) {
+
+          // Button 2 only appears if Button 1 exists
+          // Button 3 only appears if Button 2 exists
+          // Button 4 only appears if Button 3 exists
+          const canAdd =
+            i === 0 ||
+            _btnExpanded[i - 1];
+
+          if (!canAdd) return "";
+
+          return `
+            <button type="button"
+              class="btn-add-button"
+              onclick="_expandBtn(${i})">
+              + Add Button ${i + 1}
+            </button>`;
+        }
+
+          return `
+          ${i > 0 ? '<hr class="btn-config-separator">' : ''}
+            <div class="btn-config-row">
+              <div class="btn-config-header">
+                <label class="btn-config-label">Button ${i + 1}</label>
+                ${i > 0 ? `<button type="button" class="btn-config-remove" onclick="_collapseBtn(${i})">✕ Remove</button>` : ""}
+              </div>
+              <label class="btn-config-gpio-label">GPIO Pin:</label>
+              <select id="btn${i+1}_pin" onchange="_onBtnPinChange()">${_btnPinOpts(b.pin, exclude)}</select>
+              <label class="btn-config-action-label">Short Press:</label>
+              <select id="btn${i+1}_short">${_btnActionOpts(b.shortAction)}</select>
+              <label class="btn-config-action-label">Long Press (${BTN_LONG_MS}ms):</label>
+              <select id="btn${i+1}_long">${_btnActionOpts(b.longAction)}</select>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function _expandBtn(i) {
+        _syncBtnData();
+        _btnExpanded[i] = true;
+
+        if (!_btnData.buttons[i]) {
+          _btnData.buttons[i] = {
+            pin: -1,
+            shortAction: "",
+            longAction: ""
+          };
+        }
+
+        _renderBtnConfig();
+      }
+
+      async function _collapseBtn(i) {
+
+        let needsSave = false;
+
+        for (let j = i; j < 4; j++) {
+          if (_btnData.buttons[j].pin >= 0) {
+            needsSave = true;
+          }
+
+          _btnData.buttons[j] = {
+            pin: -1,
+            shortAction: "",
+            longAction: ""
+          };
+
+          _btnExpanded[j] = false;
+        }
+
+        _renderBtnConfig();
+
+        if (needsSave) {
+          await saveButtonConfig(false);
+        }
+      }
+
+      const BTN_LONG_MS = 800; // keep in sync with firmware
+
+      function _onBtnPinChange() {
+        if (!_btnData) return;
+        for (let i = 0; i < 4; i++) {
+          const p = document.getElementById(`btn${i+1}_pin`);
+          const s = document.getElementById(`btn${i+1}_short`);
+          const l = document.getElementById(`btn${i+1}_long`);
+          if (p) _btnData.buttons[i].pin         = parseInt(p.value);
+          if (s) _btnData.buttons[i].shortAction = s.value;
+          if (l) _btnData.buttons[i].longAction  = l.value;
+        }
+        _renderBtnConfig();
+      }
+
+      let btnSaveStatusTimer = null;
+
+      function showBtnStatus(msg) {
+        const el = document.getElementById("btn-save-status");
+        el.textContent = msg;
+
+        clearTimeout(btnSaveStatusTimer);
+
+        btnSaveStatusTimer = setTimeout(() => {
+          el.textContent = "";
+        }, 3000);
+      }
+
+      async function saveButtonConfig(showStatus = true) {
+        const statusEl = document.getElementById("btn-save-status");
+        if (!_btnData) return;
+
+        const params = new URLSearchParams();
+
+        _syncBtnData();
+
+        for (let i = 0; i < 4; i++) {
+          const b = _btnData.buttons[i] || {};
+
+          params.set(`btn${i+1}_pin`,   b.pin ?? -1);
+          params.set(`btn${i+1}_short`, b.shortAction ?? "");
+          params.set(`btn${i+1}_long`,  b.longAction ?? "");
+        }
+
+        try {
+          if (showStatus) {
+          statusEl.textContent = "Saving...";
+        }
+
+          const res = await fetch("/save_buttons", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params
+          });
+
+          if (showStatus) {
+            showBtnStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+          }
+
+        } catch {
+          if (showStatus) {
+            showBtnStatus("⚠️ Save failed.");
+          }
+        }
       }
     </script>
   </body>

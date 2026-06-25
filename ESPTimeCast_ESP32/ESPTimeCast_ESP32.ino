@@ -319,7 +319,16 @@ bool hideDonationMsg = false;    // true = user opted out (or is an existing cus
 bool donationFirstBoot = false;  // true only on a fresh install (no prior config.json)
 time_t nextDonationTime = 0;     // Unix timestamp for next scheduled message
 
-// Forward declarations
+// --- Configurable Buttons (4x, stored in config.json) ---
+struct BtnCfg {
+  int pin = -1;
+  String shortAct;
+  String longAct;
+};
+BtnCfg btnCfg[4];
+#define BTN_LONG_MS 800
+
+// --- Forward declarations ---
 void advanceDisplayMode(bool forced = false);
 void previousDisplayMode(bool forced = false);
 void goToMode(const String &target);
@@ -601,6 +610,25 @@ void loadConfig() {
       Serial.println(F("[CONFIG] Migration saved successfully."));
     } else {
       Serial.println(F("[ERROR] Failed to save migrated config.json"));
+    }
+  }
+
+  // --- BUTTON CONFIG LOADING ---
+  if (doc.containsKey("buttons")) {
+    JsonArray arr = doc["buttons"].as<JsonArray>();
+
+    for (int i = 0; i < 4 && i < (int)arr.size(); i++) {
+      btnCfg[i].pin = arr[i]["pin"] | -1;
+      btnCfg[i].shortAct = arr[i]["shortAction"] | "";
+      btnCfg[i].longAct = arr[i]["longAction"] | "";
+
+      if (btnCfg[i].pin >= 0) {
+        Serial.printf("[BUTTON] Button %d → GPIO %d | short=%s | long=%s\n",
+                      i + 1,
+                      btnCfg[i].pin,
+                      btnCfg[i].shortAct.c_str(),
+                      btnCfg[i].longAct.c_str());
+      }
     }
   }
 
@@ -940,6 +968,32 @@ void printConfigToSerial() {
     Serial.println(formatTotalRuntime());
   } else {
     Serial.println(F("No runtime recorded yet."));
+  }
+
+  Serial.print(F("Hostname: "));
+  Serial.println(deviceHostname);
+
+  Serial.printf("Matrix Pins: CLK=%d CS=%d DATA=%d\n",
+                CLK_PIN, CS_PIN, DATA_PIN);
+
+  Serial.println(F("Physical Buttons:"));
+
+  bool hasButtons = false;
+
+  for (int i = 0; i < 4; i++) {
+    if (btnCfg[i].pin >= 0) {
+      hasButtons = true;
+
+      Serial.printf("  Button %d → GPIO %d | short=%s | long=%s\n",
+                    i + 1,
+                    btnCfg[i].pin,
+                    btnCfg[i].shortAct.c_str(),
+                    btnCfg[i].longAct.c_str());
+    }
+  }
+
+  if (!hasButtons) {
+    Serial.println(F("  None configured"));
   }
 
   Serial.println(F("========================================"));
@@ -1635,6 +1689,88 @@ void setupWebServer() {
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
+  // --- Physical Buttons: get config ---
+  server.on("/get_buttons", HTTP_GET, [](AsyncWebServerRequest *request) {
+    DynamicJsonDocument doc(1024);
+    JsonArray used = doc.createNestedArray("usedPins");
+    used.add(CLK_PIN);
+    used.add(CS_PIN);
+    used.add(DATA_PIN);
+    JsonArray btns = doc.createNestedArray("buttons");
+    for (int i = 0; i < 4; i++) {
+      JsonObject b = btns.createNestedObject();
+      b["pin"] = btnCfg[i].pin;
+      b["shortAction"] = btnCfg[i].shortAct;
+      b["longAction"] = btnCfg[i].longAct;
+    }
+    String out;
+    serializeJson(doc, out);
+    request->send(200, "application/json", out);
+  });
+
+  // --- Physical Buttons: save config (config.json, no reboot) ---
+  server.on("/save_buttons", HTTP_POST, [](AsyncWebServerRequest *request) {
+    int forbidden[] = { CLK_PIN, CS_PIN, DATA_PIN };
+    int newPins[4];
+    String newShort[4], newLong[4];
+
+    for (int i = 0; i < 4; i++) {
+      String idx = String(i + 1);
+      int pin = request->hasParam("btn" + idx + "_pin", true)
+                  ? request->getParam("btn" + idx + "_pin", true)->value().toInt()
+                  : -1;
+      for (int f : forbidden) {
+        if (pin == f) {
+          pin = -1;
+          break;
+        }
+      }
+      newPins[i] = pin;
+      newShort[i] = request->hasParam("btn" + idx + "_short", true)
+                      ? request->getParam("btn" + idx + "_short", true)->value()
+                      : "";
+      newLong[i] = request->hasParam("btn" + idx + "_long", true)
+                     ? request->getParam("btn" + idx + "_long", true)->value()
+                     : "";
+    }
+    // Reject duplicate pins between buttons
+    for (int i = 0; i < 4; i++)
+      for (int j = i + 1; j < 4; j++)
+        if (newPins[i] >= 0 && newPins[i] == newPins[j]) newPins[j] = -1;
+
+    // Load existing config.json and patch the buttons key
+    DynamicJsonDocument doc(2048);
+    File configFile = LittleFS.open("/config.json", "r");
+    if (configFile) {
+      deserializeJson(doc, configFile);
+      configFile.close();
+    }
+
+    doc.remove("buttons");
+    JsonArray arr = doc.createNestedArray("buttons");
+    for (int i = 0; i < 4; i++) {
+      JsonObject b = arr.createNestedObject();
+      b["pin"] = newPins[i];
+      b["shortAction"] = newShort[i];
+      b["longAction"] = newLong[i];
+      // Update in-memory state immediately
+      btnCfg[i].pin = newPins[i];
+      btnCfg[i].shortAct = newShort[i];
+      btnCfg[i].longAct = newLong[i];
+    }
+
+    if (LittleFS.exists("/config.json")) LittleFS.rename("/config.json", "/config.bak");
+    File f = LittleFS.open("/config.json", "w");
+    if (f) {
+      serializeJson(doc, f);
+      f.close();
+    }
+
+    setupButtons();  // apply new pinMode() without reboot
+    Serial.println(F("[BUTTON] Config saved to config.json."));
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
   server.onNotFound([](AsyncWebServerRequest *request) {
     if (request->method() == HTTP_OPTIONS) {
       AsyncWebServerResponse *response = request->beginResponse(200);
@@ -1948,9 +2084,28 @@ void setupWebServer() {
       doc["nextDonationTime"] = "N/A";
     }
 
+    // --- Pins ---
+    JsonObject pins = doc.createNestedObject("pins");
+    pins["clk"] = CLK_PIN;
+    pins["cs"] = CS_PIN;
+    pins["data"] = DATA_PIN;
+
+    // --- buttons ---
+    JsonArray buttons = doc.createNestedArray("buttons");
+
+    for (int i = 0; i < 4; i++) {
+      JsonObject b = buttons.createNestedObject();
+      b["pin"] = btnCfg[i].pin;
+      b["shortAction"] = btnCfg[i].shortAct;
+      b["longAction"] = btnCfg[i].longAct;
+    }
+
     String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
+    serializeJsonPretty(doc, response);
+    AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
+    res->addHeader("Access-Control-Allow-Origin", "*");
+    res->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    request->send(res);
   });
 
   server.on("/export", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -2620,7 +2775,7 @@ void fetchWeather() {
     if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("temp"))) {
       float temp = doc[F("main")][F("temp")];
       currentTemp = String((int)round(temp)) + char(176);
-      Serial.printf("[WEATHER] Temp: %s\n", currentTemp.c_str());
+      Serial.printf("[WEATHER] Temp: %d°\n", (int)round(temp));
       weatherAvailable = true;
     } else {
       Serial.println(F("[WEATHER] Temperature not found in JSON payload"));
@@ -3581,39 +3736,50 @@ void loadPins() {
   Serial.printf("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n", CLK_PIN, CS_PIN, DATA_PIN);
 }
 
+void setupButtons() {
+  for (int i = 0; i < 4; i++) {
+    if (btnCfg[i].pin >= 0) {
+      pinMode(btnCfg[i].pin, INPUT_PULLUP);
+      Serial.printf("[BUTTON] Button %d ready on GPIO %d\n", i + 1, btnCfg[i].pin);
+    }
+  }
+}
 
-// =============================================================================
-// PHYSICAL BUTTON TEMPLATE
-// To enable: uncomment ALL lines below, and set BUTTON_PIN to your GPIO pin.
-// =============================================================================
+void handleButtons() {
+  static unsigned long lastPress[4] = { 0, 0, 0, 0 };
+  static unsigned long pressStart[4] = { 0, 0, 0, 0 };
+  static bool lastState[4] = { HIGH, HIGH, HIGH, HIGH };
+  static bool longFired[4] = { false, false, false, false };
 
-// #define BUTTON_PIN 4               // ← Change to your GPIO pin
-// #define BUTTON_LONG_PRESS_MS 800   // ← Hold duration for long press (ms)
+  for (int i = 0; i < 4; i++) {
+    if (btnCfg[i].pin < 0) continue;
+    bool cur = digitalRead(btnCfg[i].pin);
 
-// void handleButton() {
-//   static unsigned long lastPress = 0;
-//   static unsigned long pressStart = 0;
-//   static bool lastState = HIGH;
-//   static bool longPressHandled = false;
-//   bool currentState = digitalRead(BUTTON_PIN);
-//   if (currentState == LOW && lastState == HIGH) {
-//     pressStart = millis();
-//     longPressHandled = false;
-//   }
-//   if (currentState == LOW && !longPressHandled) {
-//     if (millis() - pressStart >= BUTTON_LONG_PRESS_MS) {
-//       longPressHandled = true;
-//       executeAction("display_off", "");   // ← LONG PRESS action
-//     }
-//   }
-//   if (currentState == HIGH && lastState == LOW) {
-//     if (!longPressHandled && millis() - lastPress > 200) {
-//       lastPress = millis();
-//       executeAction("next_mode", "");     // ← SHORT PRESS action
-//     }
-//   }
-//   lastState = currentState;
-// }
+    if (cur == LOW && lastState[i] == HIGH) {  // press down
+      pressStart[i] = millis();
+      longFired[i] = false;
+    }
+    if (cur == LOW && !longFired[i]) {  // held
+      if (millis() - pressStart[i] >= BTN_LONG_MS) {
+        longFired[i] = true;
+        if (btnCfg[i].longAct.length() > 0) {
+          Serial.printf("[BUTTON] Button %d LONG → %s\n", i + 1, btnCfg[i].longAct.c_str());
+          executeAction(btnCfg[i].longAct, "");
+        }
+      }
+    }
+    if (cur == HIGH && lastState[i] == LOW) {  // release
+      if (!longFired[i] && millis() - lastPress[i] > 200) {
+        lastPress[i] = millis();
+        if (btnCfg[i].shortAct.length() > 0) {
+          Serial.printf("[BUTTON] Button %d SHORT → %s\n", i + 1, btnCfg[i].shortAct.c_str());
+          executeAction(btnCfg[i].shortAct, "");
+        }
+      }
+    }
+    lastState[i] = cur;
+  }
+}
 
 
 // -----------------------------------------------------------------------------
@@ -3658,6 +3824,7 @@ void setup() {
   P.setCharSpacing(0);
   P.setFont(mFactory);
   loadConfig();
+  setupButtons();
   P.setIntensity(brightness);
   if (displayOff) {
     P.displayShutdown(true);
@@ -4110,7 +4277,7 @@ void triggerDonationMessage() {
 }
 
 void loop() {
-  // handleButton();  // ← Uncomment if using button
+  handleButtons();
 
   // --- WIFI RECONNECTION ---
   static unsigned long lastReconnectAttempt = 0;
