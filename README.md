@@ -699,61 +699,71 @@ curl "http://<device_ip>/action?display_off"
 &nbsp;
 </details>
 <details>
-<summary> 🔘 Physical Button (Optional)</summary>
+<summary> 🔘 Physical Buttons</summary>
 &nbsp;
 
-ESPTimeCast supports an optional physical button that can be wired directly to your ESP board for hands-free control — no app or network required.
+ESPTimeCast supports up to **4 configurable physical buttons** that can be connected directly to your ESP board for hands-free control — no app or network required.
 
-The button template is included in the firmware but **disabled by default**. To enable it, simply uncomment the relevant lines and choose your GPIO pin.
+Buttons can be configured directly from the web interface, allowing you to assign different actions to short and long presses without modifying the firmware.
 
 ### Wiring
 
-Connect a momentary push button between your chosen GPIO pin and **GND**. The firmware uses the internal pull-up resistor — no external resistor needed.
+Connect each momentary push button between a GPIO pin and **GND**.
+
 ```
-ESP GPIO pin  ──────────────  Button  ──────────────  GND
-```
-
-### Setup
-
-In the firmware, find the **PHYSICAL BUTTON TEMPLATE** section and:
-
-1. Uncomment `#define BUTTON_PIN 4` and change `4` to your GPIO pin
-2. Uncomment the `handleButton()` function
-3. Uncomment the `pinMode` line in `setup()`
-4. Uncomment the `handleButton()` call in `loop()`
-
-### Default Behavior
-
-| Press | Default Action | 
-|-------|----------------|
-| **Short press** | Advance to next display mode |
-| **Long press** (800ms+) | Toggle display on/off |
-
-### Customization
-
-Both actions can be replaced with any `/action` parameter. Some examples:
-```cpp
-// Short press examples:
-executeAction("prev_mode", "");         // Go to previous mode
-executeAction("brightness_up", "");     // Increase brightness
-executeAction("enable_rotation", "");   // Toggle rotation freeze
-executeAction("go_to_mode", "clock");   // Jump to clock
-
-// Long press examples:
-executeAction("restart", "");           // Reboot device
-executeAction("brightness_down", "");   // Decrease brightness
-executeAction("go_to_mode", "clock");   // Jump to clock
-executeAction("enable_rotation", "");   // Toggle rotation freeze
+GPIO Pin  ──────────────  Button  ──────────────  GND
 ```
 
-> See the full list of available actions in the API & Home Assistant Integration section.
+ESPTimeCast uses the internal pull-up resistor automatically, so no external resistor is required.
+
+### Configuration
+
+1. Open the ESPTimeCast web interface
+2. Navigate to **Physical Buttons**
+3. Select a GPIO pin for each button
+4. Assign actions for:
+   - **Short Press**
+   - **Long Press (800ms)**
+
+Changes take effect immediately after clicking **Apply Settings**.
+
+### Available Actions
+
+Examples include:
+
+| Category | Actions |
+|-----------|---------|
+| Navigation | Next Mode, Previous Mode |
+| Brightness | Brightness +, Brightness − |
+| Display | Toggle Display Off, Flip Display |
+| Clock | Toggle 12h Clock, Toggle Day of Week, Toggle Show Date |
+| Weather | Toggle Humidity, Toggle Weather Description |
+| Countdown | Toggle Countdown |
+| Rotation | Toggle Rotation |
+| Timer | Pause, Resume, Stop Timer |
+| Stopwatch | Start Stopwatch, Stop Stopwatch |
+| Pomodoro | Start, Pause, Resume, Stop Pomodoro |
+| System | Clear Message, Restart Device |
 
 ### Notes
-- The long press threshold defaults to **800ms** — change `BUTTON_LONG_PRESS_MS` to adjust
-- Short press fires on **button release** to avoid conflict with long press
-- Any GPIO pin can be used — check your board's pinout for available pins
-- ESP8266 D-pin labels map to GPIO numbers (e.g. D2 = GPIO4)
-  
+
+- Up to **4 buttons** can be configured
+- Each button supports both a short press and long press action
+- Long press threshold defaults to **800ms**
+- Buttons use internal pull-ups and should be wired to **GND**
+- Duplicate GPIO assignments are automatically prevented
+- ESP8266 D-pin labels map to GPIO numbers (for example: **D2 = GPIO4**)
+- Avoid using GPIOs already assigned to the MAX7219 display connections
+
+### Example
+
+| Button | GPIO | Short Press | Long Press |
+|----------|------|------------|------------|
+| Button 1 | GPIO4 | Next Mode | Display Off |
+| Button 2 | GPIO5 | Brightness + | Brightness − |
+| Button 3 | GPIO12 | Toggle Humidity | Toggle Weather Description |
+| Button 4 | GPIO14 | Restart Device | Clear Message |
+
 &nbsp;
 </details>
 <details>
