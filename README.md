@@ -1200,7 +1200,7 @@ If you'd like to go a step further, you can also support development through the
 As of v1.5.0, ESPTimeCast is no longer licensed under GPL-3.0.  
 It is now source-available for personal, non-commercial use only.  
 Previous versions (v1.4.2 and earlier) remain under their original GPL-3.0 license.  
-For commercial licensing inquiries contact mario.felipe.tf@gmail.com
+For commercial licensing inquiries contact contact@esptimecast.com
 
       
 
