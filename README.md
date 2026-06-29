@@ -530,10 +530,12 @@ POST http://<device_ip>/action
 
 | Parameter | Description |
 |-----------|-------------|
-| `stopwatch` / `stopwatch_start` | Start a stopwatch |
-| `stopwatch_pause` | Pause the stopwatch |
+| `stopwatch` | Start a stopwatch |
 | `stopwatch_resume` | Resume the stopwatch |
-| `stopwatch_stop` / `stopwatch_cancel` | Stop and clear |
+| `stopwatch_stop` | Pause the stopwatch |
+| `stopwatch_restart` | Restart the stopwatch from 0 and begin running |
+| `stopwatch_reset` | Reset the stopwatch to 0 and remain paused |
+| `stopwatch_clear` | Exit the stopwatch and return to the clock |
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -870,10 +872,12 @@ ESPTimeCast also includes a built-in stopwatch, triggered the same way as timers
 | Command | Description |
 |---------|-------------|
 | `[STOPWATCH]` | Start a stopwatch from zero |
-| `[STOPWATCH PAUSE]` | Pause the stopwatch |
-| `[STOPWATCH RESUME]` | Resume a paused stopwatch |
-| `[STOPWATCH STOP]` | Stop and clear the stopwatch |
-| `[STOPWATCH RESTART]` | Reset and restart from zero |
+| `[STOPWATCH RESUME]` | Resume the stopwatch |
+| `[STOPWATCH STOP]` | Pause the stopwatch |
+| `[STOPWATCH RESTART]` | Restart the stopwatch from 0 and begin running |
+| `[STOPWATCH RESET]` | Reset the stopwatch to 0 and remain paused |
+| `[STOPWATCH CLEAR]` | Exit the stopwatch and return to the clock |
+
 
 The stopwatch displays in `MM:SS.cs` format (minutes, seconds, centiseconds), automatically switching to `HH:MM:SS` after one hour.
 
@@ -882,20 +886,22 @@ The stopwatch displays in `MM:SS.cs` format (minutes, seconds, centiseconds), au
 curl -X POST -d "message=[STOPWATCH]" "http://esptimecast.local/action"
 
 # Pause it
-curl -X POST -d "message=[STOPWATCH PAUSE]" "http://esptimecast.local/action"
-
-# Stop it
 curl -X POST -d "message=[STOPWATCH STOP]" "http://esptimecast.local/action"
+
+# Exit it
+curl -X POST -d "message=[STOPWATCH CLEAR]" "http://esptimecast.local/action"
 ```
 
 You can also control the stopwatch via the `/action` endpoint:
 
 | Parameter | Description |
 |-----------|-------------|
-| `stopwatch` / `stopwatch_start` | Start a stopwatch |
-| `stopwatch_pause` | Pause the stopwatch |
+| `stopwatch` | Start a stopwatch |
 | `stopwatch_resume` | Resume the stopwatch |
-| `stopwatch_stop` / `stopwatch_cancel` | Stop and clear |
+| `stopwatch_stop` | Pause the stopwatch |
+| `stopwatch_restart` | Restart the stopwatch from 0 and begin running |
+| `stopwatch_reset` | Reset the stopwatch to 0 and remain paused |
+| `stopwatch_clear` | Exit the stopwatch and return to the clock |
 
 &nbsp;
 </details>
