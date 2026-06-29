@@ -91,12 +91,14 @@ uint8_t modeIndex = 0;
 // --- Nightscout setting ---
 const unsigned int NIGHTSCOUT_IDLE_THRESHOLD_MIN = 10;  // minutes before data is considered outdated
 unsigned long lastNightscoutFetchTime = 0;
+unsigned long nightscoutBackoffUntil = 0;                // millis() deadline for 404/429 backoff
 const unsigned long NIGHTSCOUT_FETCH_INTERVAL = 150000;  // 2.5 minutes
 int currentGlucose = -1;
 String currentDirection = "?";
 time_t lastGlucoseTime = 0;  // store timestamp from JSON
 bool isNetworkBusy = false;
 bool nightscoutMmol = false;
+int nightscoutFailCount = 0;
 
 // --- SNS (YouTube / Instagram) sniffing & settings ---
 enum SnsType { SNS_NTP,
@@ -108,10 +110,46 @@ enum SnsType { SNS_NTP,
 SnsType detectSnsType(const String &val) {
   if (val.indexOf("youtube.com") != -1 || val.indexOf("youtu.be") != -1) return SNS_YOUTUBE;
   if (val.indexOf("instagram.com") != -1) return SNS_INSTAGRAM;
+  // Strip query string before extension-based checks so ?show_every=N doesn't fool endsWith
+  String pathOnly = val;
+  int qPos = pathOnly.indexOf('?');
+  if (qPos != -1) pathOnly = pathOnly.substring(0, qPos);
   // RSS sniff: common feed path patterns, checked before the Nightscout https:// catch-all
-  if (val.indexOf("feed") != -1 || val.indexOf("/rss") != -1 || val.indexOf("/atom") != -1 || val.endsWith(".rss") || val.endsWith(".atom") || val.endsWith(".xml")) return SNS_RSS;
+  if (val.indexOf("feed") != -1 || val.indexOf("/rss") != -1 || val.indexOf("/atom") != -1 || pathOnly.endsWith(".rss") || pathOnly.endsWith(".atom") || pathOnly.endsWith(".xml")) return SNS_RSS;
   if (val.startsWith("https://")) return SNS_NIGHTSCOUT;
   return SNS_NTP;
+}
+// Strips a named query param from a URL. Handles all positions:
+//   ?only=v  →  (empty)
+//   ?p=v&rest  →  ?rest
+//   ?first=x&p=v  →  ?first=x
+//   ?first=x&p=v&rest  →  ?first=x&rest
+String stripUrlParam(String url, const String &paramName) {
+  String needle = paramName + "=";
+  int idx = url.indexOf(needle);
+  if (idx == -1) return url;
+  int valEnd = url.indexOf('&', idx + needle.length());
+  char before = (idx > 0) ? url.charAt(idx - 1) : 0;
+  if (before == '?' || before == '&') idx--;  // step back to include the delimiter
+  if (valEnd == -1) {
+    url.remove(idx);  // last (or only) param: chop from here
+  } else if (before == '?') {
+    url.remove(idx + 1, valEnd - idx);  // ?param=v&rest  →  ?rest
+  } else {
+  }
+  return url;
+}
+
+// Returns the value of show_every=N from a URL, or 1 if not present.
+int parseBridgeShowEvery(const String &url) {
+  int idx = url.indexOf("show_every=");
+  if (idx == -1) return 1;
+  String valStr = url.substring(idx + 11);
+  int end = valStr.indexOf('&');
+  if (end != -1) valStr = valStr.substring(0, end);
+  valStr.trim();
+  int val = valStr.toInt();
+  return (val >= 1) ? val : 1;
 }
 
 const unsigned long SNS_FETCH_INTERVAL = 3600000UL;  // 1 hour
@@ -119,8 +157,8 @@ unsigned long lastSnsFetchTime = 0;
 long youtubeSubscribers = -1;
 long instagramFollowers = -1;
 String rssTitle = "";
-int RSS_SHOW_EVERY = 3;  // Show RSS every N rotations, overridable via show_every=N in URL
-int rssRotationCount = 0;
+int BRIDGE_SHOW_EVERY = 1;  // Show Bridge mode every N rotations, overridable via show_every=N in URL
+int bridgeRotationCount = 0;
 
 // --- Device identity ---
 const char *DEFAULT_HOSTNAME = "esptimecast";
@@ -2881,18 +2919,11 @@ void fetchNightscout() {
     return encoded;
   };
 
-  // --- Detect and strip mmol=1 ---
-  nightscoutMmol = false;
+  // --- Detect and strip mmol=1 and show_every=N ---
   String rawUrl = String(ntpServer2);
-  int mmolIdx = rawUrl.indexOf("mmol=1");
-  if (mmolIdx != -1) {
-    nightscoutMmol = true;
-    char before = (mmolIdx > 0) ? rawUrl[mmolIdx - 1] : 0;
-    if (before == '&' || before == '?')
-      rawUrl.remove(mmolIdx - 1, 7);
-    else
-      rawUrl.remove(mmolIdx, 6);
-  }
+  nightscoutMmol = (rawUrl.indexOf("mmol=1") != -1);
+  if (nightscoutMmol) rawUrl = stripUrlParam(rawUrl, "mmol");
+  rawUrl = stripUrlParam(rawUrl, "show_every");
 
   String bridgeUrl = "http://esptimecast.com/nightscout-bridge.php?url=";
   bridgeUrl += urlEncode(rawUrl);
@@ -2925,6 +2956,7 @@ void fetchNightscout() {
                         nightscoutMmol ? "will display as mmol" : "mg/dL",
                         currentDirection.c_str());
           lastNightscoutFetchTime = millis();
+          nightscoutFailCount = 0;
         } else {
           Serial.println("[NIGHTSCOUT] Bridge returned error response, will retry");
           lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
@@ -2933,26 +2965,31 @@ void fetchNightscout() {
         Serial.println("[NIGHTSCOUT] Failed to parse payload");
         lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
       }
-    } else {
-      Serial.printf("[NIGHTSCOUT] HTTP failed: %s\n", http.errorToString(httpCode).c_str());
-      lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
+    } else if (httpCode == 404) {
+      Serial.println(F("[NIGHTSCOUT] Bridge: invalid URL (404). Pausing fetch for 24h."));
+      nightscoutBackoffUntil = millis() + 86400000UL;
+    } else if (httpCode == 429) {
+      Serial.println(F("[NIGHTSCOUT] Bridge: rate limited (429). Backing off 30 min."));
+      nightscoutBackoffUntil = millis() + 1800000UL;
+} else {
+      nightscoutFailCount++;
+      Serial.printf("[NIGHTSCOUT] HTTP failed (%d): %s\n", nightscoutFailCount, http.errorToString(httpCode).c_str());
+      if (nightscoutFailCount >= 3) {
+        unsigned long backoff = (nightscoutFailCount >= 6) ? 1800000UL : 300000UL;
+        Serial.printf("[NIGHTSCOUT] %d consecutive failures, backing off %lu min.\n",
+                      nightscoutFailCount, backoff / 60000UL);
+        nightscoutBackoffUntil = millis() + backoff;
+      }
     }
     http.end();
   }
 
 #else
   // --- ESP32: direct HTTPS + JSON ---
-  nightscoutMmol = false;
   String rawUrl = String(ntpServer2);
-  int mmolIdx = rawUrl.indexOf("mmol=1");
-  if (mmolIdx != -1) {
-    nightscoutMmol = true;
-    char before = (mmolIdx > 0) ? rawUrl[mmolIdx - 1] : 0;
-    if (before == '&' || before == '?')
-      rawUrl.remove(mmolIdx - 1, 7);
-    else
-      rawUrl.remove(mmolIdx, 6);
-  }
+  nightscoutMmol = (rawUrl.indexOf("mmol=1") != -1);
+  if (nightscoutMmol) rawUrl = stripUrlParam(rawUrl, "mmol");
+  rawUrl = stripUrlParam(rawUrl, "show_every");
 
   if (rawUrl.indexOf("count=") == -1)
     rawUrl += (rawUrl.indexOf('?') == -1) ? "?count=1" : "&count=1";
@@ -2981,13 +3018,28 @@ void fetchNightscout() {
                     nightscoutMmol ? "will display as mmol" : "mg/dL",
                     currentDirection.c_str());
       lastNightscoutFetchTime = millis();
+      nightscoutFailCount = 0;
     } else {
       Serial.println("[NIGHTSCOUT] Failed to parse JSON");
       lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
     }
+} else if (httpCode == 404) {
+    Serial.println(F("[NIGHTSCOUT] Bridge: invalid URL (404). Pausing fetch for 24h."));
+    nightscoutBackoffUntil = millis() + 86400000UL;
+    nightscoutFailCount = 0;
+  } else if (httpCode == 429) {
+    Serial.println(F("[NIGHTSCOUT] Bridge: rate limited (429). Backing off 30 min."));
+    nightscoutBackoffUntil = millis() + 1800000UL;
+    nightscoutFailCount = 0;
   } else {
-    Serial.printf("[NIGHTSCOUT] HTTPS failed: %s\n", https.errorToString(httpCode).c_str());
-    lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
+    nightscoutFailCount++;
+    Serial.printf("[NIGHTSCOUT] HTTPS failed (%d): %s\n", nightscoutFailCount, https.errorToString(httpCode).c_str());
+    if (nightscoutFailCount >= 3) {
+      unsigned long backoff = (nightscoutFailCount >= 6) ? 1800000UL : 300000UL;
+      Serial.printf("[NIGHTSCOUT] %d consecutive failures, backing off %lu min.\n",
+                    nightscoutFailCount, backoff / 60000UL);
+      nightscoutBackoffUntil = millis() + backoff;
+    }
   }
   https.end();
   client.stop();
@@ -3143,6 +3195,15 @@ char getWeatherIconChar(const String &iconCode) {
 bool handlePomodoroCommand(String cmd) {
   cmd.toUpperCase();
   if (cmd.indexOf("[POMODORO") == -1 && cmd.indexOf("[POM]") == -1 && cmd.indexOf("[POM ") == -1) return false;
+  // Prevent starting or restarting Pomodoro while Clock-only Dimming is active
+  if (clockOnlyDuringDimming && dimActive) {
+
+    // Allow STOP while dimmed
+    if (cmd.indexOf("[POM STOP]") == -1 && cmd.indexOf("[POMODORO STOP]") == -1) {
+      Serial.println(F("[POMODORO] Ignored: Clock-only Dimming is active."));
+      return true;
+    }
+  }
 
   // --- STOP ---
   if (cmd.indexOf("[POM STOP]") != -1 || cmd.indexOf("[POMODORO STOP]") != -1) {
@@ -3257,7 +3318,9 @@ bool handleTimerCommand(String cmd) {
   if (cmd.indexOf("[STOPWATCH PAUSE]") != -1) cmd = "[TIMER PAUSE]";
   if (cmd.indexOf("[STOPWATCH RESUME]") != -1) cmd = "[TIMER RESUME]";
   if (cmd.indexOf("[STOPWATCH STOP]") != -1) cmd = "[TIMER STOP]";
+  if (cmd.indexOf("[STOPWATCH CLEAR]") != -1) cmd = "[TIMER CLEAR]";
   if (cmd.indexOf("[STOPWATCH RESTART]") != -1) cmd = "[TIMER STOPWATCH]";
+  if (cmd.indexOf("[STOPWATCH RESET]") != -1) cmd = "[TIMER RESET]";
   if (cmd.indexOf("[TIMER") == -1) return false;
 
   int start = cmd.indexOf("[TIMER") + 6;
@@ -3265,17 +3328,67 @@ bool handleTimerCommand(String cmd) {
   String payload = cmd.substring(start, end);
   payload.trim();
 
+  // Prevent starting or resuming timers while Clock-only Dimming is active
+  if (clockOnlyDuringDimming && dimActive) {
+
+    // Allow only commands that stop or pause an existing timer
+    if (payload != "STOP" && payload != "CANCEL" && payload != "CLEAR" && payload != "PAUSE" && payload != "RESET") {
+      Serial.println(F("[TIMER] Ignored: Clock-only Dimming is active."));
+      return true;
+    }
+  }
+
   if (payload == "STOP" || payload == "CANCEL") {
+    if (isStopwatch) {
+      // Stopwatch: STOP = PAUSE (keeps the time frozen; use CLEAR to reset)
+      if (!timerPaused) {
+        timerPaused = true;
+        timerRemainingAtPause = millis() - timerEndTime;
+      }
+      Serial.println(F("[STOPWATCH] Paused. Use CLEAR to reset to zero."));
+    } else {
+      // Countdown timer / Pomodoro: STOP = fully stop and return to Clock
+      timerActive = false;
+      timerFinished = false;
+      timerPaused = false;
+      isStopwatch = false;
+      displayMode = 0;
+      prevDisplayMode = 6;
+      clockScrollDone = false;
+      forceMessageRestart = true;
+      lastSwitch = millis();
+      Serial.println(F("[TIMER] Stopped. Returning to Clock."));
+    }
+    return true;
+  }
+
+  if (payload == "RESET") {
+    if (isStopwatch) {
+      timerPaused = true;
+      timerRemainingAtPause = 0;
+      timerFinished = false;
+      timerEndTime = millis();  // zero elapsed time
+      displayMode = 7;
+      lastSwitch = millis();
+      forceMessageRestart = true;
+      Serial.println(F("[STOPWATCH] Reset."));
+      return true;
+    }
+    return false;
+  }
+
+  if (payload == "CLEAR") {
+    bool wasStopwatch = isStopwatch;
     timerActive = false;
-    timerFinished = false;
     timerPaused = false;
+    timerFinished = false;
     isStopwatch = false;
-    displayMode = 0;      // Force back to Clock
-    prevDisplayMode = 6;  // Ensure rotation logic knows where we came from
+    displayMode = 0;
+    prevDisplayMode = 6;
     clockScrollDone = false;
-    forceMessageRestart = true;  // Clear out any stale Parola states
-    lastSwitch = millis();       // Reset the rotation timer so Clock stays for its full duration
-    Serial.println(F("[TIMER] Stopped. Returning to Clock."));
+    forceMessageRestart = true;
+    lastSwitch = millis();
+    Serial.println(wasStopwatch ? F("[STOPWATCH] Cleared. Returning to Clock.") : F("[TIMER] Cleared. Returning to Clock."));
     return true;
   }
 
@@ -3478,25 +3591,33 @@ void executeAction(const String &action, const String &value) {
   } else if (action == "timer_resume" || action == "timer_start") {
     handleTimerCommand("[TIMER RESUME]");
   } else if (action == "timer_restart") {
-    handleTimerCommand("[TIMER RESTART]");
+    if (!(clockOnlyDuringDimming && dimActive)) handleTimerCommand("[TIMER RESTART]");
   } else if (action == "timer") {
-    handleTimerCommand("[TIMER " + value + "]");
+    if (!(clockOnlyDuringDimming && dimActive)) handleTimerCommand("[TIMER " + value + "]");
   } else if (action == "stopwatch" || action == "stopwatch_start") {
-    handleTimerCommand("[TIMER STOPWATCH]");
+    if (!(clockOnlyDuringDimming && dimActive))
+      handleTimerCommand("[STOPWATCH]");
   } else if (action == "stopwatch_pause") {
-    handleTimerCommand("[TIMER PAUSE]");
+    handleTimerCommand("[STOPWATCH PAUSE]");
   } else if (action == "stopwatch_resume") {
-    handleTimerCommand("[TIMER RESUME]");
+    handleTimerCommand("[STOPWATCH RESUME]");
   } else if (action == "stopwatch_stop" || action == "stopwatch_cancel") {
-    handleTimerCommand("[TIMER STOP]");
+    handleTimerCommand("[STOPWATCH STOP]");
+  } else if (action == "stopwatch_restart") {
+    if (!(clockOnlyDuringDimming && dimActive))
+      handleTimerCommand("[STOPWATCH RESTART]");
+  } else if (action == "stopwatch_reset") {
+    handleTimerCommand("[STOPWATCH RESET]");
+  } else if (action == "stopwatch_clear") {
+    handleTimerCommand("[STOPWATCH CLEAR]");
   } else if (action == "pomodoro_start" || action == "pom") {
-    handlePomodoroCommand("[POMODORO]");
+    if (!(clockOnlyDuringDimming && dimActive)) handlePomodoroCommand("[POMODORO]");
   } else if (action == "pomodoro") {
-    handlePomodoroCommand("[POMODORO " + value + "]");
+    if (!(clockOnlyDuringDimming && dimActive)) handlePomodoroCommand("[POMODORO " + value + "]");
   } else if (action == "pomodoro_stop") {
     handlePomodoroCommand("[POMODORO STOP]");
   } else if (action == "pomodoro_restart") {
-    handlePomodoroCommand("[POMODORO RESTART]");
+    if (!(clockOnlyDuringDimming && dimActive)) handlePomodoroCommand("[POMODORO RESTART]");
   } else if (action == "pomodoro_pause") {
     handleTimerCommand("[TIMER PAUSE]");
   } else if (action == "pomodoro_resume") {
@@ -3868,16 +3989,14 @@ void advanceDisplayMode(bool forced) {
 
     int nextMode = modeOrder[modeIndex];
 
-    // --- RSS throttle skip ---
+    // --- Bridge mode throttle (YouTube, Nightscout, and RSS) ---
     if (nextMode == 4) {
-      SnsType snsType = detectSnsType(String(ntpServer2));
-      if (snsType == SNS_RSS) {
-        if (rssRotationCount % RSS_SHOW_EVERY != 0) {
-          rssRotationCount++;
-          continue;
-        }
-        rssRotationCount++;
+      BRIDGE_SHOW_EVERY = parseBridgeShowEvery(String(ntpServer2));
+      if (bridgeRotationCount % BRIDGE_SHOW_EVERY != 0) {
+        bridgeRotationCount++;
+        continue;
       }
+      bridgeRotationCount++;
     }
 
     if (isModeAvailable(nextMode)) {
@@ -4211,10 +4330,12 @@ void loop() {
   }
 
   if (timerActive && (displayMode != 7 && displayMode != 6)) {
-    displayMode = 7;
-    timerSubState = 0;
-    lastSwitch = millis();
-    forceMessageRestart = true;
+    if (!(clockOnlyDuringDimming && dimActive)) {
+      displayMode = 7;
+      timerSubState = 0;
+      lastSwitch = millis();
+      forceMessageRestart = true;
+    }
   }
   // 1. REBOOT HANDLER: Execute the restart outside of the Async callback
   if (pendingRestart && (millis() - restartTimer > 2000)) {
@@ -4525,7 +4646,9 @@ void loop() {
   // --- NIGHTSCOUT FETCH TIMER ---
   SnsType snsTypeLoop = detectSnsType(String(ntpServer2));
   if (snsTypeLoop == SNS_NIGHTSCOUT && WiFi.status() == WL_CONNECTED && ntpSyncSuccessful) {
-    if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
+    if (millis() < nightscoutBackoffUntil) {
+      // backoff active (404 bad URL or 429 rate limit) — skip fetch entirely
+    } else if (currentGlucose == -1 || millis() - lastNightscoutFetchTime >= NIGHTSCOUT_FETCH_INTERVAL) {
       fetchNightscout();
       lastNightscoutFetchTime = millis();
     }
@@ -4538,8 +4661,8 @@ void loop() {
       if (snsTypeLoop == SNS_YOUTUBE && !isNetworkBusy) {
         isNetworkBusy = true;
 
-        // Grab the user input from the stored variable
-        String rawUrl = String(ntpServer2);
+        // Grab the user input from the stored variable, stripping ESPTimeCast params first
+        String rawUrl = stripUrlParam(String(ntpServer2), "show_every");
         String targetId = "";
 
         // Check if the input contains an "@" handle
@@ -4624,23 +4747,8 @@ void loop() {
           return encoded;
         };
 
-        String feedUrl = String(ntpServer2);
-
-        // Detect and strip show_every=N (e.g. https://feed.com/rss?show_every=5)
-        int showEveryIdx = feedUrl.indexOf("show_every=");
-        if (showEveryIdx != -1) {
-          String valStr = feedUrl.substring(showEveryIdx + 11);
-          int ampIdx = valStr.indexOf('&');
-          if (ampIdx != -1) valStr = valStr.substring(0, ampIdx);
-          valStr.trim();
-          int val = valStr.toInt();
-          if (val >= 1) RSS_SHOW_EVERY = val;
-          char before = (showEveryIdx > 0) ? feedUrl[showEveryIdx - 1] : 0;
-          if (before == '&' || before == '?')
-            feedUrl.remove(showEveryIdx - 1, 1 + 11 + valStr.length());
-          else
-            feedUrl.remove(showEveryIdx, 11 + valStr.length());
-        }
+        // Strip show_every=N before passing to bridge (value already in BRIDGE_SHOW_EVERY via advanceDisplayMode)
+        String feedUrl = stripUrlParam(String(ntpServer2), "show_every");
 
         String bridgeUrl = "http://esptimecast.com/rss-bridge.php?url=" + urlEncode(feedUrl);
         Serial.println("[RSS] Fetching via PHP bridge: " + bridgeUrl);
