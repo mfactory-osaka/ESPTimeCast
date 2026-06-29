@@ -530,7 +530,7 @@ POST http://<device_ip>/action
 
 | Parameter | Description |
 |-----------|-------------|
-| `stopwatch` | Start a stopwatch |
+| `stopwatch` | Start, pause, or resume the stopwatch |
 | `stopwatch_resume` | Resume the stopwatch |
 | `stopwatch_stop` | Pause the stopwatch |
 | `stopwatch_restart` | Restart the stopwatch from 0 and begin running |
@@ -871,7 +871,7 @@ ESPTimeCast also includes a built-in stopwatch, triggered the same way as timers
 
 | Command | Description |
 |---------|-------------|
-| `[STOPWATCH]` | Start a stopwatch from zero |
+| `[STOPWATCH]` | Start, pause, or resume the stopwatch |
 | `[STOPWATCH RESUME]` | Resume the stopwatch |
 | `[STOPWATCH STOP]` | Pause the stopwatch |
 | `[STOPWATCH RESTART]` | Restart the stopwatch from 0 and begin running |
@@ -896,7 +896,7 @@ You can also control the stopwatch via the `/action` endpoint:
 
 | Parameter | Description |
 |-----------|-------------|
-| `stopwatch` | Start a stopwatch |
+| `stopwatch` | Start, pause, or resume the stopwatch |
 | `stopwatch_resume` | Resume the stopwatch |
 | `stopwatch_stop` | Pause the stopwatch |
 | `stopwatch_restart` | Restart the stopwatch from 0 and begin running |
