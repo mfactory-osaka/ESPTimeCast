@@ -989,7 +989,19 @@ action:
 <summary>📡 Bridge Mode (YouTube, RSS, Nightscout)</summary>
 &nbsp;
 
-ESPTimeCast can display live data from external services using the secondary NTP/URL field (`ntpServer2`). The device automatically detects which service to connect to based on the URL you enter — no extra configuration needed. Paste your URL into the field and the device does the rest.
+ESPTimeCast can display live data from external services using the secondary NTP/URL field (`ntpServer2`). The device automatically detects which service to connect to based on the URL you enter, no extra configuration needed. Paste your URL into the field and the device does the rest.  
+
+### 📺 Bridge Mode Display Frequency
+
+By default, **Bridge Mode** is shown once every display rotation. You can change how often it appears by adding the `show_every` parameter to your URL.
+
+| URL | Behaviour |
+|-----|-----------|
+| `https://your-integration-url.com` | Every rotation (default) |
+| `https://your-integration-url.com?show_every=3` | Every 3 rotations |
+| `https://your-integration-url.com?show_every=5` | Every 5 rotations |
+
+The `show_every` parameter works with **all Bridge Mode sources**, including **RSS feeds, YouTube subscriber counters, and Nightscout**. It is removed before the URL is sent to the bridge or external service, so it does not affect the original request.
 
 ### 📺 YouTube Subscriber Counter
 
@@ -1009,18 +1021,6 @@ Paste any RSS, Atom, or RDF feed URL into the `ntpServer2` field:
 `https://www.nasa.gov/rss/dyn/breaking_news.rss`  
 
 The title of the most recent article scrolls across the display with the RSS icon. Most standard feed formats are detected automatically — if the URL contains `feed`, `rss`, or `atom`, or ends in `.rss` / `.atom`, it will be picked up correctly.
-
-### RSS Feed Display Frequency
-
-By default RSS shows once every 3 display rotations to avoid it dominating the screen. You can override this per-feed with the `show_every` parameter:
-
-| URL | Behaviour |
-|-----|-----------|
-| `https://hackaday.com/feed` | Every 3 rotations (default) |
-| `https://hackaday.com/feed?show_every=1` | Every rotation |
-| `https://hackaday.com/feed?show_every=5` | Every 5 rotations |
-
-The parameter is stripped before the URL is sent to the bridge. Data is refreshed every hour.
 
 ### ⚕️ Nightscout Integration
 
