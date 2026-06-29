@@ -3246,9 +3246,10 @@ bool handlePomodoroCommand(String cmd) {
   if (cmd.indexOf("[POMODORO") == -1 && cmd.indexOf("[POM]") == -1 && cmd.indexOf("[POM ") == -1) return false;
   // Prevent starting or restarting Pomodoro while Clock-only Dimming is active
   if (clockOnlyDuringDimming && dimActive) {
-
-    // Allow STOP while dimmed
-    if (cmd.indexOf("[POM STOP]") == -1 && cmd.indexOf("[POMODORO STOP]") == -1) {
+    bool isStop = cmd.indexOf("[POM STOP]") != -1 || cmd.indexOf("[POMODORO STOP]") != -1;
+    bool isPause = cmd.indexOf("[POM PAUSE]") != -1 || cmd.indexOf("[POMODORO PAUSE]") != -1;
+    bool isResume = cmd.indexOf("[POM RESUME]") != -1 || cmd.indexOf("[POMODORO RESUME]") != -1;
+    if (!isStop && !isPause && !isResume) {
       Serial.println(F("[POMODORO] Ignored: Clock-only Dimming is active."));
       return true;
     }
@@ -3289,6 +3290,18 @@ bool handlePomodoroCommand(String cmd) {
       return true;
     }
     return false;
+  }
+
+  // --- PAUSE ---
+  if (cmd.indexOf("[POM PAUSE]") != -1 || cmd.indexOf("[POMODORO PAUSE]") != -1) {
+    Serial.println(F("[POMODORO] Pause forwarded to timer."));
+    return handleTimerCommand("[TIMER PAUSE]");
+  }
+
+  // --- RESUME ---
+  if (cmd.indexOf("[POM RESUME]") != -1 || cmd.indexOf("[POMODORO RESUME]") != -1) {
+    Serial.println(F("[POMODORO] Resume forwarded to timer."));
+    return handleTimerCommand("[TIMER RESUME]");
   }
 
   // Shortcuts: [POM] or bare [POMODORO] (no params) default to 25-5-15
@@ -3475,13 +3488,29 @@ bool handleTimerCommand(String cmd) {
   }
 
   if (payload == "STOPWATCH") {
+
+    // Already running -> Pause
+    if (timerActive && isStopwatch && !timerPaused) {
+      timerPaused = true;
+      timerRemainingAtPause = millis() - timerEndTime;
+      return true;
+    }
+
+    // Already paused -> Resume
+    if (timerActive && isStopwatch && timerPaused) {
+      timerEndTime = millis() - timerRemainingAtPause;
+      timerPaused = false;
+      return true;
+    }
+
+    // Not active -> Start a new stopwatch
     isStopwatch = true;
     isPomodoroActive = false;
     pomodoroInBreak = false;
     timerActive = true;
     timerPaused = false;
     timerFinished = false;
-    timerEndTime = millis();  // reuse as startTime
+    timerEndTime = millis();
     timerSubState = 0;
     displayMode = 7;
     lastSwitch = millis();
