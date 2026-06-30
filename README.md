@@ -999,13 +999,13 @@ ESPTimeCast can display live data from external services using the secondary NTP
 
 ### 📺 Bridge Mode Display Frequency
 
-By default, **Bridge Mode** is shown once every display rotation. You can change how often it appears by adding the `show_every` parameter to your URL.
+By default, **Bridge Mode** is shown once every display rotation. You can change how often it appears by adding the `&show_every=X` parameter to your URL.
 
 | URL | Behaviour |
 |-----|-----------|
 | `https://your-integration-url.com` | Every rotation (default) |
-| `https://your-integration-url.com?show_every=3` | Every 3 rotations |
-| `https://your-integration-url.com?show_every=5` | Every 5 rotations |
+| `https://your-integration-url.com&show_every=3` | Every 3 rotations |
+| `https://your-integration-url.com&show_every=5` | Every 5 rotations |
 
 The `show_every` parameter works with **all Bridge Mode sources**, including **RSS feeds, YouTube subscriber counters, and Nightscout**. It is removed before the URL is sent to the bridge or external service, so it does not affect the original request.
 
