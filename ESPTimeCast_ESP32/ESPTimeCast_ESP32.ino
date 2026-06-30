@@ -147,7 +147,7 @@ String stripUrlParam(String url, const String &paramName) {
   } else if (before == '?') {
     url.remove(idx + 1, valEnd - idx);  // ?param=v&rest  →  ?rest
   } else {
-    url.remove(idx, valEnd - idx);  // &param=v[&rest]  →  [&rest]
+    url.remove(idx, valEnd - idx);  // &param=v&rest  →  &rest
   }
   return url;
 }
@@ -200,6 +200,7 @@ unsigned long clockDuration = 10000;
 unsigned long weatherDuration = 5000;
 bool displayOff = false;
 int brightness = 7;
+int lastBrightnessBeforeOff = 7;  // remembers brightness to restore on display_on
 bool flipDisplay = false;
 bool twelveHourToggle = false;
 bool showDayOfWeek = true;
@@ -433,6 +434,7 @@ void loadConfig() {
     doc[F("timeZone")] = "";
     doc[F("language")] = "en";
     doc[F("brightness")] = brightness;
+    doc[F("lastBrightnessBeforeOff")] = brightness;
     doc[F("flipDisplay")] = flipDisplay;
     doc[F("twelveHourToggle")] = twelveHourToggle;
     doc[F("showDayOfWeek")] = showDayOfWeek;
@@ -525,6 +527,7 @@ void loadConfig() {
 
   brightness = doc["brightness"] | 7;
   displayOff = doc["displayOff"] | false;
+  lastBrightnessBeforeOff = doc["lastBrightnessBeforeOff"] | 7;
   flipDisplay = doc["flipDisplay"] | false;
   twelveHourToggle = doc["twelveHourToggle"] | false;
   showDayOfWeek = doc["showDayOfWeek"] | true;
@@ -1237,14 +1240,14 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
 
     // 2. Seconds (seconds / duration)
     int rawSecs = request->hasArg("seconds") ? request->arg("seconds").toInt() : (request->hasArg("duration") ? request->arg("duration").toInt() : 0);
-    messageDisplaySeconds = constrain(rawSecs, 0, 3600);
+    int newMessageDisplaySeconds = constrain(rawSecs, 0, 3600);
 
     // 3. Scrolls (scrolltimes / scrolls / scroll_times)
     int rawScrolls = request->hasArg("scrolltimes") ? request->arg("scrolltimes").toInt() : (request->hasArg("scrolls") ? request->arg("scrolls").toInt() : (request->hasArg("scroll_times") ? request->arg("scroll_times").toInt() : 0));
-    messageScrollTimes = constrain(rawScrolls, 0, 100);
+    int newMessageScrollTimes = constrain(rawScrolls, 0, 100);
 
     // 4. Speed & Big Numbers
-    messageBigNumbers = (request->arg("bignumbers") == "1");
+    bool newMessageBigNumbers = (request->arg("bignumbers") == "1");
     int rawSpeed = request->hasArg("speed") ? request->arg("speed").toInt() : GENERAL_SCROLL_SPEED;
     int localSpeed = constrain(rawSpeed, 10, 200);
 
@@ -1257,15 +1260,27 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
 
     // Handle Pomodoro Commands (checked before Timer)
     if (handlePomodoroCommand(msg)) {
-      Serial.println(F("[MESSAGE] Pomodoro command executed."));
-      request->send(200, "text/plain", "Pomodoro Command Executed");
+      if (!allowInterrupt) {
+        request->send(409, "text/plain", "Protected message active");
+      } else if (clockOnlyDuringDimming && dimActive) {
+        request->send(409, "text/plain", "Clock-only dimming active");
+      } else {
+        Serial.println(F("[MESSAGE] Pomodoro command executed."));
+        request->send(200, "text/plain", "Pomodoro Command Executed");
+      }
       return;
     }
 
     // Handle Timer Commands
     if (handleTimerCommand(msg)) {
-      Serial.println(F("[MESSAGE] Timer command executed."));
-      request->send(200, "text/plain", "Timer Command Executed");
+      if (!allowInterrupt) {
+        request->send(409, "text/plain", "Protected message active");
+      } else if (clockOnlyDuringDimming && dimActive) {
+        request->send(409, "text/plain", "Clock-only dimming active");
+      } else {
+        Serial.println(F("[MESSAGE] Timer command executed."));
+        request->send(200, "text/plain", "Timer Command Executed");
+      }
       return;
     }
 
@@ -1284,6 +1299,9 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
     }
 
     String filtered = cleanTextForDisplay(msg);
+    messageDisplaySeconds = newMessageDisplaySeconds;
+    messageScrollTimes = newMessageScrollTimes;
+    messageBigNumbers = newMessageBigNumbers;
 
     // --- LOG: Consolidated Intent (Before Saving/Execution) ---
     Serial.printf(
@@ -1296,7 +1314,7 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
       messageBigNumbers,
       incomingAllowInterrupt);
 
-    if (timerActive) {
+    if (timerActive && !isClearRequest) {
       displayMode = (messageScrollTimes == 0 && messageDisplaySeconds == 0) ? 6 : 7;
       lastSwitch = millis();
       forceMessageRestart = true;
@@ -1990,6 +2008,8 @@ void setupWebServer() {
     doc["message"] = (strlen(customMessage) > 0) ? customMessage : "";
     doc["displayOff"] = displayOff;
     doc["brightness"] = brightness;
+    doc["lastBrightnessBeforeOff"] = lastBrightnessBeforeOff;
+
 
     // --- Runtime ---
     doc["device_runtime"] = formatTotalRuntime();
@@ -3254,6 +3274,16 @@ bool handlePomodoroCommand(String cmd) {
       return true;
     }
   }
+  // Prevent starting/restarting Pomodoro while a protected message is active
+  if (!allowInterrupt) {
+    bool isStop = cmd.indexOf("[POM STOP]") != -1 || cmd.indexOf("[POMODORO STOP]") != -1;
+    bool isPause = cmd.indexOf("[POM PAUSE]") != -1 || cmd.indexOf("[POMODORO PAUSE]") != -1;
+    bool isResume = cmd.indexOf("[POM RESUME]") != -1 || cmd.indexOf("[POMODORO RESUME]") != -1;
+    if (!isStop && !isPause && !isResume) {
+      Serial.println(F("[POMODORO] Ignored: Protected message is active."));
+      return true;
+    }
+  }
 
   // --- STOP ---
   if (cmd.indexOf("[POM STOP]") != -1 || cmd.indexOf("[POMODORO STOP]") != -1) {
@@ -3284,6 +3314,7 @@ bool handlePomodoroCommand(String cmd) {
       timerFinished = false;
       timerSubState = 0;
       displayMode = 7;
+      allowInterrupt = true;
       lastSwitch = millis();
       forceMessageRestart = true;
       Serial.println(F("[POMODORO] Restarted — beginning work phase."));
@@ -3322,6 +3353,7 @@ bool handlePomodoroCommand(String cmd) {
     timerFinished = false;
     timerSubState = 0;
     displayMode = 7;
+    allowInterrupt = true;
     lastSwitch = millis();
     forceMessageRestart = true;
     Serial.println(F("[POMODORO] Default 25-5-15 started."));
@@ -3366,6 +3398,7 @@ bool handlePomodoroCommand(String cmd) {
   timerFinished = false;
   timerSubState = 0;
   displayMode = 7;
+  allowInterrupt = true;
   lastSwitch = millis();
   forceMessageRestart = true;
 
@@ -3392,10 +3425,16 @@ bool handleTimerCommand(String cmd) {
 
   // Prevent starting or resuming timers while Clock-only Dimming is active
   if (clockOnlyDuringDimming && dimActive) {
-
-    // Allow only commands that stop or pause an existing timer
     if (payload != "STOP" && payload != "CANCEL" && payload != "CLEAR" && payload != "PAUSE" && payload != "RESET") {
       Serial.println(F("[TIMER] Ignored: Clock-only Dimming is active."));
+      return true;
+    }
+  }
+
+  // Prevent starting or resuming timers while a protected message is active
+  if (!allowInterrupt) {
+    if (payload != "STOP" && payload != "CANCEL" && payload != "CLEAR" && payload != "PAUSE" && payload != "RESET") {
+      Serial.println(F("[TIMER] Ignored: Protected message is active."));
       return true;
     }
   }
@@ -3431,6 +3470,7 @@ bool handleTimerCommand(String cmd) {
       timerFinished = false;
       timerEndTime = millis();  // zero elapsed time
       displayMode = 7;
+      allowInterrupt = true;
       lastSwitch = millis();
       forceMessageRestart = true;
       Serial.println(F("[STOPWATCH] Reset."));
@@ -3479,6 +3519,7 @@ bool handleTimerCommand(String cmd) {
       timerPaused = false;
       timerFinished = false;
       displayMode = 7;
+      allowInterrupt = true;
       timerSubState = 0;
       lastSwitch = millis();
       forceMessageRestart = true;
@@ -3513,6 +3554,7 @@ bool handleTimerCommand(String cmd) {
     timerEndTime = millis();
     timerSubState = 0;
     displayMode = 7;
+    allowInterrupt = true;
     lastSwitch = millis();
     forceMessageRestart = true;
     return true;
@@ -3546,6 +3588,7 @@ bool handleTimerCommand(String cmd) {
     timerFinished = false;
     timerSubState = 0;
     displayMode = 7;
+    allowInterrupt = true;
     lastSwitch = millis();
     forceMessageRestart = true;
     return true;
@@ -3577,13 +3620,16 @@ void executeAction(const String &action, const String &value) {
     handleBrightnessChange(value.toInt(), false);
 
   } else if (action == "brightness_up") {
-    handleBrightnessChange(displayOff ? 1 : constrain(brightness + 1, 0, 15), false);
+    handleBrightnessChange(displayOff ? lastBrightnessBeforeOff : constrain(brightness + 1, 0, 15), false);
 
   } else if (action == "brightness_down") {
     if (!displayOff) { handleBrightnessChange(constrain(brightness - 1, 0, 15), false); }
 
   } else if (action == "display_off") {
     handleBrightnessChange(-1, false);
+
+  } else if (action == "display_on") {
+    handleBrightnessChange(lastBrightnessBeforeOff, false);
 
   } else if (action == "flip" || action == "flip_display") {
     flipDisplay = hasValue ? boolVal : !flipDisplay;
@@ -3747,6 +3793,7 @@ void handleBrightnessChange(int newBrightness, bool isFromUI) {
   // --- CASE 1: Turn Display OFF ---
   if (newBrightness == -1) {
     if (!displayOff) {
+      if (brightness >= 0) lastBrightnessBeforeOff = brightness;
       P.displayShutdown(true);
       P.displayClear();
       displayOff = true;
@@ -4290,6 +4337,7 @@ bool saveConfigRuntime() {
   // Update only runtime-changing fields
   doc["brightness"] = brightness;
   doc["displayOff"] = displayOff;
+  doc["lastBrightnessBeforeOff"] = lastBrightnessBeforeOff;
   doc["flipDisplay"] = flipDisplay;
   doc["twelveHourToggle"] = twelveHourToggle;
   doc["showDayOfWeek"] = showDayOfWeek;
@@ -6054,7 +6102,8 @@ void showTimerMode7() {
     unsigned long elapsed = timerPaused ? timerRemainingAtPause : (millis() - timerEndTime);
 
     if (isPomodoroActive) {
-      if (!timerPaused && elapsed >= pomodoroBreakMs) {
+      unsigned long currentBreakMs = (pomodoroSession == 4) ? pomodoroLongBreakMs : pomodoroBreakMs;
+      if (!timerPaused && elapsed >= currentBreakMs) {
         pomodoroSession++;
         if (pomodoroSession > 4) pomodoroSession = 1;
         pomodoroInBreak = false;
@@ -6066,7 +6115,7 @@ void showTimerMode7() {
         Serial.printf("[POMODORO] Break over. Starting session %d.\n", pomodoroSession);
         return;
       }
-      unsigned long remaining = (pomodoroBreakMs > elapsed) ? (pomodoroBreakMs - elapsed) : 0;
+      unsigned long remaining = (currentBreakMs > elapsed) ? (currentBreakMs - elapsed) : 0;
       unsigned long totalSec = remaining / 1000;
       int m = totalSec / 60;
       int s = totalSec % 60;
@@ -6153,7 +6202,6 @@ void showTimerMode7() {
       pomodoroInBreak = true;
       isStopwatch = true;
       // Session 4 gets the long break
-      pomodoroBreakMs = (pomodoroSession == 4) ? pomodoroLongBreakMs : pomodoroBreakMs;
       timerEndTime = millis();
       timerActive = true;
       timerPaused = false;
