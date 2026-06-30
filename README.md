@@ -254,7 +254,7 @@ If your device was wired before **Oct 17, 2025**, please verify the following:
    - **Password:** `12345678`
    - Captive portal should open automatically, if it doesn't open `http://192.168.4.1` or `http://setup.esp` in your browser.
 2. Set your WiFi and all other options.
-3. Click **Save Setting** – the device saves config, reboots, and connects.
+3. Click **Save Settings** – the device saves config, reboots, and connects.
 4. The device shows its local IP address after boot so you can login again for setting changes
 
 > External links and the "Get My Location" button require internet access.  
@@ -263,10 +263,12 @@ They won't work while the device is in AP Mode - connect to WiFi first.
 &nbsp;
 </details>
 <details>
-<summary>🌐 Web Interface & Settings</summary>
+<summary>🌐 Web Interface & Device Control</summary>
 &nbsp;
 
-ESPTimeCast includes a built-in Web UI that lets you fully configure the device from any browser — no apps required.
+ESPTimeCast includes a built-in **Web UI** that lets you fully configure and control the device from any browser, no apps required. The **Web UI** and **Companion Browser Extension** provide a human-friendly interface for features like timers, icons, stopwatch, and custom messages, using **Message Tokens** (commands such as `[TIMER 5M]` or `[STOPWATCH]`) behind the scenes so you don't have to interact with the API directly.
+
+For automation and integrations, ESPTimeCast also provides the `/action` API that allows Home Assistant, scripts, browser extensions, and other applications to control the device directly using simple HTTP requests..
 
 #### You can open the Web UI using either:
 
@@ -459,7 +461,7 @@ ESPTimeCast exposes a unified `/action` endpoint for all device control — mess
 
 ### ⚡ `/action` Endpoint
 
-Supports both GET and POST. Send a parameter name alone to toggle, or with a value to set explicitly.
+Supports both GET and POST. Parameters marked as optional can be toggled by omitting their value, or set explicitly by providing one.
 
 #### 🔗 Endpoint
 ```
@@ -495,8 +497,9 @@ POST http://<device_ip>/action
 | `brightness` | `0`–`15` | Set brightness |
 | `brightness_up` | -- | Increase brightness by 1 |
 | `brightness_down` | -- | Decrease brightness by 1 |
-| `display_off` | -- | Toggle display on/off |
-| `flip`| `0` or `1` (optional) | Flip display 180°. Toggles if no value sent. |
+| `display_on` | -- | Turn the display on and restore the previous brightness |
+| `display_off` | -- | Turn the display off |
+| `flip` | `0` or `1` (optional) | Flip the display 180°. Toggles if no value is sent. |
 
 #### 🕐 Clock & Time
 
@@ -554,7 +557,7 @@ POST http://<device_ip>/action
 | `save` | —- | Persist current settings to flash |
 | `restart` | -— | Reboot the device |
 
-> **Toggle behavior:** Sending a parameter without a value toggles it and jumps to the relevant display mode. 
+> **Toggle behavior:** Parameters marked with (optional) toggle when sent without a value. Otherwise, they use the value you provide. 
 &nbsp;
 
 &nbsp;
@@ -598,7 +601,7 @@ trigger:
 action:
   - service: rest_command.esptimecast
     data:
-      payload: "message=LEAK DETECTED&scrolltimes=5&ainterrupt=0"
+      payload: "message=LEAK DETECTED&scrolls=5&interrupt=0"
 ```
 
 **3. Freeze display while media plays:**
@@ -737,7 +740,7 @@ Examples include:
 |-----------|---------|
 | Navigation | Next Mode, Previous Mode |
 | Brightness | Brightness +, Brightness − |
-| Display | Toggle Display Off, Flip Display |
+| Display | Display On, Display Off, Flip Display |
 | Clock | Toggle 12h Clock, Toggle Day of Week, Toggle Show Date |
 | Weather | Toggle Humidity, Toggle Weather Description |
 | Countdown | Toggle Countdown |
@@ -946,8 +949,8 @@ Both work and break durations are capped at **60 minutes**.
 |---------|-------------|
 | `[POM STOP]` or `[POMODORO STOP]` | Stop the Pomodoro and return to clock |
 | `[POM RESTART]` or `[POMODORO RESTART]` | Restart from session 1, work phase |
-| `[TIMER PAUSE]` | Pause the current phase |
-| `[TIMER RESUME]` | Resume a paused phase |
+| `[POM PAUSE]` or `[POMODORO PAUSE]`  | Pause the current phase |
+| `[POM RESUME]` or `[POMODORO RESUME]`  | Resume a paused phase |
 
 > Starting a `[TIMER]` or `[STOPWATCH]` while a Pomodoro is active will automatically cancel the Pomodoro.
 
@@ -1007,7 +1010,7 @@ By default, **Bridge Mode** is shown once every display rotation. You can change
 | `https://your-integration-url.com&show_every=3` | Every 3 rotations |
 | `https://your-integration-url.com&show_every=5` | Every 5 rotations |
 
-The `show_every` parameter works with **all Bridge Mode sources**, including **RSS feeds, YouTube subscriber counters, and Nightscout**. It is removed before the URL is sent to the bridge or external service, so it does not affect the original request.
+The `show_every` parameter works with **all Bridge Mode sources**, including **RSS feeds, YouTube subscriber counters, and Nightscout**. The parameter is stripped from the URL before the request is forwarded to the bridge or external service.
 
 ### 📺 YouTube Subscriber Counter
 
