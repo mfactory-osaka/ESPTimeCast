@@ -4801,6 +4801,76 @@ void loop() {
         isNetworkBusy = false;
       }
 
+      if (snsTypeLoop == SNS_INSTAGRAM && !isNetworkBusy) {
+        isNetworkBusy = true;
+
+        // Grab the user input from the stored variable, stripping ESPTimeCast params first
+        String rawUrl = stripUrlParam(String(ntpServer2), "show_every");
+        String targetUsername = "";
+
+        // Pull the username out of an instagram.com/<username> URL if present
+        int igIdx = rawUrl.indexOf("instagram.com/");
+        if (igIdx != -1) {
+          targetUsername = rawUrl.substring(igIdx + 14);  // length of "instagram.com/"
+        } else {
+          // Fallback: assume they pasted the raw username (optionally with a leading @)
+          targetUsername = rawUrl;
+        }
+        if (targetUsername.startsWith("@")) targetUsername = targetUsername.substring(1);
+
+        // Trim off anything after the username itself (trailing slash, query string)
+        int slashIdx = targetUsername.indexOf('/');
+        if (slashIdx != -1) targetUsername = targetUsername.substring(0, slashIdx);
+        int qIdx = targetUsername.indexOf('?');
+        if (qIdx != -1) targetUsername = targetUsername.substring(0, qIdx);
+        targetUsername.trim();
+
+        // Send the extracted username to the PHP bridge
+        String bridgeUrl = "http://esptimecast.com/instagram-bridge.php?username=" + targetUsername;
+        Serial.println("[INSTAGRAM] Fetching via PHP bridge: " + bridgeUrl);
+
+        WiFiClient client;
+        HTTPClient http;
+        http.begin(client, bridgeUrl);
+        http.setUserAgent("ESPTimeCast-Firmware");
+        http.setTimeout(4000);
+
+        int httpCode = http.GET();
+        if (httpCode == 200) {
+          String payload = http.getString();
+          payload.trim();
+
+          // Find the key inside the JSON payload
+          int folKeyIdx = payload.indexOf("\"followers\":");
+          if (folKeyIdx != -1) {
+            // Cut the string starting right after '"followers":'
+            String folValueStr = payload.substring(folKeyIdx + 12);
+
+            // Remove the closing brace '}' if any, and convert to integer
+            folValueStr.replace("}", "");
+            folValueStr.trim();
+
+            long parsedFollowers = folValueStr.toInt();
+            if (parsedFollowers >= 0) {
+              instagramFollowers = parsedFollowers;
+              Serial.printf("[INSTAGRAM] Followers fetched from JSON: %ld\n", instagramFollowers);
+            } else {
+              Serial.println("[INSTAGRAM] Bridge JSON reported an error/not-found count (-1)");
+            }
+          } else {
+            Serial.println("[INSTAGRAM] Failed to find 'followers' key in JSON payload");
+          }
+        } else {
+          // Covers the bridge's 503 "blocked" response (Instagram rate-limited
+          // or login-walled us) as well as ordinary network failures — either
+          // way we just skip this cycle and retry next interval.
+          Serial.printf("[INSTAGRAM] HTTP failed! Code: %d, Message: %s\n", httpCode, http.errorToString(httpCode).c_str());
+        }
+
+        http.end();
+        isNetworkBusy = false;
+      }
+
       if (snsTypeLoop == SNS_RSS && !isNetworkBusy) {
         isNetworkBusy = true;
 
