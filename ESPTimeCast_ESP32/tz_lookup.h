@@ -57,6 +57,7 @@ const TimeZoneMapping tz_mappings[] = {
     {"Asia/Singapore", "SGT-8"},
     {"Asia/Taipei", "CST-8"},
     {"Asia/Tashkent", "UZT-5"},
+    {"Asia/Tehran", "IRST-3:30"},
     {"Asia/Tokyo", "JST-9"},
     {"Asia/Ulaanbaatar", "ULAT-8"},
     {"Asia/Yekaterinburg", "YEKT-5"},

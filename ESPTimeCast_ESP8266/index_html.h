@@ -1041,6 +1041,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         <option value="Asia/Singapore">Asia/Singapore</option>
         <option value="Asia/Taipei">Asia/Taipei</option>
         <option value="Asia/Tashkent">Asia/Tashkent</option>
+        <option value="Asia/Tehran">Asia/Tehran</option>
         <option value="Asia/Tokyo">Asia/Tokyo</option>
         <option value="Asia/Ulaanbaatar">Asia/Ulaanbaatar</option>
         <option value="Asia/Yekaterinburg">Asia/Yekaterinburg</option>
@@ -3406,7 +3407,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         ["pomodoro_stop",     "Stop Pomodoro"],
         ["pomodoro_pause",    "Pause Pomodoro"],
         ["pomodoro_resume",   "Resume Pomodoro"],
-        ["clear_message",     "Clear Message"],
+        ["clear_message",     "Clear Temporary Message"],
+        ["clear_message_all", "Clear All Messages"],
         ["restart",           "Restart Device"],
       ];
 

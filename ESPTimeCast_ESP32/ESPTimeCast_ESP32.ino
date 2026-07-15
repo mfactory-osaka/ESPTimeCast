@@ -164,12 +164,15 @@ int parseBridgeShowEvery(const String &url) {
   return (val >= 1) ? val : 1;
 }
 
-const unsigned long SNS_FETCH_INTERVAL = 3600000UL;  // 1 hour
+const unsigned long SNS_FETCH_INTERVAL = 1800000UL;  // 1 hour
 unsigned long lastSnsFetchTime = 0;
+const unsigned long INSTAGRAM_THROTTLE_RETRY_MIN_MS = 10000UL;
+const unsigned long INSTAGRAM_THROTTLE_RETRY_JITTER_MS = 5000UL;
+unsigned long instagramThrottleRetryAt = 0;
 long youtubeSubscribers = -1;
 long instagramFollowers = -1;
 String rssTitle = "";
-int BRIDGE_SHOW_EVERY = 3;  // Show RSS every N rotations, overridable via show_every=N in URL
+int BRIDGE_SHOW_EVERY = 1;  // Show RSS every N rotations, overridable via show_every=N in URL
 int bridgeRotationCount = 0;
 
 // --- Device identity ---
@@ -3784,6 +3787,27 @@ void executeAction(const String &action, const String &value) {
       Serial.println(F("[MESSAGE] clear_message: no persistent message, returning to clock"));
     }
 
+  } else if (action == "clear_message_all") {
+    allowInterrupt = true;
+    forceMessageRestart = true;
+
+    customMessage[0] = '\0';
+    lastPersistentMessage[0] = '\0';
+
+    messageStartTime = 0;
+    currentScrollCount = 0;
+    messageDisplaySeconds = 0;
+    messageScrollTimes = 0;
+
+    displayMode = 0;
+    prevDisplayMode = 6;
+    lastSwitch = millis();
+    clockScrollDone = false;
+
+    saveCustomMessageToConfig("");
+
+    Serial.println(F("[MESSAGE] clear_message_all: all messages cleared"));
+
   } else {
     Serial.println("[ACTION] Unknown action: " + action);
   }
@@ -4837,7 +4861,13 @@ void loop() {
 
   // --- SNS (YouTube / Instagram / RSS) FETCH TIMER ---
   if ((snsTypeLoop == SNS_YOUTUBE || snsTypeLoop == SNS_INSTAGRAM || snsTypeLoop == SNS_RSS) && WiFi.status() == WL_CONNECTED) {
-    if (lastSnsFetchTime == 0 || millis() - lastSnsFetchTime >= SNS_FETCH_INTERVAL) {
+    bool normalSnsFetchDue =
+      lastSnsFetchTime == 0 || millis() - lastSnsFetchTime >= SNS_FETCH_INTERVAL;
+
+    bool instagramThrottleRetryDue =
+      snsTypeLoop == SNS_INSTAGRAM && instagramThrottleRetryAt != 0 && (int32_t)(millis() - instagramThrottleRetryAt) >= 0;
+
+    if (normalSnsFetchDue || instagramThrottleRetryDue) {
 
       if (snsTypeLoop == SNS_YOUTUBE && !isNetworkBusy) {
         isNetworkBusy = true;
@@ -4905,7 +4935,8 @@ void loop() {
         isNetworkBusy = false;
       }
 
-      if (snsTypeLoop == SNS_INSTAGRAM && !isNetworkBusy) {
+      if (snsTypeLoop == SNS_INSTAGRAM && !isNetworkBusy && (instagramThrottleRetryAt == 0 || (int32_t)(millis() - instagramThrottleRetryAt) >= 0)) {
+
         isNetworkBusy = true;
 
         // Grab the user input from the stored variable, stripping ESPTimeCast params first
@@ -4915,22 +4946,28 @@ void loop() {
         // Pull the username out of an instagram.com/<username> URL if present
         int igIdx = rawUrl.indexOf("instagram.com/");
         if (igIdx != -1) {
-          targetUsername = rawUrl.substring(igIdx + 14);  // length of "instagram.com/"
+          targetUsername = rawUrl.substring(igIdx + 14);
         } else {
           // Fallback: assume they pasted the raw username (optionally with a leading @)
           targetUsername = rawUrl;
         }
-        if (targetUsername.startsWith("@")) targetUsername = targetUsername.substring(1);
 
-        // Trim off anything after the username itself (trailing slash, query string)
+        if (targetUsername.startsWith("@")) {
+          targetUsername = targetUsername.substring(1);
+        }
+
+        // Trim off anything after the username itself
         int slashIdx = targetUsername.indexOf('/');
         if (slashIdx != -1) targetUsername = targetUsername.substring(0, slashIdx);
+
         int qIdx = targetUsername.indexOf('?');
         if (qIdx != -1) targetUsername = targetUsername.substring(0, qIdx);
+
         targetUsername.trim();
 
-        // Send the extracted username to the PHP bridge
-        String bridgeUrl = "http://esptimecast.com/instagram-bridge.php?username=" + targetUsername;
+        String bridgeUrl =
+          "http://esptimecast.com/instagram-bridge.php?username=" + targetUsername;
+
         Serial.println("[INSTAGRAM] Fetching via PHP bridge: " + bridgeUrl);
 
         WiFiClient client;
@@ -4940,35 +4977,53 @@ void loop() {
         http.setTimeout(4000);
 
         int httpCode = http.GET();
-        if (httpCode == 200) {
-          String payload = http.getString();
-          payload.trim();
+        String payload = http.getString();
+        payload.trim();
 
-          // Find the key inside the JSON payload
+        if (httpCode == 429 && payload.indexOf("\"status\":\"throttled\"") != -1) {
+
+          unsigned long retryDelay =
+            INSTAGRAM_THROTTLE_RETRY_MIN_MS + random(INSTAGRAM_THROTTLE_RETRY_JITTER_MS + 1);
+
+          instagramThrottleRetryAt = millis() + retryDelay;
+
+          Serial.printf(
+            "[INSTAGRAM] Bridge throttled; retrying in %.1f seconds.\n",
+            retryDelay / 1000.0);
+
+        } else if (httpCode == 200) {
+          // A real response clears a previous short throttled retry schedule.
+          instagramThrottleRetryAt = 0;
+
           int folKeyIdx = payload.indexOf("\"followers\":");
           if (folKeyIdx != -1) {
-            // Cut the string starting right after '"followers":'
             String folValueStr = payload.substring(folKeyIdx + 12);
-
-            // Remove the closing brace '}' if any, and convert to integer
             folValueStr.replace("}", "");
             folValueStr.trim();
 
             long parsedFollowers = folValueStr.toInt();
             if (parsedFollowers >= 0) {
               instagramFollowers = parsedFollowers;
-              Serial.printf("[INSTAGRAM] Followers fetched from JSON: %ld\n", instagramFollowers);
+              Serial.printf(
+                "[INSTAGRAM] Followers fetched from JSON: %ld\n",
+                instagramFollowers);
             } else {
-              Serial.println("[INSTAGRAM] Bridge JSON reported an error/not-found count (-1)");
+              Serial.println(
+                "[INSTAGRAM] Bridge JSON reported an error/not-found count (-1)");
             }
           } else {
-            Serial.println("[INSTAGRAM] Failed to find 'followers' key in JSON payload");
+            Serial.println(
+              "[INSTAGRAM] Failed to find 'followers' key in JSON payload");
           }
+
         } else {
-          // Covers the bridge's 503 "blocked" response (Instagram rate-limited
-          // or login-walled us) as well as ordinary network failures — either
-          // way we just skip this cycle and retry next interval.
-          Serial.printf("[INSTAGRAM] HTTP failed! Code: %d, Message: %s\n", httpCode, http.errorToString(httpCode).c_str());
+          // Keep the normal hourly retry behavior for blocked and ordinary failures.
+          instagramThrottleRetryAt = 0;
+
+          Serial.printf(
+            "[INSTAGRAM] HTTP failed! Code: %d, Message: %s\n",
+            httpCode,
+            http.errorToString(httpCode).c_str());
         }
 
         http.end();
@@ -5201,6 +5256,7 @@ void loop() {
             clockScrollDone = false;
             return;
           }
+          handleButtons();
           yield();
         }
         // Only if we finish the while loop naturally do we mark it done
@@ -5523,6 +5579,7 @@ void loop() {
                 while (!P.displayAnimate()) {
                   if (displayMode != 3) return;
                   if (forceMessageRestart) return;
+                  handleButtons();
                   yield();
                 }
                 countdownSegment++;
@@ -5619,6 +5676,7 @@ void loop() {
         while (!P.displayAnimate()) {
           if (displayMode != 3) return;
           if (forceMessageRestart) break;
+          handleButtons();
           yield();
         }
 
@@ -5735,6 +5793,7 @@ void loop() {
       while (!P.displayAnimate()) {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
+        handleButtons();
         yield();
       }
 
@@ -5793,6 +5852,7 @@ void loop() {
       while (!P.displayAnimate()) {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
+        handleButtons();
         yield();
       }
       advanceDisplayMode();
@@ -6102,6 +6162,7 @@ void loop() {
     while (!P.displayAnimate()) {
       if (displayMode != 6) return;
       if (forceMessageRestart) return;  // Exit immediately to top level
+      handleButtons();
       yield();
     }
 
