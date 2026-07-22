@@ -554,6 +554,7 @@ POST http://<device_ip>/action
 | Parameter | Value | Description |
 |-----------|-------|-------------|
 | `clear_message` | -— | Clear current message, restore persistent UI message |
+| `clear_message_all` | -— | Clear current all messages |
 | `save` | —- | Persist current settings to flash |
 | `restart` | -— | Reboot the device |
 
