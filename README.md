@@ -996,7 +996,7 @@ action:
 &nbsp;
 </details>
 <details>
-<summary>📡 Bridge Mode (YouTube, RSS, Nightscout)</summary>
+<summary>📡 Bridge Mode (YouTube, Instagram, RSS, Nightscout)</summary>
 &nbsp;
 
 ESPTimeCast can display live data from external services using the secondary NTP/URL field (`ntpServer2`). The device automatically detects which service to connect to based on the URL you enter, no extra configuration needed. Paste your URL into the field and the device does the rest.  
@@ -1020,7 +1020,17 @@ Paste any YouTube channel URL or handle into the `ntpServer2` field:
 `https://www.youtube.com/@mkbhd`  
 `https://www.youtube.com/channel/UCxxxxxxxxxxxxxx`  
 
-The subscriber count is fetched via a PHP bridge, formatted to fit the display (e.g. `42.1K`, `3.5M`), and shown with the YouTube icon. Data is refreshed every hour.
+The subscriber count is fetched via a PHP bridge, formatted to fit the display (e.g. `42.1K`, `3.5M`), and shown with the YouTube icon. Data is refreshed every 2 hours.
+
+### 📷 Instagram Follower Counter (Experimental)
+
+Paste any Instagram profile URL into the ntpServer2 field:
+
+`https://www.instagram.com/mfactory.osaka`
+`https://instagram.com/mfactory.osaka`
+
+This feature is experimental. Instagram heavily caches public profile information, so follower counts may only update once per day, regardless of the refresh interval.  
+The subscriber count is fetched via a PHP bridge, formatted to fit the display (e.g. `42.1K`, `3.5M`), and shown with the Instagram icon. Data is refreshed every 2 hours.
 
 ### 📰 RSS Feed Headlines
 
@@ -1030,7 +1040,8 @@ Paste any RSS, Atom, or RDF feed URL into the `ntpServer2` field:
 `https://feeds.bbci.co.uk/news/rss.xml`  
 `https://www.nasa.gov/rss/dyn/breaking_news.rss`  
 
-The title of the most recent article scrolls across the display with the RSS icon. Most standard feed formats are detected automatically — if the URL contains `feed`, `rss`, or `atom`, or ends in `.rss` / `.atom`, it will be picked up correctly.
+The title of the most recent article scrolls across the display with the RSS icon. Most standard feed formats are detected automatically — if the URL contains `feed`, `rss`, or `atom`, or ends in `.rss` / `.atom`, it will be picked up correctly.  
+The RSS feed is fetched via a PHP bridge, data is refreshed every 30 min.
 
 ### ⚕️ Nightscout Integration
 
