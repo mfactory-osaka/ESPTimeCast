@@ -117,11 +117,11 @@ If you prefer a free option, there are many compatible **MAX7219 LED matrix encl
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
-    <img src="https://img.shields.io/badge/Printables-541%20Downloads-orange?logo=prusa" width="210">
+    <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fesptimecast.com%2Fbadges.php%3Fsite%3Dprintables" width="210">
   </a>
   <br>
   <a href="https://cults3d.com/en/3d-model/gadget/wifi-connected-led-matrix-clock-and-weather-station-esp8266-and-max7219">
-    <img src="https://img.shields.io/badge/Cults3D-156%20Downloads-blue?logo=cults3d" width="180">
+    <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fesptimecast.com%2Fbadges.php%3Fsite%3Dcults" width="180">
   </a>
 </p>
 
@@ -1030,7 +1030,7 @@ Paste any Instagram profile URL into the ntpServer2 field:
 `https://instagram.com/mfactory.osaka`
 
 This feature is experimental. Instagram heavily caches public profile information, so follower counts may only update once per day, regardless of the refresh interval.  
-The subscriber count is fetched via a PHP bridge, formatted to fit the display (e.g. `42.1K`, `3.5M`), and shown with the Instagram icon. Data is refreshed every 2 hours.
+The follower count is fetched via a PHP bridge, formatted to fit the display (e.g. `42.1K`, `3.5M`), and shown with the Instagram icon. Data is refreshed every 2 hours.
 
 ### 📰 RSS Feed Headlines
 
@@ -1041,7 +1041,7 @@ Paste any RSS, Atom, or RDF feed URL into the `ntpServer2` field:
 `https://www.nasa.gov/rss/dyn/breaking_news.rss`  
 
 The title of the most recent article scrolls across the display with the RSS icon. Most standard feed formats are detected automatically — if the URL contains `feed`, `rss`, or `atom`, or ends in `.rss` / `.atom`, it will be picked up correctly.  
-The RSS feed is fetched via a PHP bridge, data is refreshed every 30 min.
+RSS feeds are checked every 30 minutes.
 
 ### ⚕️ Nightscout Integration
 
