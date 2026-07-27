@@ -153,8 +153,12 @@ int parseBridgeShowEvery(const String &url) {
   return (val >= 1) ? val : 1;
 }
 
-const unsigned long SNS_FETCH_INTERVAL = 1800000UL;  // 1 hour
-unsigned long lastSnsFetchTime = 0;
+const unsigned long YOUTUBE_FETCH_INTERVAL   = 2UL * 60 * 60 * 1000; // 2 hours
+const unsigned long INSTAGRAM_FETCH_INTERVAL = 2UL * 60 * 60 * 1000; // 2 hours
+const unsigned long RSS_FETCH_INTERVAL       = 30UL * 60 * 1000;     // 30 minutes
+unsigned long lastYoutubeFetchTime = 0;
+unsigned long lastInstagramFetchTime = 0;
+unsigned long lastRssFetchTime = 0;
 const unsigned long INSTAGRAM_THROTTLE_RETRY_MIN_MS = 10000UL;
 const unsigned long INSTAGRAM_THROTTLE_RETRY_JITTER_MS = 5000UL;
 unsigned long instagramThrottleRetryAt = 0;
@@ -4757,230 +4761,227 @@ void loop() {
 
   // --- SNS (YouTube / Instagram / RSS) FETCH TIMER ---
   if ((snsTypeLoop == SNS_YOUTUBE || snsTypeLoop == SNS_INSTAGRAM || snsTypeLoop == SNS_RSS) && WiFi.status() == WL_CONNECTED) {
-    bool normalSnsFetchDue =
-      lastSnsFetchTime == 0 || millis() - lastSnsFetchTime >= SNS_FETCH_INTERVAL;
 
     bool instagramThrottleRetryDue =
       snsTypeLoop == SNS_INSTAGRAM && instagramThrottleRetryAt != 0 && (int32_t)(millis() - instagramThrottleRetryAt) >= 0;
 
-    if (normalSnsFetchDue || instagramThrottleRetryDue) {
+    if (snsTypeLoop == SNS_YOUTUBE && !isNetworkBusy && (lastYoutubeFetchTime == 0 || millis() - lastYoutubeFetchTime >= YOUTUBE_FETCH_INTERVAL)) {
 
-      if (snsTypeLoop == SNS_YOUTUBE && !isNetworkBusy) {
-        isNetworkBusy = true;
+      isNetworkBusy = true;
 
-        // Grab the user input from the stored variable, stripping ESPTimeCast params first
-        String rawUrl = stripUrlParam(String(ntpServer2), "show_every");
-        String targetId = "";
+      // Grab the user input from the stored variable, stripping ESPTimeCast params first
+      String rawUrl = stripUrlParam(String(ntpServer2), "show_every");
+      String targetId = "";
 
-        // Check if the input contains an "@" handle
-        int atIndex = rawUrl.indexOf("@");
-        if (atIndex != -1) {
-          // Extract everything from the "@" to the end (e.g., "@linustech")
-          targetId = rawUrl.substring(atIndex);
-        }
-        // Check if it's a traditional channel URL
-        else if (rawUrl.indexOf("channel/") != -1) {
-          int channelIdx = rawUrl.indexOf("channel/");
-          targetId = rawUrl.substring(channelIdx + 8);
-        }
-        // Fallback: assume they pasted the raw ID directly
-        else {
-          targetId = rawUrl;
-        }
-
-        // Send the extracted ID or Handle to the PHP bridge
-        String bridgeUrl = "http://esptimecast.com/youtube-bridge.php?id=" + targetId;
-        Serial.println("[YOUTUBE] Fetching via PHP bridge: " + bridgeUrl);
-
-        WiFiClient client;
-        HTTPClient http;
-        http.begin(client, bridgeUrl);
-        http.setUserAgent("ESPTimeCast-Firmware");
-        http.setTimeout(4000);
-
-        int httpCode = http.GET();
-        if (httpCode == 200) {
-          String payload = http.getString();
-          payload.trim();
-
-          // Find the key inside the JSON payload
-          int subKeyIdx = payload.indexOf("\"subscribers\":");
-          if (subKeyIdx != -1) {
-            // Cut the string starting right after '"subscribers":'
-            String subValueStr = payload.substring(subKeyIdx + 14);
-
-            // Remove the closing brace '}' if any, and convert to integer
-            subValueStr.replace("}", "");
-            subValueStr.trim();
-
-            long parsedSubs = subValueStr.toInt();
-            if (parsedSubs >= 0) {
-              youtubeSubscribers = parsedSubs;
-              Serial.printf("[YOUTUBE] Subscribers fetched from JSON: %ld\n", youtubeSubscribers);
-            } else {
-              Serial.println("[YOUTUBE] Bridge JSON reported an error count (-1)");
-            }
-          } else {
-            Serial.println("[YOUTUBE] Failed to find 'subscribers' key in JSON payload");
-          }
-        } else {
-          Serial.printf("[YOUTUBE] HTTP failed! Code: %d, Message: %s\n", httpCode, http.errorToString(httpCode).c_str());
-        }
-
-        http.end();
-        isNetworkBusy = false;
+      // Check if the input contains an "@" handle
+      int atIndex = rawUrl.indexOf("@");
+      if (atIndex != -1) {
+        // Extract everything from the "@" to the end (e.g., "@linustech")
+        targetId = rawUrl.substring(atIndex);
+      }
+      // Check if it's a traditional channel URL
+      else if (rawUrl.indexOf("channel/") != -1) {
+        int channelIdx = rawUrl.indexOf("channel/");
+        targetId = rawUrl.substring(channelIdx + 8);
+      }
+      // Fallback: assume they pasted the raw ID directly
+      else {
+        targetId = rawUrl;
       }
 
-      if (snsTypeLoop == SNS_INSTAGRAM && !isNetworkBusy && (instagramThrottleRetryAt == 0 || (int32_t)(millis() - instagramThrottleRetryAt) >= 0)) {
+      // Send the extracted ID or Handle to the PHP bridge
+      String bridgeUrl = "http://esptimecast.com/youtube-bridge.php?id=" + targetId;
+      Serial.println("[YOUTUBE] Fetching via PHP bridge: " + bridgeUrl);
 
-        isNetworkBusy = true;
+      WiFiClient client;
+      HTTPClient http;
+      http.begin(client, bridgeUrl);
+      http.setUserAgent("ESPTimeCast-Firmware");
+      http.setTimeout(4000);
 
-        // Grab the user input from the stored variable, stripping ESPTimeCast params first
-        String rawUrl = stripUrlParam(String(ntpServer2), "show_every");
-        String targetUsername = "";
-
-        // Pull the username out of an instagram.com/<username> URL if present
-        int igIdx = rawUrl.indexOf("instagram.com/");
-        if (igIdx != -1) {
-          targetUsername = rawUrl.substring(igIdx + 14);
-        } else {
-          // Fallback: assume they pasted the raw username (optionally with a leading @)
-          targetUsername = rawUrl;
-        }
-
-        if (targetUsername.startsWith("@")) {
-          targetUsername = targetUsername.substring(1);
-        }
-
-        // Trim off anything after the username itself
-        int slashIdx = targetUsername.indexOf('/');
-        if (slashIdx != -1) targetUsername = targetUsername.substring(0, slashIdx);
-
-        int qIdx = targetUsername.indexOf('?');
-        if (qIdx != -1) targetUsername = targetUsername.substring(0, qIdx);
-
-        targetUsername.trim();
-
-        String bridgeUrl =
-          "http://esptimecast.com/instagram-bridge.php?username=" + targetUsername;
-
-        Serial.println("[INSTAGRAM] Fetching via PHP bridge: " + bridgeUrl);
-
-        WiFiClient client;
-        HTTPClient http;
-        http.begin(client, bridgeUrl);
-        http.setUserAgent("ESPTimeCast-Firmware");
-        http.setTimeout(4000);
-
-        int httpCode = http.GET();
+      int httpCode = http.GET();
+      if (httpCode == 200) {
         String payload = http.getString();
         payload.trim();
 
-        if (httpCode == 429 && payload.indexOf("\"status\":\"throttled\"") != -1) {
+        // Find the key inside the JSON payload
+        int subKeyIdx = payload.indexOf("\"subscribers\":");
+        if (subKeyIdx != -1) {
+          // Cut the string starting right after '"subscribers":'
+          String subValueStr = payload.substring(subKeyIdx + 14);
 
-          unsigned long retryDelay =
-            INSTAGRAM_THROTTLE_RETRY_MIN_MS + random(INSTAGRAM_THROTTLE_RETRY_JITTER_MS + 1);
+          // Remove the closing brace '}' if any, and convert to integer
+          subValueStr.replace("}", "");
+          subValueStr.trim();
 
-          instagramThrottleRetryAt = millis() + retryDelay;
+          long parsedSubs = subValueStr.toInt();
+          if (parsedSubs >= 0) {
+            youtubeSubscribers = parsedSubs;
+            Serial.printf("[YOUTUBE] Subscribers fetched from JSON: %ld\n", youtubeSubscribers);
+          } else {
+            Serial.println("[YOUTUBE] Bridge JSON reported an error count (-1)");
+          }
+        } else {
+          Serial.println("[YOUTUBE] Failed to find 'subscribers' key in JSON payload");
+        }
+      } else {
+        Serial.printf("[YOUTUBE] HTTP failed! Code: %d, Message: %s\n", httpCode, http.errorToString(httpCode).c_str());
+      }
 
-          Serial.printf(
-            "[INSTAGRAM] Bridge throttled; retrying in %.1f seconds.\n",
-            retryDelay / 1000.0);
+      http.end();
+      isNetworkBusy = false;
+      lastYoutubeFetchTime = millis();
+    }
 
-        } else if (httpCode == 200) {
-          // A real response clears a previous short throttled retry schedule.
-          instagramThrottleRetryAt = 0;
+    if (snsTypeLoop == SNS_INSTAGRAM && !isNetworkBusy && (instagramThrottleRetryDue || lastInstagramFetchTime == 0 || millis() - lastInstagramFetchTime >= INSTAGRAM_FETCH_INTERVAL)) {
 
-          int folKeyIdx = payload.indexOf("\"followers\":");
-          if (folKeyIdx != -1) {
-            String folValueStr = payload.substring(folKeyIdx + 12);
-            folValueStr.replace("}", "");
-            folValueStr.trim();
+      isNetworkBusy = true;
 
-            long parsedFollowers = folValueStr.toInt();
-            if (parsedFollowers >= 0) {
-              instagramFollowers = parsedFollowers;
-              Serial.printf(
-                "[INSTAGRAM] Followers fetched from JSON: %ld\n",
-                instagramFollowers);
-            } else {
-              Serial.println(
-                "[INSTAGRAM] Bridge JSON reported an error/not-found count (-1)");
-            }
+      // Grab the user input from the stored variable, stripping ESPTimeCast params first
+      String rawUrl = stripUrlParam(String(ntpServer2), "show_every");
+      String targetUsername = "";
+
+      // Pull the username out of an instagram.com/<username> URL if present
+      int igIdx = rawUrl.indexOf("instagram.com/");
+      if (igIdx != -1) {
+        targetUsername = rawUrl.substring(igIdx + 14);
+      } else {
+        // Fallback: assume they pasted the raw username (optionally with a leading @)
+        targetUsername = rawUrl;
+      }
+
+      if (targetUsername.startsWith("@")) {
+        targetUsername = targetUsername.substring(1);
+      }
+
+      // Trim off anything after the username itself
+      int slashIdx = targetUsername.indexOf('/');
+      if (slashIdx != -1) targetUsername = targetUsername.substring(0, slashIdx);
+
+      int qIdx = targetUsername.indexOf('?');
+      if (qIdx != -1) targetUsername = targetUsername.substring(0, qIdx);
+
+      targetUsername.trim();
+
+      String bridgeUrl =
+        "http://esptimecast.com/instagram-bridge.php?username=" + targetUsername;
+
+      Serial.println("[INSTAGRAM] Fetching via PHP bridge: " + bridgeUrl);
+
+      WiFiClient client;
+      HTTPClient http;
+      http.begin(client, bridgeUrl);
+      http.setUserAgent("ESPTimeCast-Firmware");
+      http.setTimeout(4000);
+
+      int httpCode = http.GET();
+      String payload = http.getString();
+      payload.trim();
+
+      if (httpCode == 429 && payload.indexOf("\"status\":\"throttled\"") != -1) {
+
+        unsigned long retryDelay =
+          INSTAGRAM_THROTTLE_RETRY_MIN_MS + random(INSTAGRAM_THROTTLE_RETRY_JITTER_MS + 1);
+
+        instagramThrottleRetryAt = millis() + retryDelay;
+
+        Serial.printf(
+          "[INSTAGRAM] Bridge throttled; retrying in %.1f seconds.\n",
+          retryDelay / 1000.0);
+
+      } else if (httpCode == 200) {
+        // A real response clears a previous short throttled retry schedule.
+        instagramThrottleRetryAt = 0;
+
+        int folKeyIdx = payload.indexOf("\"followers\":");
+        if (folKeyIdx != -1) {
+          String folValueStr = payload.substring(folKeyIdx + 12);
+          folValueStr.replace("}", "");
+          folValueStr.trim();
+
+          long parsedFollowers = folValueStr.toInt();
+          if (parsedFollowers >= 0) {
+            instagramFollowers = parsedFollowers;
+            Serial.printf(
+              "[INSTAGRAM] Followers fetched from JSON: %ld\n",
+              instagramFollowers);
           } else {
             Serial.println(
-              "[INSTAGRAM] Failed to find 'followers' key in JSON payload");
+              "[INSTAGRAM] Bridge JSON reported an error/not-found count (-1)");
           }
-
         } else {
-          // Keep the normal hourly retry behavior for blocked and ordinary failures.
-          instagramThrottleRetryAt = 0;
-
-          Serial.printf(
-            "[INSTAGRAM] HTTP failed! Code: %d, Message: %s\n",
-            httpCode,
-            http.errorToString(httpCode).c_str());
+          Serial.println(
+            "[INSTAGRAM] Failed to find 'followers' key in JSON payload");
         }
 
-        http.end();
-        isNetworkBusy = false;
+      } else {
+        // Keep the normal hourly retry behavior for blocked and ordinary failures.
+        instagramThrottleRetryAt = 0;
+
+        Serial.printf(
+          "[INSTAGRAM] HTTP failed! Code: %d, Message: %s\n",
+          httpCode,
+          http.errorToString(httpCode).c_str());
       }
 
-      if (snsTypeLoop == SNS_RSS && !isNetworkBusy) {
-        isNetworkBusy = true;
+      http.end();
+      isNetworkBusy = false;
+      lastInstagramFetchTime = millis();
+    }
 
-        auto urlEncode = [](String str) -> String {
-          String encoded = "";
-          for (int i = 0; i < str.length(); i++) {
-            char c = str.charAt(i);
-            if (isalnum(c)) {
-              encoded += c;
-            } else {
-              char code1 = (c & 0xf) + '0';
-              if ((c & 0xf) > 9) code1 = (c & 0xf) - 10 + 'A';
-              char c2 = (c >> 4) & 0xf;
-              char code0 = c2 + '0';
-              if (c2 > 9) code0 = c2 - 10 + 'A';
-              encoded += '%';
-              encoded += code0;
-              encoded += code1;
-            }
-          }
-          return encoded;
-        };
+    if (snsTypeLoop == SNS_RSS && !isNetworkBusy && (lastRssFetchTime == 0 || millis() - lastRssFetchTime >= RSS_FETCH_INTERVAL)) {
+      isNetworkBusy = true;
 
-        // Strip show_every=N before passing to bridge (value already in BRIDGE_SHOW_EVERY via advanceDisplayMode)
-        String feedUrl = stripUrlParam(String(ntpServer2), "show_every");
-
-        String bridgeUrl = "http://esptimecast.com/rss-bridge.php?url=" + urlEncode(feedUrl);
-        Serial.println("[RSS] Fetching via PHP bridge: " + bridgeUrl);
-
-        WiFiClient client;
-        HTTPClient http;
-        http.begin(client, bridgeUrl);
-        http.setUserAgent("ESPTimeCast-Firmware");
-        http.setTimeout(4000);
-
-        int httpCode = http.GET();
-        if (httpCode == 200) {
-          String payload = http.getString();
-          payload.trim();
-          bool isError = (payload == "RSS ERROR" || payload == "INVALID RSS" || payload == "NO ENTRY" || payload == "FORBIDDEN" || payload == "NO URL" || payload == "INVALID URL");
-          if (!isError && payload.length() > 0) {
-            rssTitle = payload;
-            Serial.println("[RSS] Title fetched: " + rssTitle);
+      auto urlEncode = [](String str) -> String {
+        String encoded = "";
+        for (int i = 0; i < str.length(); i++) {
+          char c = str.charAt(i);
+          if (isalnum(c)) {
+            encoded += c;
           } else {
-            Serial.println("[RSS] Bridge returned error: " + payload);
+            char code1 = (c & 0xf) + '0';
+            if ((c & 0xf) > 9) code1 = (c & 0xf) - 10 + 'A';
+            char c2 = (c >> 4) & 0xf;
+            char code0 = c2 + '0';
+            if (c2 > 9) code0 = c2 - 10 + 'A';
+            encoded += '%';
+            encoded += code0;
+            encoded += code1;
           }
-        } else {
-          Serial.printf("[RSS] HTTP failed! Code: %d\n", httpCode);
         }
+        return encoded;
+      };
 
-        http.end();
-        isNetworkBusy = false;
+      // Strip show_every=N before passing to bridge (value already in BRIDGE_SHOW_EVERY via advanceDisplayMode)
+      String feedUrl = stripUrlParam(String(ntpServer2), "show_every");
+
+      String bridgeUrl = "http://esptimecast.com/rss-bridge.php?url=" + urlEncode(feedUrl);
+      Serial.println("[RSS] Fetching via PHP bridge: " + bridgeUrl);
+
+      WiFiClient client;
+      HTTPClient http;
+      http.begin(client, bridgeUrl);
+      http.setUserAgent("ESPTimeCast-Firmware");
+      http.setTimeout(4000);
+
+      int httpCode = http.GET();
+      if (httpCode == 200) {
+        String payload = http.getString();
+        payload.trim();
+        bool isError = (payload == "RSS ERROR" || payload == "INVALID RSS" || payload == "NO ENTRY" || payload == "FORBIDDEN" || payload == "NO URL" || payload == "INVALID URL");
+        if (!isError && payload.length() > 0) {
+          rssTitle = payload;
+          Serial.println("[RSS] Title fetched: " + rssTitle);
+        } else {
+          Serial.println("[RSS] Bridge returned error: " + payload);
+        }
+      } else {
+        Serial.printf("[RSS] HTTP failed! Code: %d\n", httpCode);
       }
 
-      lastSnsFetchTime = millis();
+      http.end();
+      isNetworkBusy = false;
+      lastRssFetchTime = millis();
     }
   }
 
