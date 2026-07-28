@@ -1691,6 +1691,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       let isSaving = false;
       let isAPMode = false;
       let pendingBinUrl = null;
+      let pendingFromVersion = null;
       const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<h3>(){}!.:?,'_+%\/\[\]\\-]/g;
       let originalHostname = "";
 
@@ -3212,7 +3213,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             // DYNAMIC LINK SELECTION:
             // Matches "esp32s3" from device to "esp32s3" in ota.json
             pendingBinUrl = updateData.bins[board];
-
+            pendingFromVersion = currentVersion; 
             if (!pendingBinUrl) {
               throw new Error(`No binary found for board: ${board}`);
             }
@@ -3268,7 +3269,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             "<h3>Step 1/2: Downloading...</h3><p>Fetching firmware from GitHub.</p>", true
           );
 
-          const fileRes = await fetch(pendingBinUrl);
+          const fileRes = await fetch(pendingBinUrl + "?from=" + encodeURIComponent(pendingFromVersion),);
           if (!fileRes.ok)
             throw new Error("Could not download firmware from GitHub.");
 
