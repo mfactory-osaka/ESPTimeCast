@@ -32,7 +32,6 @@ See LICENSE.txt for full terms.
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
-
 #include "esp_partition.h"
 #include "nvs_flash.h"
 
@@ -429,7 +428,7 @@ void loadConfig() {
   // Check if config.json exists, if not, create default
   if (!LittleFS.exists("/config.json")) {
     Serial.println(F("[CONFIG] config.json not found, creating with defaults..."));
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc;
     doc[F("ssid")] = "";
     doc[F("password")] = "";
     doc[F("openWeatherApiKey")] = "";
@@ -481,7 +480,7 @@ void loadConfig() {
 
     File f = LittleFS.open("/config.json", "w");
     if (f) {
-      serializeJsonPretty(doc, f);
+      serializeJson(doc, f);
       f.close();
       Serial.println(F("[CONFIG] Default config.json created."));
     } else {
@@ -496,7 +495,7 @@ void loadConfig() {
     return;
   }
 
-  DynamicJsonDocument doc(1024);  // Size based on ArduinoJson Assistant + buffer
+  JsonDocument doc;  // Size based on ArduinoJson Assistant + buffer
   DeserializationError error = deserializeJson(doc, configFile);
   configFile.close();
 
@@ -654,7 +653,7 @@ void loadConfig() {
 
     File f = LittleFS.open("/config.json", "w");
     if (f) {
-      serializeJsonPretty(doc, f);
+      serializeJson(doc, f);
       f.close();
       Serial.println(F("[CONFIG] Migration saved successfully."));
     } else {
@@ -949,17 +948,12 @@ void printConfigToSerial() {
   Serial.println(ntpServer1);
   Serial.print(F("NTP Server 2: "));
   Serial.println(ntpServer2);
-
-  // ---------------------------------------------------------------------------
-  // DIMMING SECTION
-  // ---------------------------------------------------------------------------
   Serial.print(F("Automatic Dimming: "));
   Serial.println(autoDimmingEnabled ? "Enabled" : "Disabled");
   Serial.print(F("Custom Dimming: "));
   Serial.println(dimmingEnabled ? "Enabled" : "Disabled");
   Serial.print(F("Clock only during dimming: "));
   Serial.println(clockOnlyDuringDimming ? "Yes" : "No");
-
   if (autoDimmingEnabled) {
     // --- Automatic (Sunrise/Sunset) dimming mode ---
     if ((sunriseHour == 6 && sunriseMinute == 0) && (sunsetHour == 18 && sunsetMinute == 0)) {
@@ -967,19 +961,15 @@ void printConfigToSerial() {
     } else {
       Serial.printf("Automatic Dimming Schedule: Sunrise: %02d:%02d → Sunset: %02d:%02d\n",
                     sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
-
       time_t now_time = time(nullptr);
       struct tm localTime;
       localtime_r(&now_time, &localTime);
-
       int curTotal = localTime.tm_hour * 60 + localTime.tm_min;
       int startTotal = sunsetHour * 60 + sunsetMinute;
       int endTotal = sunriseHour * 60 + sunriseMinute;
-
       bool autoActive = (startTotal < endTotal)
                           ? (curTotal >= startTotal && curTotal < endTotal)
                           : (curTotal >= startTotal || curTotal < endTotal);
-
       Serial.printf("Current Auto-Dimming Status: %s\n", autoActive ? "ACTIVE" : "Inactive");
       Serial.printf("Dimming Brightness (night): %d\n", dimBrightness);
     }
@@ -989,7 +979,6 @@ void printConfigToSerial() {
                   dimStartHour, dimStartMinute, dimEndHour, dimEndMinute);
     Serial.printf("Dimming Brightness: %d\n", dimBrightness);
   }
-
   Serial.print(F("Countdown Enabled: "));
   Serial.println(countdownEnabled ? "Yes" : "No");
   Serial.print(F("Countdown Target Timestamp: "));
@@ -1018,33 +1007,25 @@ void printConfigToSerial() {
   } else {
     Serial.println(F("No runtime recorded yet."));
   }
-
   Serial.print(F("Hostname: "));
   Serial.println(deviceHostname);
-
   Serial.printf("Matrix Pins: CLK=%d CS=%d DATA=%d\n",
                 CLK_PIN, CS_PIN, DATA_PIN);
-
-  Serial.println(F("Physical Buttons:"));
-
+  Serial.print(F("Physical Buttons:"));
   bool hasButtons = false;
-
   for (int i = 0; i < 4; i++) {
     if (btnCfg[i].pin >= 0) {
       hasButtons = true;
-
-      Serial.printf("  Button %d → GPIO %d | short=%s | long=%s\n",
+      Serial.printf(" Button %d → GPIO %d | short=%s | long=%s\n",
                     i + 1,
                     btnCfg[i].pin,
                     btnCfg[i].shortAct.c_str(),
                     btnCfg[i].longAct.c_str());
     }
   }
-
   if (!hasButtons) {
-    Serial.println(F("  None configured"));
+    Serial.println(F(" None configured"));
   }
-
   Serial.println(F("========================================"));
   Serial.println();
 }
@@ -1406,6 +1387,260 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
 // -----------------------------------------------------------------------------
 void handleCaptivePortal(AsyncWebServerRequest *request);
 
+String sanitizeValue(const char *key) {
+  if (strcmp(key, "ssid") == 0) {
+    return getSafeSsid();
+  }
+  if (strcmp(key, "password") == 0) {
+    return getSafePassword();
+  }
+  if (strcmp(key, "openWeatherApiKey") == 0) {
+    return getSafeApiKey();
+  }
+  if (strcmp(key, "mode") == 0) {
+    return isAPMode ? "ap" : "sta";
+  }
+
+  return "";
+}
+
+struct StatusStreamState {
+  int section = 0;
+  String buf;
+  size_t bufPos = 0;
+  SnsType snsType;
+  time_t nowTime;
+};
+
+static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
+  switch (section) {
+    case 0:
+      {
+        JsonDocument doc;
+        doc["id"] = deviceHostname;
+        doc["version"] = FIRMWARE_VERSION;
+        doc["hardware"] = "MAX7219_FC16";
+#if defined(ESP32)
+        doc["board"] = "ESP32";
+#elif defined(ESP8266)
+        doc["board"] = "ESP8266";
+#else
+        doc["board"] = "unknown";
+#endif
+        String json;
+        serializeJson(doc, json);
+        return "{\"identity\":" + json;
+      }
+    case 1:
+      {
+        JsonDocument doc;
+        doc["displayMode"] = displayMode;
+        doc["displayBusy"] = (displayMode == 6 || displayMode == 7);
+        doc["allowInterrupt"] = allowInterrupt;
+        switch (displayMode) {
+          case 0: doc["mode"] = "clock"; break;
+          case 1: doc["mode"] = "weather"; break;
+          case 2: doc["mode"] = "weather_desc"; break;
+          case 3: doc["mode"] = "countdown"; break;
+          case 4:
+            if (snsType == SNS_YOUTUBE) doc["mode"] = "youtube";
+            else if (snsType == SNS_INSTAGRAM) doc["mode"] = "instagram";
+            else doc["mode"] = "nightscout";
+            break;
+          case 5: doc["mode"] = "date"; break;
+          case 6: doc["mode"] = "message"; break;
+          case 7: doc["mode"] = "timer"; break;
+          default: doc["mode"] = "cycling"; break;
+        }
+        doc["message"] = (strlen(customMessage) > 0) ? customMessage : "";
+        doc["displayOff"] = displayOff;
+        doc["brightness"] = brightness;
+        doc["lastBrightnessBeforeOff"] = lastBrightnessBeforeOff;
+        String json;
+        serializeJson(doc, json);
+        return ",\"display\":" + json;
+      }
+    case 2:
+      {
+        JsonDocument doc;
+        doc["device_runtime"] = formatTotalRuntime();
+        doc["session_runtime"] = millis() / 1000;
+        doc["wifi_signal"] = WiFi.RSSI();
+        doc["mdns_url"] = String(deviceHostname) + ".local";
+        doc["time_synced"] = ntpSyncSuccessful;
+        struct tm timeinfo;
+        localtime_r(&nowTime, &timeinfo);
+        char buffer[20];
+        strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+        doc["localTime"] = String(buffer);
+        doc["epochTime"] = static_cast<uint32_t>(nowTime);
+        String json;
+        serializeJson(doc, json);
+        return ",\"runtime\":" + json;
+      }
+    case 3:
+      {
+        JsonDocument doc;
+        doc["enabled"] = countdownEnabled;
+        doc["targetTimestamp"] = countdownTargetTimestamp;
+        doc["label"] = String(countdownLabel);
+        doc["isDramatic"] = isDramaticCountdown;
+        long long remaining = static_cast<long long>(countdownTargetTimestamp) - static_cast<long long>(nowTime);
+        doc["remaining"] = countdownEnabled ? (remaining > 0 ? remaining : 0) : 0;
+        String json;
+        serializeJson(doc, json);
+        return ",\"countdown\":" + json;
+      }
+    case 4:
+      {
+        JsonDocument doc;
+        if (weatherAvailable && weatherDescription.length() > 0) {
+          doc["currentTemperature"] = String(currentTemp).toInt();
+          doc["weatherDescription"] = weatherDescription;
+          doc["icon"] = weatherIcon;
+          doc["currentHumidity"] = currentHumidity;
+        } else {
+          doc["currentTemperature"] = JsonVariant();
+          doc["weatherDescription"] = JsonVariant();
+          doc["icon"] = JsonVariant();
+          doc["currentHumidity"] = JsonVariant();
+        }
+        doc["sunriseHour"] = weatherAvailable ? sunriseHour : JsonVariant();
+        doc["sunriseMinute"] = weatherAvailable ? sunriseMinute : JsonVariant();
+        doc["sunsetHour"] = weatherAvailable ? sunsetHour : JsonVariant();
+        doc["sunsetMinute"] = weatherAvailable ? sunsetMinute : JsonVariant();
+        String json;
+        serializeJson(doc, json);
+        return ",\"weather\":" + json;
+      }
+    case 5:
+      {
+        JsonDocument doc;
+        doc["active"] = (displayMode == 4);
+        doc["glucose"] = (currentGlucose != -1) ? currentGlucose : JsonVariant();
+        doc["trend"] = (currentDirection.length() > 0 && currentDirection != "?") ? currentDirection : JsonVariant();
+        if (lastGlucoseTime > 0) {
+          doc["lastReadingEpoch"] = lastGlucoseTime;
+          int minutes = static_cast<int>(difftime(time(nullptr), lastGlucoseTime) / 60.0);
+          doc["minutesSinceReading"] = (minutes > 0) ? minutes : 0;
+          doc["isOutdated"] = (minutes > NIGHTSCOUT_IDLE_THRESHOLD_MIN);
+        } else {
+          doc["lastReadingEpoch"] = nullptr;
+          doc["minutesSinceReading"] = nullptr;
+          doc["isOutdated"] = true;
+        }
+        String json;
+        serializeJson(doc, json);
+        return ",\"nightscout\":" + json;
+      }
+    case 6:
+      {
+        JsonDocument doc;
+        switch (snsType) {
+          case SNS_YOUTUBE: doc["type"] = "youtube"; break;
+          case SNS_INSTAGRAM: doc["type"] = "instagram"; break;
+          case SNS_NIGHTSCOUT: doc["type"] = "nightscout"; break;
+          case SNS_RSS: doc["type"] = "rss"; break;
+          default: doc["type"] = "none"; break;
+        }
+        doc["youtubeSubscribers"] = (youtubeSubscribers >= 0) ? youtubeSubscribers : JsonVariant();
+        doc["instagramFollowers"] = (instagramFollowers >= 0) ? instagramFollowers : JsonVariant();
+        doc["rssTitle"] = (rssTitle.length() > 0) ? rssTitle : JsonVariant();
+        String json;
+        serializeJson(doc, json);
+        return ",\"sns\":" + json;
+      }
+    case 7:
+      {
+        JsonDocument doc;
+        doc["ssid"] = String(ssid);
+        doc["openWeatherApiKey"] = (strlen(openWeatherApiKey) > 0) ? "***HIDDEN***" : "";
+        doc["openWeatherCity"] = String(openWeatherCity);
+        doc["weatherUnits"] = String(weatherUnits);
+        doc["clockDuration"] = clockDuration;
+        doc["weatherDuration"] = weatherDuration;
+        doc["timeZone"] = String(timeZone);
+        doc["language"] = String(language);
+        doc["flipDisplay"] = flipDisplay;
+        doc["twelveHourToggle"] = twelveHourToggle;
+        doc["showDate"] = showDate;
+        doc["showHumidity"] = showHumidity;
+        doc["ntpServer1"] = String(ntpServer1);
+        String nsUrl = String(ntpServer2);
+        int tokenIdx = nsUrl.indexOf("token=");
+        if (tokenIdx == -1) tokenIdx = nsUrl.indexOf("api_key=");
+        if (tokenIdx != -1) {
+          int keyStart = nsUrl.indexOf('=', tokenIdx) + 1;
+          doc["ntpServer2"] = nsUrl.substring(0, keyStart) + "***HIDDEN***";
+        } else {
+          doc["ntpServer2"] = nsUrl;
+        }
+        String json;
+        serializeJson(doc, json);
+        return ",\"config\":" + json;
+      }
+    case 8:
+      {
+        JsonDocument doc;
+        doc["dimmingEnabled"] = dimmingEnabled;
+        doc["dimStartHour"] = dimStartHour;
+        doc["dimStartMinute"] = dimStartMinute;
+        doc["dimEndHour"] = dimEndHour;
+        doc["dimEndMinute"] = dimEndMinute;
+        doc["autoDimmingEnabled"] = autoDimmingEnabled;
+        doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
+        String json;
+        serializeJson(doc, json);
+        return ",\"dimming\":" + json;
+      }
+    case 9:
+      {
+        JsonDocument doc;
+        doc["hideDonationMsg"] = hideDonationMsg;
+        if (!hideDonationMsg && nextDonationTime > 0) {
+          struct tm t;
+          localtime_r(&nextDonationTime, &t);
+          char buf[32];
+          strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", &t);
+          doc["nextDonationTime"] = String(buf);
+        } else {
+          doc["nextDonationTime"] = "N/A";
+        }
+        String json;
+        serializeJson(doc, json);
+        return ",\"donations\":" + json;
+      }
+    case 10:
+      {
+        JsonDocument doc;
+        doc["clk"] = CLK_PIN;
+        doc["cs"] = CS_PIN;
+        doc["data"] = DATA_PIN;
+        String json;
+        serializeJson(doc, json);
+        return ",\"pins\":" + json;
+      }
+    case 11:
+      {
+        JsonDocument doc;
+        JsonArray buttons = doc.to<JsonArray>();
+        for (int i = 0; i < 4; i++) {
+          JsonObject b = buttons.createNestedObject();
+          b["pin"] = btnCfg[i].pin;
+          b["shortAction"] = btnCfg[i].shortAct;
+          b["longAction"] = btnCfg[i].longAct;
+        }
+        String json;
+        serializeJson(doc, json);
+        return ",\"buttons\":" + json;
+      }
+    case 12:
+      return "}";
+    default:
+      return "";
+  }
+}
+
 void setupWebServer() {
   Serial.println(F("[WEBSERVER] Setting up web server..."));
 
@@ -1427,38 +1662,75 @@ void setupWebServer() {
     request->send(response);
   });
 
+  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(204);
+  });
+
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /config.json"));
-    File f = LittleFS.open("/config.json", "r");
-    if (!f) {
-      Serial.println(F("[WEBSERVER] Error opening /config.json"));
-      request->send(500, "application/json", "{\"error\":\"Failed to open config.json\"}");
-      return;
-    }
-    DynamicJsonDocument doc(2048);
-    DeserializationError err = deserializeJson(doc, f);
-    f.close();
-    if (err) {
-      Serial.print(F("[WEBSERVER] Error parsing /config.json: "));
-      Serial.println(err.f_str());
-      request->send(500, "application/json", "{\"error\":\"Failed to parse config.json\"}");
-      return;
-    }
+    struct ConfigStreamState {
+      File f;
+      String out;
+    };
 
-    // Always sanitize before sending to browser
-    doc[F("ssid")] = getSafeSsid();
-    doc[F("password")] = getSafePassword();
-    doc[F("openWeatherApiKey")] = getSafeApiKey();
-    doc[F("mode")] = isAPMode ? "ap" : "sta";
+    AsyncWebServerResponse *response = request->beginChunkedResponse(
+      "application/json",
+      [state = std::make_shared<ConfigStreamState>()](uint8_t *buffer, size_t maxLen, size_t index) mutable -> size_t {
+        if (index == 0) {
+          state->f = LittleFS.open("/config.json", "r");
+          state->out = String();
+        }
+        if (!state->f) return 0;
 
-    String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
+        while (state->out.length() < maxLen && state->f.available()) {
+          char c = state->f.read();
+          if (c == '"') {
+            String possibleKey = "\"";
+            while (state->f.available()) {
+              char k = state->f.read();
+              possibleKey += k;
+              if (k == '"') break;
+            }
+            if (possibleKey == "\"ssid\"" || possibleKey == "\"password\"" || possibleKey == "\"openWeatherApiKey\"") {
+              state->out += possibleKey;
+              while (state->f.available()) {
+                char x = state->f.read();
+                state->out += x;
+                if (x == '"') break;
+              }
+              while (state->f.available()) {
+                char x = state->f.read();
+                if (x == '"') break;
+              }
+              String cleanKey = possibleKey.substring(1, possibleKey.length() - 1);
+              state->out += sanitizeValue(cleanKey.c_str());
+              state->out += "\"";
+              continue;
+            }
+            state->out += possibleKey;
+            continue;
+          }
+          state->out += c;
+        }
+
+        if (state->out.length() == 0) {
+          if (state->f) state->f.close();
+          return 0;
+        }
+
+        size_t sendLen = min(maxLen, state->out.length());
+        memcpy(buffer, state->out.c_str(), sendLen);
+        state->out.remove(0, sendLen);
+        return sendLen;
+      });
+
+    response->addHeader("Connection", "close");
+    request->send(response);
   });
 
   server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /save"));
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc;
 
     File configFile = LittleFS.open("/config.json", "r");
     if (configFile) {
@@ -1563,9 +1835,15 @@ void setupWebServer() {
     countdownObj["label"] = countdownLabelStr;
     countdownObj["isDramaticCountdown"] = newIsDramaticCountdown;
 
-    size_t total = LittleFS.totalBytes();
-    size_t used = LittleFS.usedBytes();
-    Serial.printf("[SAVE] LittleFS total bytes: %llu, used bytes: %llu\n", LittleFS.totalBytes(), LittleFS.usedBytes());
+#if defined(ESP8266)
+    FSInfo fs_info;
+    LittleFS.info(fs_info);
+    Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", fs_info.totalBytes, fs_info.usedBytes);
+#elif defined(ESP32)
+      size_t total = LittleFS.totalBytes();
+      size_t used = LittleFS.usedBytes();
+      Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", (unsigned)total, (unsigned)used);
+#endif
 
     if (LittleFS.exists("/config.json")) {
       Serial.println(F("[SAVE] Renaming /config.json to /config.bak"));
@@ -1574,7 +1852,7 @@ void setupWebServer() {
     File f = LittleFS.open("/config.json", "w");
     if (!f) {
       Serial.println(F("[SAVE] ERROR: Failed to open /config.json for writing!"));
-      DynamicJsonDocument errorDoc(256);
+      JsonDocument errorDoc;
       errorDoc[F("error")] = "Failed to write config file.";
       String response;
       serializeJson(errorDoc, response);
@@ -1587,39 +1865,19 @@ void setupWebServer() {
     f.close();
     Serial.println(F("[SAVE] /config.json file closed."));
 
-    File verify = LittleFS.open("/config.json", "r");
-    if (!verify) {
-      Serial.println(F("[SAVE] ERROR: Failed to open /config.json for reading during verification!"));
-      DynamicJsonDocument errorDoc(256);
-      errorDoc[F("error")] = "Verification failed: Could not re-open config file.";
+    if (bytesWritten == 0) {
+      Serial.println(F("[SAVE] ERROR: 0 bytes written to config.json!"));
+      JsonDocument errorDoc;
+      errorDoc[F("error")] = "Write failed: 0 bytes written.";
       String response;
       serializeJson(errorDoc, response);
       request->send(500, "application/json", response);
       return;
     }
 
-    while (verify.available()) {
-      verify.read();
-    }
-    verify.seek(0);
+    Serial.println(F("[SAVE] Config write verified (byte count check)."));
 
-    DynamicJsonDocument test(2048);
-    DeserializationError err = deserializeJson(test, verify);
-    verify.close();
-
-    if (err) {
-      Serial.print(F("[SAVE] Config corrupted after save: "));
-      Serial.println(err.f_str());
-      DynamicJsonDocument errorDoc(256);
-      errorDoc[F("error")] = String("Config corrupted. Reboot cancelled. Error: ") + err.f_str();
-      String response;
-      serializeJson(errorDoc, response);
-      request->send(500, "application/json", response);
-      return;
-    }
-
-    Serial.println(F("[SAVE] Config verification successful."));
-    DynamicJsonDocument okDoc(128);
+    JsonDocument okDoc;
     if (doc.containsKey("hostname")) {
       deviceHostname = doc["hostname"].as<String>();
     }
@@ -1645,7 +1903,7 @@ void setupWebServer() {
       File src = LittleFS.open("/config.bak", "r");
       if (!src) {
         Serial.println(F("[WEBSERVER] Failed to open /config.bak"));
-        DynamicJsonDocument errorDoc(128);
+        JsonDocument errorDoc;
         errorDoc[F("error")] = "Failed to open backup file.";
         String response;
         serializeJson(errorDoc, response);
@@ -1656,7 +1914,7 @@ void setupWebServer() {
       if (!dst) {
         src.close();
         Serial.println(F("[WEBSERVER] Failed to open /config.json for writing"));
-        DynamicJsonDocument errorDoc(128);
+        JsonDocument errorDoc;
         errorDoc[F("error")] = "Failed to open config for writing.";
         String response;
         serializeJson(errorDoc, response);
@@ -1670,7 +1928,7 @@ void setupWebServer() {
       src.close();
       dst.close();
 
-      DynamicJsonDocument okDoc(128);
+      JsonDocument okDoc;
       okDoc[F("message")] = "✅ Backup restored! Device will now reboot.";
       String response;
       serializeJson(okDoc, response);
@@ -1684,7 +1942,7 @@ void setupWebServer() {
 
     } else {
       Serial.println(F("[WEBSERVER] No backup found"));
-      DynamicJsonDocument errorDoc(128);
+      JsonDocument errorDoc;
       errorDoc[F("error")] = "No backup found.";
       String response;
       serializeJson(errorDoc, response);
@@ -1693,7 +1951,7 @@ void setupWebServer() {
   });
 
   server.on("/ap_status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.print(F("[WEBSERVER] Request: /ap_status. isAPMode = "));
+    Serial.print(F("[WEBSERVER] Request: /ap_status = "));
     Serial.println(isAPMode);
     String json = "{\"isAP\": ";
     json += (isAPMode) ? "true" : "false";
@@ -1755,7 +2013,7 @@ void setupWebServer() {
 
   // --- Physical Buttons: get config ---
   server.on("/get_buttons", HTTP_GET, [](AsyncWebServerRequest *request) {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;
     JsonArray used = doc.createNestedArray("usedPins");
     used.add(CLK_PIN);
     used.add(CS_PIN);
@@ -1767,9 +2025,11 @@ void setupWebServer() {
       b["shortAction"] = btnCfg[i].shortAct;
       b["longAction"] = btnCfg[i].longAct;
     }
-    String out;
-    serializeJson(doc, out);
-    request->send(200, "application/json", out);
+    String response;
+    serializeJson(doc, response);
+    AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
+    res->addHeader("Connection", "close");
+    request->send(res);
   });
 
   // --- Physical Buttons: save config (config.json, no reboot) ---
@@ -1803,7 +2063,7 @@ void setupWebServer() {
         if (newPins[i] >= 0 && newPins[i] == newPins[j]) newPins[j] = -1;
 
     // Load existing config.json and patch the buttons key
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc;
     File configFile = LittleFS.open("/config.json", "r");
     if (configFile) {
       deserializeJson(doc, configFile);
@@ -1976,244 +2236,153 @@ void setupWebServer() {
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    DynamicJsonDocument doc(1536);
+    auto state = std::make_shared<StatusStreamState>();
+    state->snsType = detectSnsType(String(ntpServer2));
+    state->nowTime = time(nullptr);
+    state->buf = statusSectionJson(0, state->snsType, state->nowTime);
+    state->bufPos = 0;
+    state->section = 1;
 
-    // --- Identity ---
-    doc["id"] = deviceHostname;
-    doc["version"] = FIRMWARE_VERSION;
-    doc["hardware"] = "MAX7219_FC16";
-#if defined(ESP32)
-    doc["board"] = "ESP32";
-#elif defined(ESP8266)
-      doc["board"] = "ESP8266";
-#else
-      doc["board"] = "unknown";
-#endif
+    AsyncWebServerResponse *response = request->beginChunkedResponse(
+      "application/json",
+      [state](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+        while (state->bufPos >= state->buf.length()) {
+          if (state->section > 13) {
+            return 0;  // signals end of response
+          }
+          state->buf = statusSectionJson(state->section, state->snsType, state->nowTime);
+          state->bufPos = 0;
+          state->section++;
+        }
+        size_t remaining = state->buf.length() - state->bufPos;
+        size_t toCopy = (remaining < maxLen) ? remaining : maxLen;
+        memcpy(buffer, state->buf.c_str() + state->bufPos, toCopy);
+        state->bufPos += toCopy;
+        return toCopy;
+      });
 
-    // --- Display & Mode ---
-    doc["displayMode"] = displayMode;
-    doc["displayBusy"] = (displayMode == 6 || displayMode == 7);
-    doc["allowInterrupt"] = allowInterrupt;
-
-    SnsType snsType = detectSnsType(String(ntpServer2));
-    switch (displayMode) {
-      case 0: doc["mode"] = "clock"; break;
-      case 1: doc["mode"] = "weather"; break;
-      case 2: doc["mode"] = "weather_desc"; break;
-      case 3: doc["mode"] = "countdown"; break;
-      case 4:
-        if (snsType == SNS_YOUTUBE) doc["mode"] = "youtube";
-        else if (snsType == SNS_INSTAGRAM) doc["mode"] = "instagram";
-        else doc["mode"] = "nightscout";
-        break;
-      case 5: doc["mode"] = "date"; break;
-      case 6: doc["mode"] = "message"; break;
-      case 7: doc["mode"] = "timer"; break;
-      default: doc["mode"] = "cycling"; break;
-    }
-
-    doc["message"] = (strlen(customMessage) > 0) ? customMessage : "";
-    doc["displayOff"] = displayOff;
-    doc["brightness"] = brightness;
-    doc["lastBrightnessBeforeOff"] = lastBrightnessBeforeOff;
-
-
-    // --- Runtime ---
-    doc["device_runtime"] = formatTotalRuntime();
-    doc["session_runtime"] = millis() / 1000;
-    doc["wifi_signal"] = WiFi.RSSI();
-    doc["mdns_url"] = String(deviceHostname) + ".local";
-    doc["time_synced"] = ntpSyncSuccessful;
-
-    // --- Local Time & Epoch ---
-    time_t nowTime = time(nullptr);
-    struct tm timeinfo;
-    localtime_r(&nowTime, &timeinfo);
-    char buffer[20];
-    strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
-    doc["localTime"] = String(buffer);
-    doc["epochTime"] = static_cast<uint32_t>(nowTime);
-
-    // --- Countdown ---
-    JsonObject cd = doc.createNestedObject("countdown");
-    cd["enabled"] = countdownEnabled;
-    cd["targetTimestamp"] = countdownTargetTimestamp;
-    cd["label"] = String(countdownLabel);
-    cd["isDramatic"] = isDramaticCountdown;
-
-    long long remaining = static_cast<long long>(countdownTargetTimestamp) - static_cast<long long>(nowTime);
-    cd["remaining"] = countdownEnabled ? (remaining > 0 ? remaining : 0) : 0;
-
-    doc["countdownEnabled"] = countdownEnabled;
-    doc["countdownLabel"] = String(countdownLabel);
-
-    // --- Weather ---
-    JsonObject weather = doc.createNestedObject("weather");
-
-    if (weatherAvailable && weatherDescription.length() > 0) {
-      weather["currentTemperature"] = String(currentTemp).toInt();
-      weather["weatherDescription"] = weatherDescription;
-      weather["icon"] = weatherIcon;
-    } else {
-      weather["currentTemperature"] = JsonVariant();
-      weather["weatherDescription"] = JsonVariant();
-      weather["icon"] = JsonVariant();
-    }
-
-    weather["currentHumidity"] = (weatherAvailable && weatherDescription.length() > 0) ? currentHumidity : JsonVariant();
-    weather["sunriseHour"] = weatherAvailable ? sunriseHour : JsonVariant();
-    weather["sunriseMinute"] = weatherAvailable ? sunriseMinute : JsonVariant();
-    weather["sunsetHour"] = weatherAvailable ? sunsetHour : JsonVariant();
-    weather["sunsetMinute"] = weatherAvailable ? sunsetMinute : JsonVariant();
-
-    // --- Nightscout info ---
-#if defined(ESP32) || defined(ESP8266)
-    JsonObject ns = doc.createNestedObject("nightscout");
-    ns["active"] = (displayMode == 4);
-    if (currentGlucose != -1) ns["glucose"] = currentGlucose;
-    else ns["glucose"] = nullptr;
-    if (currentDirection.length() > 0 && currentDirection != "?") ns["trend"] = currentDirection;
-    else ns["trend"] = nullptr;
-
-    if (lastGlucoseTime > 0) {
-      ns["lastReadingEpoch"] = lastGlucoseTime;
-      time_t nowUTC = time(nullptr);
-      int minutes = static_cast<int>(difftime(nowUTC, lastGlucoseTime) / 60.0);
-      ns["minutesSinceReading"] = (minutes > 0) ? minutes : 0;
-      ns["isOutdated"] = (minutes > NIGHTSCOUT_IDLE_THRESHOLD_MIN);
-    } else {
-      ns["lastReadingEpoch"] = nullptr;
-      ns["minutesSinceReading"] = nullptr;
-      ns["isOutdated"] = true;
-    }
-#endif
-
-    // --- SNS info (YouTube / Instagram) ---
-    JsonObject sns = doc.createNestedObject("sns");
-    switch (snsType) {
-      case SNS_YOUTUBE: sns["type"] = "youtube"; break;
-      case SNS_INSTAGRAM: sns["type"] = "instagram"; break;
-      case SNS_NIGHTSCOUT: sns["type"] = "nightscout"; break;
-      case SNS_RSS: sns["type"] = "rss"; break;
-      default: sns["type"] = "none"; break;
-    }
-    sns["youtubeSubscribers"] = (youtubeSubscribers >= 0) ? youtubeSubscribers : JsonVariant();
-    sns["instagramFollowers"] = (instagramFollowers >= 0) ? instagramFollowers : JsonVariant();
-    sns["rssTitle"] = (rssTitle.length() > 0) ? rssTitle : JsonVariant();
-
-    // --- Saved Config ---
-    JsonObject config = doc.createNestedObject("config");
-    config["ssid"] = String(ssid);
-    config["openWeatherApiKey"] = (strlen(openWeatherApiKey) > 0) ? "***HIDDEN***" : "";
-    config["openWeatherCity"] = String(openWeatherCity);
-    config["weatherUnits"] = String(weatherUnits);
-    config["clockDuration"] = clockDuration;
-    config["weatherDuration"] = weatherDuration;
-    config["timeZone"] = String(timeZone);
-    config["language"] = String(language);
-    config["flipDisplay"] = flipDisplay;
-    config["twelveHourToggle"] = twelveHourToggle;
-    config["showDate"] = showDate;
-    config["showHumidity"] = showHumidity;
-    config["ntpServer1"] = String(ntpServer1);
-
-    String nsUrl = String(ntpServer2);
-    int tokenIdx = nsUrl.indexOf("token=");
-    if (tokenIdx == -1) tokenIdx = nsUrl.indexOf("api_key=");
-
-    if (tokenIdx != -1) {
-      int keyStart = nsUrl.indexOf('=', tokenIdx) + 1;
-      config["ntpServer2"] = nsUrl.substring(0, keyStart) + "***HIDDEN***";
-    } else {
-      config["ntpServer2"] = nsUrl;
-    }
-
-    // --- Dimming ---
-    JsonObject dimming = doc.createNestedObject("dimming");
-    dimming["dimmingEnabled"] = dimmingEnabled;
-    dimming["dimStartHour"] = dimStartHour;
-    dimming["dimStartMinute"] = dimStartMinute;
-    dimming["dimEndHour"] = dimEndHour;
-    dimming["dimEndMinute"] = dimEndMinute;
-    dimming["autoDimmingEnabled"] = autoDimmingEnabled;
-    dimming["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
-
-    // --- Donations ---
-    doc["hideDonationMsg"] = hideDonationMsg;
-    if (!hideDonationMsg && nextDonationTime > 0) {
-      struct tm t;
-      localtime_r(&nextDonationTime, &t);
-      char buf[32];
-      strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", &t);
-      doc["nextDonationTime"] = String(buf);
-    } else {
-      doc["nextDonationTime"] = "N/A";
-    }
-
-    // --- Pins ---
-    JsonObject pins = doc.createNestedObject("pins");
-    pins["clk"] = CLK_PIN;
-    pins["cs"] = CS_PIN;
-    pins["data"] = DATA_PIN;
-
-    // --- buttons ---
-    JsonArray buttons = doc.createNestedArray("buttons");
-
-    for (int i = 0; i < 4; i++) {
-      JsonObject b = buttons.createNestedObject();
-      b["pin"] = btnCfg[i].pin;
-      b["shortAction"] = btnCfg[i].shortAct;
-      b["longAction"] = btnCfg[i].longAct;
-    }
-
-    String response;
-    serializeJsonPretty(doc, response);
-    AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
-    res->addHeader("Access-Control-Allow-Origin", "*");
-    res->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    request->send(res);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    response->addHeader("Connection", "close");
+    request->send(response);
   });
 
   server.on("/export", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /export"));
 
-    File f;
-    if (LittleFS.exists("/config.json")) {
-      f = LittleFS.open("/config.json", "r");
-      Serial.println(F("[EXPORT] Using /config.json"));
-    } else if (LittleFS.exists("/config.bak")) {
-      f = LittleFS.open("/config.bak", "r");
-      Serial.println(F("[EXPORT] /config.json not found, using /config.bak"));
-    } else {
-      request->send(404, "application/json", "{\"error\":\"No config found\"}");
-      return;
-    }
+    AsyncWebServerResponse *response = request->beginChunkedResponse(
+      "application/json",
+      [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+        static File f;
+        static String out;
+        static bool sanitize = false;
 
-    DynamicJsonDocument doc(2048);
-    DeserializationError err = deserializeJson(doc, f);
-    f.close();
-    if (err) {
-      Serial.print(F("[EXPORT] Error parsing config: "));
-      Serial.println(err.f_str());
-      request->send(500, "application/json", "{\"error\":\"Failed to parse config\"}");
-      return;
-    }
+        if (index == 0) {
 
-    // Only sanitize if NOT in AP mode
-    if (!isAPMode) {
-      doc["ssid"] = "********";
-      doc["password"] = "********";
-      doc["openWeatherApiKey"] = "********************************";
-    }
+          if (LittleFS.exists("/config.json")) {
+            f = LittleFS.open("/config.json", "r");
+            Serial.println(F("[EXPORT] Using /config.json"));
+          } else if (LittleFS.exists("/config.bak")) {
+            f = LittleFS.open("/config.bak", "r");
+            Serial.println(F("[EXPORT] Using /config.bak"));
+          } else {
+            return 0;
+          }
 
-    doc["mode"] = isAPMode ? "ap" : "sta";
+          out = String();
+        }
 
-    String jsonOut;
-    serializeJsonPretty(doc, jsonOut);
+        if (!f) return 0;
 
-    AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", jsonOut);
-    resp->addHeader("Content-Disposition", "attachment; filename=\"config.json\"");
-    request->send(resp);
+        while (out.length() < maxLen && f.available()) {
+
+          char c = f.read();
+
+          // Detect protected keys
+          if (c == '"') {
+
+            String possibleKey = "\"";
+
+            while (f.available()) {
+              char k = f.read();
+              possibleKey += k;
+
+              if (k == '"')
+                break;
+            }
+
+            if (possibleKey == "\"ssid\"" || possibleKey == "\"password\"" || possibleKey == "\"openWeatherApiKey\"") {
+              out += possibleKey;
+
+              // Copy :"
+              while (f.available()) {
+                char x = f.read();
+                out += x;
+
+                if (x == '"')
+                  break;
+              }
+
+              // Skip original value
+              while (f.available()) {
+                char x = f.read();
+
+                if (x == '"')
+                  break;
+              }
+
+              String cleanKey = possibleKey.substring(1, possibleKey.length() - 1);
+
+              if (!isAPMode && (cleanKey == "ssid" || cleanKey == "password" || cleanKey == "openWeatherApiKey")) {
+
+                if (cleanKey == "ssid")
+                  out += "********";
+                else if (cleanKey == "password")
+                  out += "********";
+                else
+                  out += "********************************";
+
+              } else if (cleanKey == "mode") {
+
+                out += isAPMode ? "ap" : "sta";
+
+              } else {
+
+                out += "";
+              }
+
+              out += "\"";
+              continue;
+            }
+
+            out += possibleKey;
+            continue;
+          }
+
+          out += c;
+        }
+
+        if (out.length() == 0) {
+          if (f) {
+            f.close();
+          }
+          f = File();
+          out = String();
+          return 0;
+        }
+
+        size_t len = min(maxLen, out.length());
+        memcpy(buffer, out.c_str(), len);
+        out.remove(0, len);
+
+        return len;
+      });
+
+    response->addHeader(
+      "Content-Disposition",
+      "attachment; filename=\"config.json\"");
+    response->addHeader("Connection", "close");
+    request->send(response);
   });
 
   server.on("/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -2522,7 +2691,6 @@ void setupWebServer() {
     });
   });
 
-  server.onNotFound(handleCaptivePortal);
   server.begin();
   Serial.println(F("[WEBSERVER] Web server started"));
 }
@@ -2542,8 +2710,10 @@ void handleCaptivePortal(AsyncWebServerRequest *request) {
     if (isAPMode) {
       IPAddress apIP = WiFi.softAPIP();
       String redirectUrl = "http://" + apIP.toString() + "/";
-      //Serial.printf("[WEBSERVER] Captive probe %s → redirect\n", uri.c_str());
-      request->redirect(redirectUrl);
+      AsyncWebServerResponse *response = request->beginResponse(302);
+      response->addHeader("Location", redirectUrl);
+      response->addHeader("Connection", "close");
+      request->send(response);
       return;
     }
   }
@@ -2553,7 +2723,10 @@ void handleCaptivePortal(AsyncWebServerRequest *request) {
     IPAddress apIP = WiFi.softAPIP();
     String redirectUrl = "http://" + apIP.toString() + "/";
     Serial.printf("[WEBSERVER] Captive fallback redirect: %s\n", uri.c_str());
-    request->redirect(redirectUrl);
+    AsyncWebServerResponse *response = request->beginResponse(302);
+    response->addHeader("Location", redirectUrl);
+    response->addHeader("Connection", "close");
+    request->send(response);
     return;
   }
 
@@ -2828,7 +3001,7 @@ void fetchWeather() {
     Serial.print(F("[WEATHER] Payload: "));  // Use F() with Serial.print
     Serial.println(payload);
 
-    DynamicJsonDocument doc(1536);  // Adjust size as needed, use ArduinoJson Assistant
+    JsonDocument doc;  // Adjust size as needed, use ArduinoJson Assistant
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
@@ -2921,7 +3094,7 @@ void fetchWeather() {
     // -----------------------------------------
     if (autoDimmingEnabled && sunriseHour >= 0 && sunsetHour >= 0) {
       File configFile = LittleFS.open("/config.json", "r");
-      DynamicJsonDocument doc(1024);
+      JsonDocument doc;
 
       if (configFile) {
         DeserializationError error = deserializeJson(doc, configFile);
@@ -2940,7 +3113,7 @@ void fetchWeather() {
 
             File f = LittleFS.open("/config.json", "w");
             if (f) {
-              serializeJsonPretty(doc, f);
+              serializeJson(doc, f);
               f.close();
               Serial.println(F("[WEATHER] SAVED NEW sunrise/sunset to config.json (Values changed)"));
             } else {
@@ -3194,7 +3367,7 @@ String formatTotalRuntime() {
 void saveCustomMessageToConfig(const char *msg) {
   Serial.println(F("[CONFIG] Updating customMessage in config.json..."));
 
-  DynamicJsonDocument doc(2048);
+  JsonDocument doc;
 
   // Load existing config.json (if present)
   File configFile = LittleFS.open("/config.json", "r");
@@ -4115,9 +4288,11 @@ void setup() {
   } else {
     Serial.println(F("[SETUP] WiFi state is uncertain after connection attempt."));
   }
+#if defined(ESP32)
   if (!isAPMode && WiFi.status() == WL_CONNECTED) {
     setupMDNS();
   }
+#endif
   setupWebServer();
   Serial.println(F("[SETUP] Webserver setup complete"));
   Serial.println(F("[SETUP] Setup complete"));
@@ -4303,7 +4478,7 @@ bool isModeAvailable(int mode) {
 
 //config save after countdown finishes
 bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &label) {
-  DynamicJsonDocument doc(2048);
+  JsonDocument doc;
 
   File configFile = LittleFS.open("/config.json", "r");
   if (configFile) {
@@ -4345,7 +4520,7 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
 
 bool saveConfigRuntime() {
 
-  DynamicJsonDocument doc(4096);
+  JsonDocument doc;
 
   File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
@@ -4382,7 +4557,7 @@ bool saveConfigRuntime() {
     return false;
   }
 
-  serializeJsonPretty(doc, configFileWrite);
+  serializeJson(doc, configFileWrite);
   configFileWrite.close();
 
   Serial.println(F("[CONFIG] Runtime config saved"));
@@ -4509,7 +4684,7 @@ void loop() {
   static unsigned long reconnectInterval = 5000;
   static bool wasConnected = true;
 
-  if (!isRebooting) {
+  if (!isRebooting && (!isAPMode || credentialsExist())) {
     if (WiFi.status() != WL_CONNECTED) {
       if (wasConnected) {
         Serial.println(F("[WIFI] Connection lost. Will attempt reconnection..."));
@@ -5408,28 +5583,13 @@ void loop() {
       static unsigned long lastFlashingSwitch = 0;
       static int flashingMessageFrame = 0;
 
-      // --- Initial Combined Sequence: Play Hourglass THEN start Flashing ---
       // This 'if' runs ONLY ONCE when the "finished" sequence begins.
       if (!hourglassPlayed) {                          // <-- This is the single entry point for the combined sequence
         countdownFinished = true;                      // Mark as finished overall
         countdownShowFinishedMessage = true;           // Confirm we are in the finished sequence
         countdownFinishedMessageStartTime = millis();  // Start the 15-second timer for the flashing duration
 
-        // 1. Play Hourglass Animation (Blocking)
-        for (int repeat = 0; repeat < 3; repeat++) {
-          for (int i = 0; i < 4; i++) {
-            if (displayMode != 3) return;
-            if (forceMessageRestart) return;
-            P.setTextAlignment(PA_CENTER);
-            P.setCharSpacing(0);
-            P.write(161 + i);
-            delay(350);
-          }
-        }
-        Serial.println("[COUNTDOWN-FINISH] Played hourglass animation.");
-        P.displayClear();  // Clear display after hourglass animation
-
-        // 2. Initialize Flashing "TIMES UP" for its very first frame
+        // Initialize Flashing "TIMES UP" for its very first frame
         flashingMessageFrame = 0;
         lastFlashingSwitch = millis();  // Set initial time for first flash frame
         P.setTextAlignment(PA_CENTER);
@@ -5444,7 +5604,7 @@ void loop() {
 
       // --- Continue Flashing "TIMES UP" for its duration (after initial combined sequence) ---
       // This part runs in subsequent loop iterations after the hourglass has played.
-      if (millis() - countdownFinishedMessageStartTime < 15000) {  // Flashing duration
+      if (millis() - countdownFinishedMessageStartTime) {  // Flashing duration
         if (displayMode != 3) return;
         if (forceMessageRestart) return;
         if (millis() - lastFlashingSwitch >= 500) {  // Check for flashing interval
@@ -5721,6 +5881,7 @@ void loop() {
         while (millis() - snsStart < weatherDuration) {
           if (displayMode != 4) return;
           if (forceMessageRestart) return;
+          handleButtons();
           yield();
         }
 
@@ -5769,6 +5930,7 @@ void loop() {
         while (millis() - snsStart < weatherDuration) {
           if (displayMode != 4) return;
           if (forceMessageRestart) return;
+          handleButtons();
           yield();
         }
         advanceDisplayMode();
@@ -5818,6 +5980,7 @@ void loop() {
         while (millis() - rssStart < weatherDuration) {
           if (displayMode != 4) return;
           if (forceMessageRestart) return;
+          handleButtons();
           yield();
         }
         advanceDisplayMode();
@@ -5936,6 +6099,7 @@ void loop() {
       while (millis() - nightscoutStart < weatherDuration) {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
+        handleButtons();
         yield();
       }
       advanceDisplayMode();
@@ -5948,6 +6112,7 @@ void loop() {
       while (millis() - errorStart < 2000) {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
+        handleButtons();
         yield();
       }
       advanceDisplayMode();
@@ -6285,6 +6450,8 @@ void showTimerMode7() {
       if (now >= timerEndTime) {
         timerFinished = true;
         timerFinishStartTime = now;
+        if (!isPomodoroActive) {
+        }
       } else {
         remaining = (long)((timerEndTime - now) / 1000);
         if (remaining < 0) remaining = 0;

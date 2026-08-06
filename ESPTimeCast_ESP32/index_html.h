@@ -1728,29 +1728,33 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
       };
 
-      window.onload = function () {
-        fetch("/config.json")
-          .then((response) => response.json())
-          .then((data) => {
-            isAPMode = data.mode === "ap";
-            if (isAPMode) {
-              document.querySelector(".geo-note").style.display = "block";
-              document
-                .getElementById("geo-button")
-                .classList.add("geo-disabled");
-              document.getElementById("geo-button").disabled = true;
-
-              document.querySelector(".cmsg1").classList.add("geo-disabled");
-              document.querySelector(".cmsg1").disabled = true;
-
-              document.querySelector(".cmsg2").classList.add("geo-disabled");
-              document.querySelector(".cmsg2").disabled = true;
-            }
-            if (!isAPMode) {
-              document.querySelectorAll(".no-ap").forEach(el => {
-                el.classList.remove("no-ap");
-              });
-            }
+          window.onload = function () {
+            fetch("/ap_status")
+              .then((r) => r.json())
+              .then((apStatus) => {
+                isAPMode = apStatus.isAP;
+                if (isAPMode) {
+                  document.querySelector(".geo-note").style.display = "block";
+                  document.getElementById("geo-button").classList.add("geo-disabled");
+                  document.getElementById("geo-button").disabled = true;
+                  document.querySelector(".cmsg1").classList.add("geo-disabled");
+                  document.querySelector(".cmsg1").disabled = true;
+                  document.querySelector(".cmsg2").classList.add("geo-disabled");
+                  document.querySelector(".cmsg2").disabled = true;
+                }
+                if (!isAPMode) {
+                  document.querySelectorAll(".no-ap").forEach(el => {
+                    el.classList.remove("no-ap");
+                  });
+                }
+              })
+              .catch((err) => {
+                console.error("Failed to fetch AP status, assuming STA mode:", err);
+                isAPMode = false;
+              })
+              .then(() => fetch("/config.json"))
+              .then((response) => response.json())
+              .then((data) => {
             document.getElementById("ssid").value = data.ssid || "";
             document.getElementById("password").value = data.password || "";
             const apiInput = document.getElementById("openWeatherApiKey");
@@ -1959,14 +1963,20 @@ const char index_html[] PROGMEM = R"rawliteral(
               document.getElementById("timeZone").value = data.timeZone;
             }
 
-            setTimeout(() => {
-              fetch("/ip")
-                .then((r) => r.text())
-                .then((ip) => {
-                  document.getElementById("ipDisplay").textContent = ip || "—";
-                });
-              fetchUptime();
-              fetch("/get_buttons").then(r => r.json()).then(d => { _btnData = d; _renderBtnConfig(); }).catch(() => {});
+            setTimeout(async () => {
+              try {
+                const ipRes = await fetch("/ip");
+                const ip = await ipRes.text();
+                document.getElementById("ipDisplay").textContent = ip || "—";
+              } catch (e) {}
+
+              await fetchUptime();
+
+              try {
+                const btnRes = await fetch("/get_buttons");
+                _btnData = await btnRes.json();
+                _renderBtnConfig();
+              } catch (e) {}
             }, 100);
 
             document.querySelector("html").style.height = "unset";
@@ -2804,7 +2814,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       let uptimeTimer;
 
       function fetchUptime() {
-        fetch("/uptime")
+        return fetch("/uptime") 
           .then((res) => res.json())
           .then((data) => {
             const hostInput = document.getElementById("hostnameInput");
