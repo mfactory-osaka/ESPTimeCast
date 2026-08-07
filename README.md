@@ -1202,7 +1202,6 @@ This policy keeps:
 
 #### ⚖️ License Note
 
-The firmware code is licensed under **GPL-3.0** (subject to change in future versions).  
 This does **not** grant rights to use ESPTimeCast™ branding or visuals commercially.  
 
 &nbsp;
