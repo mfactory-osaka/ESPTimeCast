@@ -32,7 +32,7 @@ const DaysOfWeekMapping days_mappings[] = {
     { "hr", { "ned", "pon", "uto", "sri", "cet", "pet", "sub" } },
     { "hu", { "vas", "het", "ked", "sze", "csu", "pen", "szo" } },
     { "it", { "dom", "lun", "mar", "mer", "gio", "ven", "sab" } },
-    { "ja", { "±", "²", "³", "´", "µ", "¶", "·" } },
+    { "ja", { "\xB1", "\xB2", "\xB3", "\xB4", "\xB5", "\xB6", "\xB7" } },
     { "lt", { "sek", "pir", "ant", "tre", "ket", "pen", "ses" } },
     { "lv", { "sve", "pir", "otr", "tre", "cet", "pie", "ses" } },
     { "nl", { "zon", "maa", "din", "woe", "don", "vri", "zat" } },

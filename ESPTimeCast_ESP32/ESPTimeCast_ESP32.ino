@@ -6149,7 +6149,7 @@ void loop() {
 
     if (langStr == "ja") {
       // Japanese: "1 ²  2 4 ±"
-      dateString = monthAbbr + spacedDay + " ±";
+      dateString = monthAbbr + spacedDay + " \xB1";
     } else {
       auto isDayFirst = [](const String &lang) {
         const char *dayFirstLangs[] = { "af", "cs", "da", "de", "eo", "es", "et", "fi", "fr", "ga", "hr", "hu", "it", "lt", "lv", "nl", "no", "pl", "pt", "ro", "ru", "sk", "sl", "sr", "sv", "sw", "tr" };
