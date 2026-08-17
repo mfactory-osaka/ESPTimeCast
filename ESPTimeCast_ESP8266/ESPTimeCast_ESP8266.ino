@@ -26,11 +26,13 @@ See LICENSE.txt for full terms.
 #include <ESP8266mDNS.h>
 #include "version.h"
 #include "mfactoryfont.h"
+#include "buzzer.h"
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
 #include <EEPROM.h>
+#include "alarm.h"
 
 #define EEPROM_SIZE 16
 #define EEPROM_ADDR 0
@@ -67,6 +69,39 @@ int DATA_PIN = L_DATA;
 MD_Parola P = MD_Parola(HARDWARE_TYPE, L_DATA, L_CLK, L_CS, MAX_DEVICES);
 AsyncWebServer server(80);
 
+// --- Buzzer variables ---
+BuzzerConfig buzzerConfig;
+enum BuzzerState { BUZZER_IDLE,
+                   BUZZER_PLAYING };
+BuzzerState buzzerState = BUZZER_IDLE;
+const BuzzerPattern *buzzerActivePattern = nullptr;
+uint8_t buzzerCurrentStep = 0;
+unsigned long buzzerStepStartTime = 0;
+unsigned long buzzerEventStopAt = 0;
+bool buzzerRepeating = false;
+const unsigned long BUZZER_ALARM_TIMEOUT_MS = 15UL * 60 * 1000;  // 15 minutes
+const unsigned long BUZZER_EVENT_TIMEOUT_MS = 5000;              // 5 seconds — everything else
+const uint8_t defaultEventSound[BUZZER_EVENT_COUNT] = { 3, 3, 3, 3, 2, 1, 1 };
+const bool defaultEventRepeat[BUZZER_EVENT_COUNT] = { true, true, true, false, false, false, false };
+uint8_t buzzerSavedVolumeForPreview = 0;
+bool buzzerVolumeOverridden = false;
+
+// --- Alarm variables ---
+AlarmConfig alarmConfig;
+bool alarmRinging = false;
+int alarmLastCheckedMinute = -1;
+int alarmPreviousDisplayMode = 0;
+bool alarmSavedDisplayOff = false;
+int alarmSavedBrightness = 7;
+bool alarmSavedRotationEnabled = true;
+unsigned long alarmSnoozedUntil = 0;  // 0 = not currently snoozed
+enum AlarmPhase { ALARM_FLASHING,
+                  ALARM_SHOWING_CLOCK };
+AlarmPhase alarmPhase = ALARM_FLASHING;
+const char *alarmFlashFrames[2] = { "\x08", "\x09" };
+uint8_t alarmFlashFrame = 0;
+unsigned long alarmLastFlashSwitch = 0;
+unsigned long alarmPhaseStart = 0;
 
 // --- Global Scroll Speed Settings ---
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
@@ -259,6 +294,15 @@ WiFiClient client;
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
 bool rotationEnabled = true;
+inline uint32_t getLargestFreeBlock() {
+#if defined(ESP8266)
+  return ESP.getMaxFreeBlockSize();
+#elif defined(ESP32)
+  return ESP.getMaxAllocHeap();
+#else
+  return 0xFFFFFFFF;
+#endif
+}
 
 String currentTemp = "";
 String weatherDescription = "";
@@ -369,6 +413,7 @@ void advanceDisplayMode(bool forced = false);
 void previousDisplayMode(bool forced = false);
 void goToMode(const String &target);
 bool handlePomodoroCommand(String cmd);
+bool handleAlarmCommand(String cmd);
 
 // --- Safe WiFi credential and API getters ---
 const char *getSafeSsid() {
@@ -633,6 +678,83 @@ void loadConfig() {
     Serial.println(F("[CONFIG] Migrated: existing user detected, hideDonationMsg set to true."));
   }
 
+  // --- BUZZER CONFIG LOADING / MIGRATION ---
+  if (doc.containsKey("buzzer")) {
+    JsonObject bz = doc["buzzer"];
+    buzzerConfig.enabled = bz["enabled"] | true;
+    buzzerConfig.pin = bz["pin"] | 255;
+    buzzerConfig.volume = constrain((int)(bz["volume"] | 7), 1, 10);
+
+    JsonArray events = bz["events"];
+    for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+      if (i < (int)events.size()) {
+        buzzerConfig.eventEnabled[i] = events[i]["enabled"] | true;
+        buzzerConfig.eventSound[i] = events[i]["sound"] | defaultEventSound[i];
+        buzzerConfig.eventRepeat[i] = events[i]["repeat"] | defaultEventRepeat[i];
+      } else {
+        buzzerConfig.eventEnabled[i] = true;
+        buzzerConfig.eventSound[i] = defaultEventSound[i];
+        buzzerConfig.eventRepeat[i] = defaultEventRepeat[i];
+      }
+    }
+  } else {
+    buzzerConfig.enabled = false;  // off until user wires a buzzer and enables it
+    buzzerConfig.pin = 255;
+    buzzerConfig.volume = 7;
+    for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+      buzzerConfig.eventEnabled[i] = true;
+      buzzerConfig.eventSound[i] = defaultEventSound[i];
+      buzzerConfig.eventRepeat[i] = defaultEventRepeat[i];
+    }
+
+    JsonObject bz = doc.createNestedObject("buzzer");
+    bz["enabled"] = buzzerConfig.enabled;
+    bz["pin"] = buzzerConfig.pin;
+    bz["volume"] = buzzerConfig.volume;
+    JsonArray events = bz.createNestedArray("events");
+    for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+      JsonObject e = events.createNestedObject();
+      e["name"] = buzzerEventNames[i];
+      e["enabled"] = buzzerConfig.eventEnabled[i];
+      e["sound"] = buzzerConfig.eventSound[i];
+      e["repeat"] = buzzerConfig.eventRepeat[i];
+    }
+    configChanged = true;
+    Serial.println(F("[CONFIG] Migrated: added buzzer defaults."));
+  }
+
+  // --- ALARM CONFIG LOADING / MIGRATION ---
+  if (doc.containsKey("alarm")) {
+    JsonObject al = doc["alarm"];
+    alarmConfig.enabled = al["enabled"] | false;
+    alarmConfig.hour = al["hour"] | 7;
+    alarmConfig.minute = al["minute"] | 0;
+    JsonArray days = al["days"];
+    for (int i = 0; i < 7; i++) {
+      alarmConfig.days[i] = (i < (int)days.size()) ? (bool)days[i] : true;
+    }
+    alarmConfig.snoozeMinutes = al["snoozeMinutes"] | 15;
+    alarmConfig.brightness = al["brightness"] | 10;
+  } else {
+    alarmConfig.enabled = false;
+    alarmConfig.hour = 7;
+    alarmConfig.minute = 0;
+    for (int i = 0; i < 7; i++) alarmConfig.days[i] = true;
+    alarmConfig.snoozeMinutes = 15;
+    alarmConfig.brightness = 10;
+
+    JsonObject al = doc.createNestedObject("alarm");
+    al["enabled"] = alarmConfig.enabled;
+    al["hour"] = alarmConfig.hour;
+    al["minute"] = alarmConfig.minute;
+    JsonArray days = al.createNestedArray("days");
+    for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
+    al["snoozeMinutes"] = alarmConfig.snoozeMinutes;
+    al["brightness"] = alarmConfig.brightness;
+    configChanged = true;
+    Serial.println(F("[CONFIG] Migrated: added alarm defaults."));
+  }
+
   // --- Save migrated config if needed ---
   if (configChanged) {
     Serial.println(F("[CONFIG] Saving migrated config.json"));
@@ -707,6 +829,7 @@ void connectWiFi() {
     IPAddress apIP(192, 168, 4, 1);
     WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
     dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+    Serial.printf("[HEAP] AP mode started: %u free, %u largest\n", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
     Serial.print(F("[WIFI] AP IP address: "));
     Serial.println(WiFi.softAPIP());
     isAPMode = true;
@@ -803,6 +926,7 @@ void connectWiFi() {
         Serial.print(F("[WIFI] AP IP address: "));
         Serial.println(WiFi.softAPIP());
         dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+        Serial.printf("[HEAP] AP mode started: %u free, %u largest\n", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
         isAPMode = true;
 
         WiFiMode_t mode = WiFi.getMode();
@@ -1013,6 +1137,18 @@ void printConfigToSerial() {
   if (!hasButtons) {
     Serial.println(F(" None configured"));
   }
+  Serial.println(F("Buzzer:"));
+  Serial.printf("  Enabled=%s | Pin=%d | Volume=%d\n",
+                buzzerConfig.enabled ? "Yes" : "No",
+                buzzerConfig.pin,
+                buzzerConfig.volume);
+  for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+    Serial.printf("  %-14s → enabled=%s | sound=%d | repeat=%s\n",
+                  buzzerEventNames[i],
+                  buzzerConfig.eventEnabled[i] ? "Yes" : "No",
+                  buzzerConfig.eventSound[i],
+                  buzzerConfig.eventRepeat[i] ? "Yes" : "No");
+  }
   Serial.println(F("========================================"));
   Serial.println();
 }
@@ -1042,7 +1178,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[SNOWY]", "\x12", 8 },
     { "[WINDY]", "\x13", 8 },
     { "[CLOCK]", "\x14", 8 },
-    { "[ALARM]", "\x15", 9 },
+    { "[ALARMICON]", "\x15", 9 },
     { "[UPDATE]", "\x16", 8 },
     { "[BATTERYEMPTY]", "\x17", 8 },
     { "[BATTERY33]", "\x18", 8 },
@@ -1230,6 +1366,19 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
     if (!isClearRequest && clockOnlyDuringDimming && dimActive) {
       Serial.printf("[MESSAGE] Rejected (Dimming Mode): '%s'\n", msg.c_str());
       request->send(409, "text/plain", "Clock-only dimming mode active");
+      return;
+    }
+
+    // Handle Alarm Commands
+    if (handleAlarmCommand(msg)) {
+      if (!allowInterrupt) {
+        request->send(409, "text/plain", "Protected message active");
+      } else if (clockOnlyDuringDimming && dimActive) {
+        request->send(409, "text/plain", "Clock-only dimming active");
+      } else {
+        Serial.println(F("[MESSAGE] Alarm command executed."));
+        request->send(200, "text/plain", "Alarm Command Executed");
+      }
       return;
     }
 
@@ -1622,6 +1771,41 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
         return ",\"buttons\":" + json;
       }
     case 12:
+      {
+        JsonDocument doc;
+        doc["enabled"] = buzzerConfig.enabled;
+        doc["pin"] = buzzerConfig.pin;
+        doc["volume"] = buzzerConfig.volume;
+        doc["playing"] = (buzzerState == BUZZER_PLAYING);
+        doc["repeating"] = buzzerRepeating;
+        JsonArray events = doc.createNestedArray("events");
+        for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+          JsonObject e = events.createNestedObject();
+          e["name"] = buzzerEventNames[i];
+          e["enabled"] = buzzerConfig.eventEnabled[i];
+          e["sound"] = buzzerConfig.eventSound[i];
+          e["repeat"] = buzzerConfig.eventRepeat[i];
+        }
+        String json;
+        serializeJson(doc, json);
+        return ",\"buzzer\":" + json;
+      }
+    case 13:
+      {
+        JsonDocument doc;
+        doc["enabled"] = alarmConfig.enabled;
+        doc["hour"] = alarmConfig.hour;
+        doc["minute"] = alarmConfig.minute;
+        JsonArray days = doc.createNestedArray("days");
+        for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
+        doc["snoozeMinutes"] = alarmConfig.snoozeMinutes;
+        doc["brightness"] = alarmConfig.brightness;
+        doc["ringing"] = alarmRinging;
+        String json;
+        serializeJson(doc, json);
+        return ",\"alarm\":" + json;
+      }
+    case 14:
       return "}";
     default:
       return "";
@@ -1655,6 +1839,7 @@ void setupWebServer() {
 
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /config.json"));
+    Serial.printf("[HEAP] before open %u free, %u largest\n", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
 
     struct ConfigStreamState {
       File f;
@@ -1717,6 +1902,11 @@ void setupWebServer() {
   });
 
   server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (getLargestFreeBlock() < 4000) {
+      Serial.printf("[SAVE] Aborting: heap too fragmented (%u largest)\n", getLargestFreeBlock());
+      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+      return;
+    }
     Serial.println(F("[WEBSERVER] Request: /save"));
     JsonDocument doc;
 
@@ -1828,9 +2018,9 @@ void setupWebServer() {
     LittleFS.info(fs_info);
     Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", fs_info.totalBytes, fs_info.usedBytes);
 #elif defined(ESP32)
-    size_t total = LittleFS.totalBytes();
-    size_t used = LittleFS.usedBytes();
-    Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", (unsigned)total, (unsigned)used);
+      size_t total = LittleFS.totalBytes();
+      size_t used = LittleFS.usedBytes();
+      Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", (unsigned)total, (unsigned)used);
 #endif
 
     if (LittleFS.exists("/config.json")) {
@@ -2007,6 +2197,7 @@ void setupWebServer() {
     used.add(CLK_PIN);
     used.add(CS_PIN);
     used.add(DATA_PIN);
+    if (buzzerConfig.pin != 255) used.add(buzzerConfig.pin);
     JsonArray btns = doc.createNestedArray("buttons");
     for (int i = 0; i < 4; i++) {
       JsonObject b = btns.createNestedObject();
@@ -2080,7 +2271,124 @@ void setupWebServer() {
     }
 
     setupButtons();  // apply new pinMode() without reboot
+    buzzerHwSetup();
     Serial.println(F("[BUTTON] Config saved to config.json."));
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server.on("/get_buzzer", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    JsonArray used = doc.createNestedArray("usedPins");
+    used.add(CLK_PIN);
+    used.add(CS_PIN);
+    used.add(DATA_PIN);
+    for (int i = 0; i < 4; i++) {
+      if (btnCfg[i].pin >= 0) used.add(btnCfg[i].pin);
+    }
+    doc["enabled"] = buzzerConfig.enabled;
+    doc["pin"] = buzzerConfig.pin;
+    doc["volume"] = buzzerConfig.volume;
+    JsonArray events = doc.createNestedArray("events");
+    for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+      JsonObject e = events.createNestedObject();
+      e["name"] = buzzerEventNames[i];
+      e["enabled"] = buzzerConfig.eventEnabled[i];
+      e["sound"] = buzzerConfig.eventSound[i];
+      e["repeat"] = buzzerConfig.eventRepeat[i];
+    }
+    String response;
+    serializeJson(doc, response);
+    AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
+    res->addHeader("Connection", "close");
+    request->send(res);
+  });
+
+  server.on("/save_buzzer", HTTP_POST, [](AsyncWebServerRequest *request) {
+    int forbidden[8];
+    int fCount = 0;
+    forbidden[fCount++] = CLK_PIN;
+    forbidden[fCount++] = CS_PIN;
+    forbidden[fCount++] = DATA_PIN;
+    for (int i = 0; i < 4; i++) {
+      if (btnCfg[i].pin >= 0) forbidden[fCount++] = btnCfg[i].pin;
+    }
+
+    int pin = request->hasParam("pin", true) ? request->getParam("pin", true)->value().toInt() : 255;
+    for (int i = 0; i < fCount; i++) {
+      if (pin == forbidden[i]) {
+        pin = 255;
+        break;
+      }
+    }
+    buzzerConfig.pin = (uint8_t)pin;
+
+    if (request->hasParam("enabled", true)) {
+      buzzerConfig.enabled = request->getParam("enabled", true)->value() == "1";
+    }
+    if (request->hasParam("volume", true)) {
+      buzzerConfig.volume = constrain(request->getParam("volume", true)->value().toInt(), 1, 10);
+    }
+    for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+      String base = "evt" + String(i) + "_";
+      if (request->hasParam(base + "enabled", true)) {
+        buzzerConfig.eventEnabled[i] = request->getParam(base + "enabled", true)->value() == "1";
+      }
+      if (request->hasParam(base + "sound", true)) {
+        buzzerConfig.eventSound[i] = request->getParam(base + "sound", true)->value().toInt();
+      }
+      if (request->hasParam(base + "repeat", true)) {
+        buzzerConfig.eventRepeat[i] = request->getParam(base + "repeat", true)->value() == "1";
+      }
+    }
+
+    saveConfigRuntime();
+    buzzerHwSetup();  // re-init pin without reboot
+    Serial.println(F("[BUZZER] Config saved to config.json."));
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server.on("/get_alarm", HTTP_GET, [](AsyncWebServerRequest *request) {
+    DynamicJsonDocument doc(256);
+    doc["enabled"] = alarmConfig.enabled;
+    doc["hour"] = alarmConfig.hour;
+    doc["minute"] = alarmConfig.minute;
+    JsonArray days = doc.createNestedArray("days");
+    for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
+    doc["snoozeMinutes"] = alarmConfig.snoozeMinutes;
+    doc["brightness"] = alarmConfig.brightness;
+    doc["ringing"] = alarmRinging;
+
+    AsyncResponseStream *response = request->beginResponseStream("application/json");
+    response->addHeader("Connection", "close");
+    serializeJson(doc, *response);
+    request->send(response);
+  });
+
+  server.on("/save_alarm", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("enabled", true)) {
+      alarmConfig.enabled = request->getParam("enabled", true)->value() == "1";
+    }
+    if (request->hasParam("hour", true)) {
+      alarmConfig.hour = constrain(request->getParam("hour", true)->value().toInt(), 0, 23);
+    }
+    if (request->hasParam("minute", true)) {
+      alarmConfig.minute = constrain(request->getParam("minute", true)->value().toInt(), 0, 59);
+    }
+    for (int i = 0; i < 7; i++) {
+      String key = "day" + String(i);
+      if (request->hasParam(key, true)) {
+        alarmConfig.days[i] = request->getParam(key, true)->value() == "1";
+      }
+    }
+    if (request->hasParam("snoozeMinutes", true)) {
+      alarmConfig.snoozeMinutes = constrain(request->getParam("snoozeMinutes", true)->value().toInt(), 1, 60);
+    }
+    if (request->hasParam("brightness", true)) {
+      alarmConfig.brightness = constrain(request->getParam("brightness", true)->value().toInt(), 0, 15);
+    }
+
+    saveConfigRuntime();
+    Serial.println(F("[ALARM] Config saved."));
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -2207,7 +2515,7 @@ void setupWebServer() {
       "application/json",
       [state](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
         while (state->bufPos >= state->buf.length()) {
-          if (state->section > 13) {
+          if (state->section > 14) {
             return 0;  // signals end of response
           }
           state->buf = statusSectionJson(state->section, state->snsType, state->nowTime);
@@ -2656,6 +2964,12 @@ void setupWebServer() {
 
 void handleCaptivePortal(AsyncWebServerRequest *request) {
   String uri = request->url();
+
+
+
+  Serial.printf("[HEAP] Captive request '%s': %u free, %u largest\n",
+                uri.c_str(), ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+
   // Never interfere with real UI or API
   if (
     uri == "/" || uri == "/index.html" || uri.startsWith("/config") || uri.startsWith("/hostname") || uri.startsWith("/ip") || uri.endsWith(".json") || uri.endsWith(".js") || uri.endsWith(".css") || uri.endsWith(".png") || uri.endsWith(".ico")) {
@@ -3294,6 +3608,14 @@ void saveUptime() {
   }
 }
 
+void setAlarmSchedule(int hour, int minute, const bool days[7]) {
+  alarmConfig.hour = hour;
+  alarmConfig.minute = minute;
+  for (int i = 0; i < 7; i++) alarmConfig.days[i] = days[i];
+  alarmConfig.enabled = true;
+  configDirty = true;
+  lastBrightnessChange = millis();
+}
 
 // -----------------------------
 // Get total uptime including current session
@@ -3539,6 +3861,141 @@ bool handlePomodoroCommand(String cmd) {
   return true;
 }
 
+// -----------------------------------------------------------------------------
+// Alarm Command Handler
+// Syntax: [ALARM]         — scroll current schedule as text
+//         [ALARM STOP]    — dismiss a ringing alarm
+//         [ALARM SNOOZE]  — snooze a ringing alarm
+//         [ALARM TEST]    — fire the alarm now, for testing
+// -----------------------------------------------------------------------------
+bool handleAlarmCommand(String cmd) {
+  cmd.toUpperCase();
+  if (cmd.indexOf("[ALARM") == -1) return false;
+
+  if (cmd.indexOf("[ALARM STOP]") != -1) {
+    buzzerStop();
+    return true;
+  }
+
+  if (cmd.indexOf("[ALARM SNOOZE]") != -1) {
+    snoozeAlarm();
+    return true;
+  }
+
+  if (cmd.indexOf("[ALARM ENABLE]") != -1) {
+    alarmConfig.enabled = true;
+    configDirty = true;
+    lastBrightnessChange = millis();
+    Serial.println(F("[ALARM] Enabled via command."));
+    return true;
+  }
+
+  if (cmd.indexOf("[ALARM DISABLE]") != -1) {
+    alarmConfig.enabled = false;
+    configDirty = true;
+    lastBrightnessChange = millis();
+    Serial.println(F("[ALARM] Disabled via command."));
+    return true;
+  }
+
+  if (clockOnlyDuringDimming && dimActive) {
+    Serial.println(F("[ALARM] Ignored: Clock-only Dimming is active."));
+    return true;
+  }
+  if (!allowInterrupt) {
+    Serial.println(F("[ALARM] Ignored: Protected message is active."));
+    return true;
+  }
+
+  if (cmd.indexOf("[ALARM TEST]") != -1) {
+    fireAlarm();
+    Serial.println(F("[ALARM] Test fired via command."));
+    return true;
+  }
+
+  if (cmd.indexOf("[ALARM]") != -1) {
+    if (alarmRinging) {
+      Serial.println(F("[ALARM] Ignored: alarm is currently ringing."));
+      return true;
+    }
+    String schedule = formatAlarmSchedule(alarmConfig);
+    strncpy(customMessage, schedule.c_str(), sizeof(customMessage) - 1);
+    customMessage[sizeof(customMessage) - 1] = '\0';
+    messageBigNumbers = false;
+    messageDisplaySeconds = 0;
+    messageScrollTimes = 1;
+    messageScrollSpeed = GENERAL_SCROLL_SPEED;
+    prevDisplayMode = displayMode;
+    displayMode = 6;
+    forceMessageRestart = true;
+    Serial.println("[ALARM] Schedule requested: " + schedule);
+    return true;
+  }
+
+  if (cmd.indexOf("[ALARM SET ") != -1) {
+    int start = cmd.indexOf("[ALARM SET ") + 11;
+    int end = cmd.indexOf("]", start);
+    if (end == -1) return false;
+    String params = cmd.substring(start, end);
+    params.trim();
+
+    String tokens[4];
+    int tokenCount = 0;
+    int pos = 0;
+    while (tokenCount < 4 && pos < (int)params.length()) {
+      int sp = params.indexOf(' ', pos);
+      if (sp == -1) {
+        tokens[tokenCount++] = params.substring(pos);
+        break;
+      }
+      tokens[tokenCount++] = params.substring(pos, sp);
+      pos = sp + 1;
+    }
+
+    int colonIdx = tokens[0].indexOf(':');
+    if (colonIdx == -1) return false;
+    int h = tokens[0].substring(0, colonIdx).toInt();
+    int m = tokens[0].substring(colonIdx + 1).toInt();
+    if (h < 0 || h > 23 || m < 0 || m > 59) return false;
+
+    bool days[7];
+    if (tokenCount < 2 || tokens[1].length() == 0) {
+      for (int i = 0; i < 7; i++) days[i] = true;
+    } else {
+      for (int i = 0; i < 7; i++) days[i] = false;
+      for (unsigned int i = 0; i < tokens[1].length(); i++) {
+        int d = tokens[1].charAt(i) - '0';
+        if (d >= 0 && d <= 6) days[d] = true;
+      }
+    }
+
+    setAlarmSchedule(h, m, days);
+
+    if (tokenCount >= 3) {
+      int soundId = tokens[2].toInt();
+      if (soundId >= 1 && soundId <= 3) {
+        buzzerConfig.eventSound[BUZZER_EVT_ALARM] = (uint8_t)soundId;
+        buzzerConfig.eventEnabled[BUZZER_EVT_ALARM] = true;
+      }
+    }
+    if (tokenCount >= 4) {
+      int vol = tokens[3].toInt();
+      if (vol >= 1 && vol <= 10) {
+        buzzerConfig.volume = (uint8_t)vol;
+      }
+    }
+    if (tokenCount >= 3) {
+      configDirty = true;
+      lastBrightnessChange = millis();
+    }
+
+    Serial.printf("[ALARM] Set via command: %02d:%02d\n", h, m);
+    return true;
+  }
+
+  return false;
+}
+
 // Timer Helper
 bool handleTimerCommand(String cmd) {
   cmd.toUpperCase();
@@ -3667,6 +4124,7 @@ bool handleTimerCommand(String cmd) {
     if (timerActive && isStopwatch && !timerPaused) {
       timerPaused = true;
       timerRemainingAtPause = millis() - timerEndTime;
+      buzzerFireEvent(BUZZER_EVT_STOPWATCH);
       return true;
     }
 
@@ -3674,6 +4132,7 @@ bool handleTimerCommand(String cmd) {
     if (timerActive && isStopwatch && timerPaused) {
       timerEndTime = millis() - timerRemainingAtPause;
       timerPaused = false;
+      buzzerFireEvent(BUZZER_EVT_STOPWATCH);
       return true;
     }
 
@@ -3690,6 +4149,7 @@ bool handleTimerCommand(String cmd) {
     allowInterrupt = true;
     lastSwitch = millis();
     forceMessageRestart = true;
+    buzzerFireEvent(BUZZER_EVT_STOPWATCH);
     return true;
   }
 
@@ -3837,6 +4297,149 @@ void executeAction(const String &action, const String &value) {
   } else if (action == "enable_rotation") {
     rotationEnabled = hasValue ? boolVal : !rotationEnabled;
     if (rotationEnabled) advanceDisplayMode();
+
+  }
+
+  // Buzzer actions
+  else if (action == "buzzer_enable") {
+    buzzerConfig.enabled = hasValue ? boolVal : !buzzerConfig.enabled;
+    configDirty = true;
+    lastBrightnessChange = millis();
+
+  } else if (action == "buzzer_volume") {
+    buzzerConfig.volume = constrain(value.toInt(), 1, 10);
+    configDirty = true;
+    lastBrightnessChange = millis();
+
+  } else if (action == "play_sound") {
+    int sep1 = value.indexOf(':');
+    uint8_t soundId;
+    int previewVolume = -1;
+    bool repeat = false;
+
+    if (sep1 != -1) {
+      soundId = (uint8_t)value.substring(0, sep1).toInt();
+      int sep2 = value.indexOf(':', sep1 + 1);
+      if (sep2 == -1) {
+        previewVolume = value.substring(sep1 + 1).toInt();
+      } else {
+        previewVolume = value.substring(sep1 + 1, sep2).toInt();
+        repeat = value.substring(sep2 + 1).toInt() != 0;
+      }
+    } else {
+      soundId = hasValue ? (uint8_t)value.toInt() : 1;
+    }
+
+    if (previewVolume >= 1 && previewVolume <= 10) {
+      if (!buzzerVolumeOverridden) {
+        buzzerSavedVolumeForPreview = buzzerConfig.volume;
+      }
+      buzzerConfig.volume = (uint8_t)previewVolume;
+      buzzerVolumeOverridden = true;
+    }
+
+    buzzerTrigger(getSoundPattern(soundId), true, true);
+    buzzerRepeating = repeat;
+    buzzerEventStopAt = 0;
+
+  } else if (action == "buzzer_stop") {
+    buzzerStop();
+
+  } else if (action == "buzzer_event") {
+    int sep1 = value.indexOf(':');
+    if (sep1 > 0) {
+      String evtName = value.substring(0, sep1);
+      int sep2 = value.indexOf(':', sep1 + 1);
+      int soundId = (sep2 == -1) ? value.substring(sep1 + 1).toInt() : value.substring(sep1 + 1, sep2).toInt();
+      int idx = buzzerEventIndexFromName(evtName);
+      if (idx >= 0) {
+        buzzerConfig.eventEnabled[idx] = (soundId > 0);
+        buzzerConfig.eventSound[idx] = (uint8_t)max(soundId, 0);
+        if (sep2 != -1) {
+          buzzerConfig.eventRepeat[idx] = value.substring(sep2 + 1).toInt() != 0;
+        }
+        configDirty = true;
+        lastBrightnessChange = millis();
+        Serial.printf("[BUZZER] Event '%s' -> sound %d, repeat=%s (enabled=%s)\n",
+                      evtName.c_str(), soundId,
+                      buzzerConfig.eventRepeat[idx] ? "true" : "false",
+                      buzzerConfig.eventEnabled[idx] ? "true" : "false");
+      } else {
+        Serial.println("[BUZZER] Unknown event name: " + evtName);
+      }
+    }
+  }
+
+  // Alarm actions
+  else if (action == "alarm_stop") {
+    buzzerStop();
+
+  } else if (action == "alarm_snooze") {
+    snoozeAlarm();
+
+  } else if (action == "alarm_enable") {
+    alarmConfig.enabled = hasValue ? boolVal : !alarmConfig.enabled;
+    configDirty = true;
+    lastBrightnessChange = millis();
+
+  } else if (action == "alarm_test") {
+    int previewBrightness = hasValue ? value.toInt() : -1;
+    fireAlarm(previewBrightness);
+
+  } else if (action == "alarm_set") {
+    int c1 = value.indexOf(':');
+    int c2 = value.indexOf(':', c1 + 1);
+    int c3 = (c2 == -1) ? -1 : value.indexOf(':', c2 + 1);
+    int c4 = (c3 == -1) ? -1 : value.indexOf(':', c3 + 1);
+
+    int h = value.substring(0, c1).toInt();
+    int m;
+    String daysPart = "";
+    int soundId = -1;
+    int vol = -1;
+
+    if (c2 == -1) {
+      m = value.substring(c1 + 1).toInt();
+    } else if (c3 == -1) {
+      m = value.substring(c1 + 1, c2).toInt();
+      daysPart = value.substring(c2 + 1);
+    } else if (c4 == -1) {
+      m = value.substring(c1 + 1, c2).toInt();
+      daysPart = value.substring(c2 + 1, c3);
+      soundId = value.substring(c3 + 1).toInt();
+    } else {
+      m = value.substring(c1 + 1, c2).toInt();
+      daysPart = value.substring(c2 + 1, c3);
+      soundId = value.substring(c3 + 1, c4).toInt();
+      vol = value.substring(c4 + 1).toInt();
+    }
+
+    bool days[7];
+    if (daysPart.length() == 0) {
+      for (int i = 0; i < 7; i++) days[i] = true;
+    } else {
+      for (int i = 0; i < 7; i++) days[i] = false;
+      for (unsigned int i = 0; i < daysPart.length(); i++) {
+        int d = daysPart.charAt(i) - '0';
+        if (d >= 0 && d <= 6) days[d] = true;
+      }
+    }
+
+    setAlarmSchedule(h, m, days);
+
+    if (soundId >= 1 && soundId <= 3) {
+      buzzerConfig.eventSound[BUZZER_EVT_ALARM] = (uint8_t)soundId;
+      buzzerConfig.eventEnabled[BUZZER_EVT_ALARM] = true;
+    }
+    if (vol >= 1 && vol <= 10) {
+      buzzerConfig.volume = (uint8_t)vol;
+    }
+    if (soundId >= 1 || vol >= 1) {
+      configDirty = true;
+      lastBrightnessChange = millis();
+    }
+
+    Serial.printf("[ALARM] Set via action: %02d:%02d\n", h, m);
   }
 
   // Timer commands
@@ -4082,6 +4685,233 @@ void loadPins() {
   Serial.printf("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n", CLK_PIN, CS_PIN, DATA_PIN);
 }
 
+// -----------------------------------------------------------------------------
+// Buzzer: hardware driver (passive piezo, frequency + PWM duty for volume)
+// -----------------------------------------------------------------------------
+#if defined(ESP32)
+const uint8_t BUZZER_LEDC_RES = 10;  // 0-1023
+
+void buzzerHwSetup() {
+  if (buzzerConfig.pin == 255) return;
+  ledcAttach(buzzerConfig.pin, 2000, BUZZER_LEDC_RES);
+}
+
+void buzzerHwWrite(uint16_t freq, uint32_t duty) {
+  if (buzzerConfig.pin == 255) return;
+  if (freq == 0 || duty == 0) {
+    ledcWrite(buzzerConfig.pin, 0);
+  } else {
+    ledcChangeFrequency(buzzerConfig.pin, freq, BUZZER_LEDC_RES);
+    ledcWrite(buzzerConfig.pin, duty);
+  }
+}
+
+uint32_t buzzerVolumeToDuty(uint8_t volume) {
+  volume = constrain(volume, 1, 10);
+  float pct = map(volume, 1, 10, 5, 50) / 100.0f;
+  return (uint32_t)(pct * ((1 << BUZZER_LEDC_RES) - 1));
+}
+
+#elif defined(ESP8266)
+const uint16_t BUZZER_PWM_RANGE = 1023;
+
+void buzzerHwSetup() {
+  if (buzzerConfig.pin == 255) return;
+  pinMode(buzzerConfig.pin, OUTPUT);
+  analogWriteRange(BUZZER_PWM_RANGE);
+}
+
+void buzzerHwWrite(uint16_t freq, uint32_t duty) {
+  if (buzzerConfig.pin == 255) return;
+  if (freq == 0 || duty == 0) {
+    analogWrite(buzzerConfig.pin, 0);
+  } else {
+    analogWriteFreq(freq);
+    analogWrite(buzzerConfig.pin, duty);
+  }
+}
+
+uint32_t buzzerVolumeToDuty(uint8_t volume) {
+  volume = constrain(volume, 1, 10);
+  float pct = map(volume, 1, 10, 5, 50) / 100.0f;
+  return (uint32_t)(pct * BUZZER_PWM_RANGE);
+}
+#endif
+
+void buzzerApplyStep(uint8_t i) {
+  if (!buzzerActivePattern || i >= buzzerActivePattern->stepCount) return;
+  BuzzerStep s = buzzerActivePattern->steps[i];
+  if (s.freq > 0) {
+    buzzerHwWrite(s.freq, buzzerVolumeToDuty(buzzerConfig.volume));
+  } else {
+    buzzerHwWrite(0, 0);
+  }
+}
+
+void buzzerStop() {
+  buzzerHwWrite(0, 0);
+  buzzerState = BUZZER_IDLE;
+  buzzerActivePattern = nullptr;
+  buzzerRepeating = false;
+  buzzerEventStopAt = 0;
+
+  if (buzzerVolumeOverridden) {
+    buzzerConfig.volume = buzzerSavedVolumeForPreview;
+    buzzerVolumeOverridden = false;
+  }
+  if (alarmRinging) {
+    displayMode = 0;
+    prevDisplayMode = 6;
+    clockScrollDone = false;
+    forceMessageRestart = true;
+    lastSwitch = millis();
+    rotationEnabled = alarmSavedRotationEnabled;
+    if (alarmSavedDisplayOff) {
+      handleBrightnessChange(-1, false);
+    } else {
+      handleBrightnessChange(alarmSavedBrightness, false);
+    }
+  }
+  P.setInvert(0);
+  alarmRinging = false;
+}
+
+void buzzerTrigger(const BuzzerPattern *pattern, bool forceNoRepeat, bool ignoreEnabledFlag) {
+  if (buzzerConfig.pin == 255) return;
+  if (!ignoreEnabledFlag && !buzzerConfig.enabled) return;
+  if (!pattern || pattern->stepCount == 0) return;
+
+  buzzerHwWrite(0, 0);  // cut off whatever's currently playing before starting the new one
+
+  buzzerActivePattern = pattern;
+  buzzerCurrentStep = 0;
+  buzzerRepeating = forceNoRepeat ? false : pattern->repeat;
+  buzzerStepStartTime = millis();
+  buzzerState = BUZZER_PLAYING;
+  buzzerApplyStep(0);
+}
+
+void buzzerTrigger(const BuzzerPattern *pattern) {
+  buzzerTrigger(pattern, false, false);
+}
+
+void buzzerLoop() {
+  if (buzzerState != BUZZER_PLAYING || !buzzerActivePattern) return;
+
+  BuzzerStep step = buzzerActivePattern->steps[buzzerCurrentStep];
+  if (millis() - buzzerStepStartTime >= step.durationMs) {
+    buzzerCurrentStep++;
+    if (buzzerCurrentStep >= buzzerActivePattern->stepCount) {
+      if (buzzerRepeating) {
+        if (buzzerEventStopAt && millis() >= buzzerEventStopAt) {
+          buzzerRepeating = false;
+          if (alarmRinging) {
+            displayMode = 0;
+            prevDisplayMode = 6;
+            clockScrollDone = false;
+            forceMessageRestart = true;
+            lastSwitch = millis();
+            rotationEnabled = alarmSavedRotationEnabled;
+            if (alarmSavedDisplayOff) {
+              handleBrightnessChange(-1, false);
+            } else {
+              handleBrightnessChange(alarmSavedBrightness, false);
+            }
+            Serial.println(F("[ALARM] Timed out (15 min), display restored."));
+          }
+          buzzerStop();
+          return;
+        }
+        buzzerCurrentStep = 0;
+      } else {
+        buzzerStop();
+        return;
+      }
+    }
+    buzzerStepStartTime = millis();
+    buzzerApplyStep(buzzerCurrentStep);
+  }
+}
+
+// Call this from Timer/Pomodoro/Countdown finish points once you're ready to wire events in
+void buzzerFireEvent(BuzzerEventIndex evt) {
+  if (evt >= BUZZER_EVENT_COUNT || !buzzerConfig.enabled) return;
+  if (!buzzerConfig.eventEnabled[evt]) return;
+
+  buzzerTrigger(getSoundPattern(buzzerConfig.eventSound[evt]));
+  buzzerRepeating = buzzerConfig.eventRepeat[evt];
+
+  if (buzzerRepeating) {
+    unsigned long timeout = (evt == BUZZER_EVT_ALARM) ? BUZZER_ALARM_TIMEOUT_MS : BUZZER_EVENT_TIMEOUT_MS;
+    buzzerEventStopAt = millis() + timeout;
+  } else {
+    buzzerEventStopAt = 0;
+  }
+}
+
+void fireAlarm(int brightnessOverride) {
+  if (!ntpSyncSuccessful) return;
+  if (clockOnlyDuringDimming && dimActive) {
+    Serial.println(F("[ALARM] Skipped: Clock-only Dimming is active."));
+    return;
+  }
+
+  alarmRinging = true;
+  alarmPreviousDisplayMode = displayMode;
+  alarmSavedDisplayOff = displayOff;
+  alarmSavedBrightness = brightness;
+  alarmSavedRotationEnabled = rotationEnabled;
+
+  rotationEnabled = false;
+  int targetBrightness = (brightnessOverride >= 0 && brightnessOverride <= 15) ? brightnessOverride : alarmConfig.brightness;
+  handleBrightnessChange(targetBrightness, false);
+
+  displayMode = 8;
+  alarmPhase = ALARM_FLASHING;
+  alarmPhaseStart = millis();
+  forceMessageRestart = true;
+
+  buzzerFireEvent(BUZZER_EVT_ALARM);
+  Serial.println(F("[ALARM] Firing."));
+}
+
+void fireAlarm() {
+  fireAlarm(-1);
+}
+
+void snoozeAlarm() {
+  if (!alarmRinging) return;
+  alarmSnoozedUntil = millis() + (unsigned long)alarmConfig.snoozeMinutes * 60000UL;
+  buzzerStop();
+  Serial.printf("[ALARM] Snoozed for %d minutes.\n", alarmConfig.snoozeMinutes);
+}
+
+void checkAlarmSchedule() {
+  if (isRebooting) return;
+
+  if (alarmSnoozedUntil > 0 && millis() >= alarmSnoozedUntil) {
+    alarmSnoozedUntil = 0;
+    fireAlarm();
+    return;
+  }
+
+  if (!ntpSyncSuccessful) return;
+
+  time_t nowTime = time(nullptr);
+  struct tm timeinfo;
+  localtime_r(&nowTime, &timeinfo);
+
+  if (timeinfo.tm_min == alarmLastCheckedMinute) return;
+  alarmLastCheckedMinute = timeinfo.tm_min;
+
+  if (!alarmConfig.enabled || alarmRinging) return;
+  if (!alarmConfig.days[timeinfo.tm_wday]) return;
+
+  if (timeinfo.tm_hour == alarmConfig.hour && timeinfo.tm_min == alarmConfig.minute) {
+    fireAlarm();
+  }
+}
+
 void setupButtons() {
   for (int i = 0; i < 4; i++) {
     if (btnCfg[i].pin >= 0) {
@@ -4161,6 +4991,7 @@ void setup() {
   P.setFont(mFactory);
   loadConfig();
   setupButtons();
+  buzzerHwSetup();
   P.setIntensity(brightness);
   if (displayOff) {
     P.displayShutdown(true);
@@ -4416,7 +5247,10 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
 }
 
 bool saveConfigRuntime() {
-
+  if (getLargestFreeBlock() < 4000) {
+    Serial.println(F("[CONFIG] Skipping auto-save: heap too fragmented, will retry next cycle"));
+    return false;
+  }
   JsonDocument doc;
 
   File configFile = LittleFS.open("/config.json", "r");
@@ -4447,6 +5281,30 @@ bool saveConfigRuntime() {
   doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
   doc["hideDonationMsg"] = hideDonationMsg;
   doc["nextDonationTime"] = (uint32_t)nextDonationTime;
+
+  doc.remove("buzzer");
+  JsonObject bz = doc.createNestedObject("buzzer");
+  bz["enabled"] = buzzerConfig.enabled;
+  bz["pin"] = buzzerConfig.pin;
+  bz["volume"] = buzzerConfig.volume;
+  JsonArray events = bz.createNestedArray("events");
+  for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+    JsonObject e = events.createNestedObject();
+    e["name"] = buzzerEventNames[i];
+    e["enabled"] = buzzerConfig.eventEnabled[i];
+    e["sound"] = buzzerConfig.eventSound[i];
+    e["repeat"] = buzzerConfig.eventRepeat[i];
+  }
+
+  doc.remove("alarm");
+  JsonObject al = doc.createNestedObject("alarm");
+  al["enabled"] = alarmConfig.enabled;
+  al["hour"] = alarmConfig.hour;
+  al["minute"] = alarmConfig.minute;
+  JsonArray days = al.createNestedArray("days");
+  for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
+  al["snoozeMinutes"] = alarmConfig.snoozeMinutes;
+  al["brightness"] = alarmConfig.brightness;
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {
@@ -4575,6 +5433,8 @@ void triggerDonationMessage() {
 
 void loop() {
   handleButtons();
+  buzzerLoop();
+  checkAlarmSchedule();
 
   // --- WIFI RECONNECTION ---
   static unsigned long lastReconnectAttempt = 0;
@@ -4801,6 +5661,7 @@ void loop() {
     countdownFinishedMessageStartTime = millis();
 
     Serial.println("[SYSTEM] Countdown target reached! Switching to Mode 3 to display finish sequence.");
+    buzzerFireEvent(BUZZER_EVT_COUNTDOWN);
     yield();
   }
 
@@ -5348,6 +6209,7 @@ void loop() {
             return;
           }
           handleButtons();
+          buzzerLoop();
           yield();
         }
         // Only if we finish the while loop naturally do we mark it done
@@ -5519,7 +6381,9 @@ void loop() {
 
       // --- Continue Flashing "TIMES UP" for its duration (after initial combined sequence) ---
       // This part runs in subsequent loop iterations after the hourglass has played.
-      if (millis() - countdownFinishedMessageStartTime) {  // Flashing duration
+      const unsigned long timesUpFlashDuration =
+        (buzzerConfig.enabled && buzzerConfig.eventEnabled[BUZZER_EVT_COUNTDOWN]) ? 5000 : 15000;
+      if (millis() - countdownFinishedMessageStartTime < timesUpFlashDuration) {  // Flashing duration
         if (displayMode != 3) return;
         if (forceMessageRestart) return;
         if (millis() - lastFlashingSwitch >= 500) {  // Check for flashing interval
@@ -5656,6 +6520,7 @@ void loop() {
                   if (displayMode != 3) return;
                   if (forceMessageRestart) return;
                   handleButtons();
+                  buzzerLoop();
                   yield();
                 }
                 countdownSegment++;
@@ -5753,6 +6618,7 @@ void loop() {
           if (displayMode != 3) return;
           if (forceMessageRestart) break;
           handleButtons();
+          buzzerLoop();
           yield();
         }
 
@@ -5796,6 +6662,8 @@ void loop() {
         while (millis() - snsStart < weatherDuration) {
           if (displayMode != 4) return;
           if (forceMessageRestart) return;
+          handleButtons();
+          buzzerLoop();
           yield();
         }
 
@@ -5844,6 +6712,8 @@ void loop() {
         while (millis() - snsStart < weatherDuration) {
           if (displayMode != 4) return;
           if (forceMessageRestart) return;
+          handleButtons();
+          buzzerLoop();
           yield();
         }
         advanceDisplayMode();
@@ -5870,6 +6740,7 @@ void loop() {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
         handleButtons();
+        buzzerLoop();
         yield();
       }
 
@@ -5893,6 +6764,8 @@ void loop() {
         while (millis() - rssStart < weatherDuration) {
           if (displayMode != 4) return;
           if (forceMessageRestart) return;
+          handleButtons();
+          buzzerLoop();
           yield();
         }
         advanceDisplayMode();
@@ -5929,6 +6802,7 @@ void loop() {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
         handleButtons();
+        buzzerLoop();
         yield();
       }
       advanceDisplayMode();
@@ -6011,6 +6885,8 @@ void loop() {
       while (millis() - nightscoutStart < weatherDuration) {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
+        handleButtons();
+        buzzerLoop();
         yield();
       }
       advanceDisplayMode();
@@ -6023,6 +6899,8 @@ void loop() {
       while (millis() - errorStart < 2000) {
         if (displayMode != 4) return;
         if (forceMessageRestart) return;
+        handleButtons();
+        buzzerLoop();
         yield();
       }
       advanceDisplayMode();
@@ -6239,6 +7117,7 @@ void loop() {
       if (displayMode != 6) return;
       if (forceMessageRestart) return;  // Exit immediately to top level
       handleButtons();
+      buzzerLoop();
       yield();
     }
 
@@ -6256,6 +7135,10 @@ void loop() {
     showTimerMode7();
   }
 
+  if (displayMode == 8) {
+    showAlarmMode();
+  }
+
   unsigned long currentMillis = millis();
   unsigned long runtimeSeconds = (currentMillis - bootMillis) / 1000;
   unsigned long currentTotal = totalUptimeSeconds + runtimeSeconds;
@@ -6264,7 +7147,7 @@ void loop() {
   const unsigned long uptimeLogInterval = 600000UL;  // 10 minutes in ms
 
   // ---- CONFIG AUTO SAVE ----
-  if (configDirty && millis() - lastBrightnessChange > saveDelay) {
+  if (configDirty && !alarmRinging && millis() - lastBrightnessChange > saveDelay) {
     saveConfigRuntime();
     configDirty = false;
     Serial.println("[CONFIG] Auto-saved");
@@ -6320,6 +7203,7 @@ void showTimerMode7() {
         timerFinished = false;
         timerPaused = false;
         Serial.printf("[POMODORO] Break over. Starting session %d.\n", pomodoroSession);
+        buzzerFireEvent(BUZZER_EVT_POMODORO_BREAK);
         return;
       }
       unsigned long remaining = (currentBreakMs > elapsed) ? (currentBreakMs - elapsed) : 0;
@@ -6361,6 +7245,7 @@ void showTimerMode7() {
         timerFinished = true;
         timerFinishStartTime = now;
         if (!isPomodoroActive) {
+          buzzerFireEvent(BUZZER_EVT_TIMER);
         }
       } else {
         remaining = (long)((timerEndTime - now) / 1000);
@@ -6417,6 +7302,7 @@ void showTimerMode7() {
       timerFinished = false;
       Serial.printf("[POMODORO] Session %d done. Starting %s break.\n",
                     pomodoroSession, pomodoroSession == 4 ? "long" : "short");
+      buzzerFireEvent(BUZZER_EVT_POMODORO_WORK);
       return;
     }
 
@@ -6431,5 +7317,35 @@ void showTimerMode7() {
     }
     if ((now / 500) % 2 == 0) P.print("\x08");
     else P.print("\x09");
+  }
+}
+
+void showAlarmMode() {
+  if (!alarmRinging) return;
+
+  static bool alarmInvert = false;
+  static unsigned long alarmLastInvertSwitch = 0;
+  const unsigned long alarmInvertInterval = 500;
+
+  if (millis() - alarmLastInvertSwitch >= alarmInvertInterval) {
+    alarmInvert = !alarmInvert;
+    alarmLastInvertSwitch = millis();
+
+    struct tm timeinfo;
+    time_t nowTime = time(nullptr);
+    localtime_r(&nowTime, &timeinfo);
+
+    char buf[9];
+    strftime(buf, sizeof(buf), twelveHourToggle ? "%I:%M" : "%H:%M", &timeinfo);
+
+    String timeString = String(buf);
+    if (alarmInvert) {
+      timeString.replace(":", " ");
+    }
+
+    P.setTextAlignment(PA_CENTER);
+    P.setCharSpacing(1);
+    P.setInvert(alarmInvert);
+    P.print(timeString.c_str());
   }
 }

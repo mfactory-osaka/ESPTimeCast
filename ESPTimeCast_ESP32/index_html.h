@@ -270,6 +270,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       input[type="text"]:disabled,
       input[type="number"]:disabled,
       input[type="date"]:disabled {
+        -webkit-text-fill-color: rgba(255, 255, 255, 0.25);
         color: rgba(255, 255, 255, 0.25);
       }
 
@@ -817,9 +818,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         display: none;
       }
 
-      /* -------------------------------------------------------
-         Extracted from inline styles
-      ------------------------------------------------------- */
       .logo path {
         fill: currentColor;
         paint-order: markers fill stroke;
@@ -931,6 +929,70 @@ const char index_html[] PROGMEM = R"rawliteral(
         font-size: 1.35em;
         font-weight: bold;
         color: #2ecc71;
+      }
+
+      .select-and-toggle{
+          margin: 0;
+          gap: 2rem;
+          align-items: flex-start;
+      }
+
+      .sep{
+        margin-bottom: 3rem;
+      }
+
+      #buzzer-save-status{
+        text-align: center;
+      }
+
+      .alarm-days-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        margin-top: 0.5rem;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .day-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1.5px solid rgba(180, 230, 255, 0.08);
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: background 0.2s, border-color 0.2s;
+        user-select: none;
+        margin-top: 0;
+      }
+
+      .day-pill input {
+        display: none;
+      }
+
+      .day-pill.checked {
+        background: var(--accent-color);
+        border-color: var(--accent-color);
+        color: white;
+      }
+
+      .day-pill.disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      #alarmPreviewText {
+        opacity: 0.7;
+        font-size: 0.85rem;
+        margin: 0.75rem 0 0.25rem 0;
+        text-align: center;
+      }
+      #alarm-save-status {
+        text-align: center;
       }
     </style>
   </head>
@@ -1499,6 +1561,65 @@ const char index_html[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
+        <button type="button" class="sub-collapsible active" aria-expanded="false">
+          Alarm
+        </button>
+        <div class="sub-collapsible-content" aria-hidden="true">
+          <div class="content-wrapper">
+            <div class="toggle-padding">
+              <label class="toggle-row-lg">
+                <span class="label-text">Enable Alarm:</span>
+                <span class="toggle-switch">
+                  <input type="checkbox" id="alarmEnabled" onchange="_updateAlarmPreview(); setAlarmFieldsEnabled(this.checked); saveAlarmConfig(false);" />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+
+              <label for="alarmTime">Time:</label>
+              <input type="time" id="alarmTime" oninput="_updateAlarmPreview()" />
+
+              <label>Repeat:</label>
+              <div class="alarm-days-row" id="alarmDaysRow">
+                <label class="day-pill" data-day="0"><input type="checkbox" id="alarmDay0" checked />Su</label>
+                <label class="day-pill" data-day="1"><input type="checkbox" id="alarmDay1" checked />Mo</label>
+                <label class="day-pill" data-day="2"><input type="checkbox" id="alarmDay2" checked />Tu</label>
+                <label class="day-pill" data-day="3"><input type="checkbox" id="alarmDay3" checked />We</label>
+                <label class="day-pill" data-day="4"><input type="checkbox" id="alarmDay4" checked />Th</label>
+                <label class="day-pill" data-day="5"><input type="checkbox" id="alarmDay5" checked />Fr</label>
+                <label class="day-pill" data-day="6"><input type="checkbox" id="alarmDay6" checked />Sa</label>
+              </div>
+
+              <label>Alarm Brightness: <span id="alarmBrightnessValue">10</span></label>
+              <input
+                class="range-full"
+                type="range"
+                min="0"
+                max="15"
+                id="alarmBrightnessSlider"
+                value="10"
+                oninput="alarmBrightnessValue.textContent = this.value;"
+              />
+
+              <label for="alarmSnooze">Snooze duration (minutes):</label>
+              <input type="number" id="alarmSnooze" min="1" max="60" value="15" />
+              <p id="alarmPreviewText">ALARM 07:00 EVERY DAY</p>
+            </div>
+            <div class="button-row">
+                  <div class="btn-apply-wrap">
+                    <button type="button" id="testAlarmBtn" class="primary-button cmsg1 btn-apply-top" onclick="testAlarm()">
+                      Test Alarm
+                    </button>
+                  </div>
+                  <div class="btn-apply-wrap">
+                    <button type="button" id="alarmApplyBtn" class="primary-button cmsg1 btn-apply-top" onclick="saveAlarmConfig()">
+                      Apply
+                    </button>
+                  </div>
+            </div>
+            <p id="alarm-save-status"></p>
+          </div>
+        </div>
+
         <button
           type="button"
           class="sub-collapsible active"
@@ -1575,6 +1696,63 @@ const char index_html[] PROGMEM = R"rawliteral(
                 Allowed characters: A–Z, 0–9, space, and : ! ' - . ? , _ + % /
               </div>
             </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="sub-collapsible active"
+          aria-expanded="false"
+        >
+          Buzzer
+        </button>
+        <div class="sub-collapsible-content" aria-hidden="true">
+          <div class="content-wrapper">
+            <div class="toggle-padding">
+              <label class="toggle-row-lg">
+                <span class="label-text">Enable Buzzer:</span>
+                <span class="toggle-switch">
+                  <input type="checkbox" id="buzzerEnabled" onchange="setBuzzerFieldsEnabled(this.checked); saveBuzzerConfig(false);" />
+                  <span class="toggle-slider"></span>
+                </span>
+              </label>
+
+              <label class="btn-config-gpio-label" for="buzzerPin">GPIO Pin:</label>
+              <select id="buzzerPin" onchange="saveBuzzerConfig(false)"></select>
+
+              <label>Volume: <span id="buzzerVolumeValue">7</span></label>
+              <input
+                class="range-full"
+                type="range"
+                min="1"
+                max="10"
+                id="buzzerVolumeSlider"
+                value="7"
+                oninput="buzzerVolumeValue.textContent = this.value;"
+              />
+
+              <div class="btn-apply-wrap">
+                <button type="button" id="buzzerTestBtn" class="primary-button cmsg1 btn-apply-top sep" onclick="testBuzzer()">
+                  Test
+                </button>
+              </div>
+            </div>
+
+            <div id="buzzer-events-container" class="toggle-padding">
+              <p class="small loading-hint">Loading...</p>
+            </div>
+
+            <div class="btn-apply-wrap">
+              <button
+                id="buzzerApplyBtn"
+                type="button"
+                class="primary-button cmsg1 btn-apply-top"
+                onclick="saveBuzzerConfig()"
+              >
+                Apply
+              </button>
+            </div>
+            <p id="buzzer-save-status"></p>
           </div>
         </div>
 
@@ -1728,33 +1906,39 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
       };
 
-          window.onload = function () {
-            fetch("/ap_status")
-              .then((r) => r.json())
-              .then((apStatus) => {
-                isAPMode = apStatus.isAP;
-                if (isAPMode) {
-                  document.querySelector(".geo-note").style.display = "block";
-                  document.getElementById("geo-button").classList.add("geo-disabled");
-                  document.getElementById("geo-button").disabled = true;
-                  document.querySelector(".cmsg1").classList.add("geo-disabled");
-                  document.querySelector(".cmsg1").disabled = true;
-                  document.querySelector(".cmsg2").classList.add("geo-disabled");
-                  document.querySelector(".cmsg2").disabled = true;
-                }
-                if (!isAPMode) {
-                  document.querySelectorAll(".no-ap").forEach(el => {
-                    el.classList.remove("no-ap");
-                  });
-                }
-              })
-              .catch((err) => {
-                console.error("Failed to fetch AP status, assuming STA mode:", err);
-                isAPMode = false;
-              })
-              .then(() => fetch("/config.json"))
-              .then((response) => response.json())
-              .then((data) => {
+      window.onload = function () {
+        fetch("/ap_status")
+          .then((r) => r.json())
+          .then((apStatus) => {
+            isAPMode = apStatus.isAP;
+            if (isAPMode) {
+              document.querySelector(".geo-note").style.display = "block";
+              document.getElementById("geo-button").classList.add("geo-disabled");
+              document.getElementById("geo-button").disabled = true;
+              document.querySelector(".cmsg1").classList.add("geo-disabled");
+              document.querySelector(".cmsg1").disabled = true;
+              document.querySelector(".cmsg2").classList.add("geo-disabled");
+              document.querySelector(".cmsg2").disabled = true;
+            }
+            if (!isAPMode) {
+              document.querySelectorAll(".no-ap").forEach(el => {
+                el.classList.remove("no-ap");
+              });
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to fetch AP status, assuming STA mode:", err);
+            isAPMode = false;
+          })
+          .then(() => fetch("/config.json"))
+          .then((response) => response.json())
+          .then((data) => {
+      // everything below stays exactly as it was — just remove the old
+      // "isAPMode = data.mode === 'ap'" line and the isAPMode/no-ap block
+      // that used to sit here, since it's now handled above
+      document.getElementById("ssid").value = data.ssid || "";
+      document.getElementById("password").value = data.password || "";
+      // ...rest unchanged...
             document.getElementById("ssid").value = data.ssid || "";
             document.getElementById("password").value = data.password || "";
             const apiInput = document.getElementById("openWeatherApiKey");
@@ -1965,18 +2149,30 @@ const char index_html[] PROGMEM = R"rawliteral(
 
             setTimeout(async () => {
               try {
-                const ipRes = await fetch("/ip");
-                const ip = await ipRes.text();
+                const ip = await fetch("/ip").then(r => r.text());
                 document.getElementById("ipDisplay").textContent = ip || "—";
               } catch (e) {}
 
-              await fetchUptime();
+              await fetchUptimeAsync();
 
-              try {
-                const btnRes = await fetch("/get_buttons");
-                _btnData = await btnRes.json();
-                _renderBtnConfig();
-              } catch (e) {}
+              if (!isAPMode) {
+                try {
+                  _btnData = await fetch("/get_buttons").then(r => r.json());
+                  _renderBtnConfig();
+                } catch (e) {}
+
+                try {
+                  _buzzerData = await fetch("/get_buzzer").then(r => r.json());
+                  _renderBuzzerGlobal();
+                  _renderBuzzerEvents();
+                  setBuzzerFieldsEnabled(_buzzerData.enabled);
+                } catch (e) {}
+
+                try {
+                  _alarmData = await fetch("/get_alarm").then(r => r.json());
+                  _renderAlarmConfig();
+                } catch (e) {}
+              }
             }, 100);
 
             document.querySelector("html").style.height = "unset";
@@ -2666,6 +2862,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         el.addEventListener("change", function () {
           const want = this.checked;
           setClockOnlyDuringDimming(want);
+          setAlarmFieldsEnabled(document.getElementById("alarmEnabled").checked);
           // optimistic UI: leave checkbox as toggled; if server fails we don't roll back here
         });
       }
@@ -2814,7 +3011,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       let uptimeTimer;
 
       function fetchUptime() {
-        return fetch("/uptime") 
+        return fetch("/uptime")  
           .then((res) => res.json())
           .then((data) => {
             const hostInput = document.getElementById("hostnameInput");
@@ -2845,6 +3042,34 @@ const char index_html[] PROGMEM = R"rawliteral(
           .catch((err) => console.error("Error fetching /uptime:", err));
       }
 
+      function fetchUptimeAsync() {
+        return fetch("/uptime")
+          .then((res) => res.json())
+          .then((data) => {
+            const hostInput = document.getElementById("hostnameInput");
+            if (hostInput) {
+              hostInput.value = data.hostname || "esptimecast";
+              resizeHostname(hostInput);
+              originalHostname = data.hostname || "esptimecast";
+            }
+            sessionSeconds = data.session_seconds || 0;
+            totalSeconds = data.total_seconds || 0;
+
+            const versionEl = document.getElementById("fwVersion");
+            if (versionEl) versionEl.textContent = "v" + data.version;
+
+            updateUptimeDisplay();
+
+            if (uptimeTimer) clearInterval(uptimeTimer);
+            uptimeTimer = setInterval(() => {
+              sessionSeconds++;
+              totalSeconds++;
+              updateUptimeDisplay();
+            }, 1000);
+          })
+          .catch((err) => console.error("Error fetching /uptime:", err));
+      }
+
       function updateUptimeDisplay() {
         const sessionEl = document.getElementById("sessionDisplay");
         const totalEl = document.getElementById("totalDisplay");
@@ -2865,8 +3090,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         if (days === 1) return `1 day ${timePart}`;
         return timePart;
       }
-
-      fetchUptime();
 
       function sendCustomMessage() {
         const input = document.getElementById("customMessage");
@@ -3405,6 +3628,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         ["weatherdesc",       "Toggle Weather Description"],
         ["countdown_enabled", "Toggle Countdown"],
         ["enable_rotation",   "Toggle Rotation"],
+        ["alarm_stop",        "Stop Alarm"],
+        ["alarm_snooze",      "Snooze Alarm"],
         ["timer_pause",       "Pause Timer"],
         ["timer_resume",      "Resume Timer"],
         ["timer_stop",        "Stop Timer"],
@@ -3605,16 +3830,299 @@ let _btnExpanded = [true, false, false, false]; // btn1 always open
             body: params
           });
 
-          if (showStatus) {
-            showBtnStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
-          }
+            if (showStatus) {
+                showBtnStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+              }
 
-        } catch {
+              if (res.ok) {
+                try {
+                  const buzzRes = await fetch("/get_buzzer");
+                  _buzzerData = await buzzRes.json();
+                  _renderBuzzerGlobal();
+                  _renderBuzzerEvents();
+                  setBuzzerFieldsEnabled(_buzzerData.enabled);
+                } catch (e) {}
+              }
+
+            } catch {
           if (showStatus) {
             showBtnStatus("⚠️ Save failed.");
           }
         }
       }
+
+function setBuzzerFieldsEnabled(enabled) {
+  document.getElementById("buzzerPin").disabled = !enabled;
+  document.getElementById("buzzerVolumeSlider").disabled = !enabled;
+
+  const testBtn = document.getElementById("buzzerTestBtn");
+  testBtn.disabled = !enabled;
+  testBtn.classList.toggle("geo-disabled", !enabled);
+
+  const buzzerApplyBtn = document.getElementById("buzzerApplyBtn");
+  buzzerApplyBtn.disabled = !enabled;
+  buzzerApplyBtn.classList.toggle("geo-disabled", !enabled);
+
+  document.querySelectorAll("#buzzer-events-container select, #buzzer-events-container input[type=\"checkbox\"]").forEach(el => {
+    el.disabled = !enabled;
+  });
+}
+
+      let _buzzerData = null;
+
+      const BUZZER_EVENTS = [
+        { idx: 0, label: "Alarm" },
+        { idx: 1, label: "Countdown Finished" },
+        { idx: 2, label: "Timer Finished" },
+        { idx: 3, label: "Pomodoro Work Finished" },
+        { idx: 4, label: "Pomodoro Break Finished" },
+        { idx: 5, label: "Stopwatch" }
+      ];
+      // Alarm (0) and Button Feedback (6) intentionally left out — Alarm gets its own section later,
+      // Button Feedback has no UI yet since we decided to skip it.
+
+      const BUZZER_SOUND_OPTS = [
+        { id: 1, label: "Beep" },
+        { id: 2, label: "Chirp" },
+        { id: 3, label: "Alarm" }
+      ];
+
+      function _buzzerSoundOpts(selected) {
+        return BUZZER_SOUND_OPTS.map(s =>
+          `<option value="${s.id}"${selected === s.id ? " selected" : ""}>${s.label}</option>`
+        ).join("");
+      }
+
+      function _renderBuzzerGlobal() {
+        if (!_buzzerData) return;
+        document.getElementById("buzzerEnabled").checked = !!_buzzerData.enabled;
+        document.getElementById("buzzerVolumeSlider").value = _buzzerData.volume ?? 7;
+        document.getElementById("buzzerVolumeValue").textContent = _buzzerData.volume ?? 7;
+
+        const pinSel = document.getElementById("buzzerPin");
+        const exclude = new Set((_buzzerData.usedPins || []).map(Number));
+        let opts = `<option value="255"${_buzzerData.pin === 255 ? " selected" : ""}>- Disabled -</option>`;
+        ALL_GPIO.forEach(p => {
+          if (!exclude.has(p))
+            opts += `<option value="${p}"${_buzzerData.pin === p ? " selected" : ""}>GPIO ${p}</option>`;
+        });
+        pinSel.innerHTML = opts;
+      }
+
+      function _renderBuzzerEvents() {
+        const el = document.getElementById("buzzer-events-container");
+        if (!el || !_buzzerData) return;
+
+        el.innerHTML = BUZZER_EVENTS.map(evt => {
+          const e = _buzzerData.events[evt.idx] || { enabled: true, sound: 1 };
+          return `
+          <div class="btn-config-action-label">
+            <span class="label-text">${evt.label}:</span>
+            <div class="toggle-row-lg select-and-toggle">
+              <select id="evt${evt.idx}_sound" onchange="previewBuzzerSound(${evt.idx})">
+                ${_buzzerSoundOpts(e.sound)}
+              </select>
+              <label class="toggle-switch">
+                <input type="checkbox" id="evt${evt.idx}_enabled" ${e.enabled ? "checked" : ""} />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          `;
+        }).join("");
+      }
+
+      function previewBuzzerSound(idx) {
+        const sel = document.getElementById(`evt${idx}_sound`);
+        if (!sel) return;
+        const vol = document.getElementById("buzzerVolumeSlider").value;
+        const repeat = (_buzzerData.events[idx] || {}).repeat ? 1 : 0;
+        fetch(`/action?play_sound=${sel.value}:${vol}:${repeat}`).catch(() => {});
+        if (repeat) {
+          setTimeout(() => {
+            fetch(`/action?buzzer_stop`).catch(() => {});
+          }, 3000);
+        }
+      }
+
+      function testBuzzer() {
+        const vol = document.getElementById("buzzerVolumeSlider").value;
+        fetch(`/action?play_sound=3:${vol}:1`).catch(() => {});
+        setTimeout(() => {
+          fetch(`/action?buzzer_stop`).catch(() => {});
+        }, 3000);
+      }
+
+      let buzzerSaveStatusTimer = null;
+      function showBuzzerStatus(msg) {
+        const el = document.getElementById("buzzer-save-status");
+        el.textContent = msg;
+        clearTimeout(buzzerSaveStatusTimer);
+        buzzerSaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
+      }
+
+      async function saveBuzzerConfig(showStatus = true) {
+        if (!_buzzerData) return;
+        const statusEl = document.getElementById("buzzer-save-status");
+        const params = new URLSearchParams();
+
+        params.set("pin", document.getElementById("buzzerPin").value);
+        params.set("enabled", document.getElementById("buzzerEnabled").checked ? "1" : "0");
+        params.set("volume", document.getElementById("buzzerVolumeSlider").value);
+
+        BUZZER_EVENTS.forEach(evt => {
+          const en = document.getElementById(`evt${evt.idx}_enabled`);
+          const sd = document.getElementById(`evt${evt.idx}_sound`);
+          if (en) params.set(`evt${evt.idx}_enabled`, en.checked ? "1" : "0");
+          if (sd) params.set(`evt${evt.idx}_sound`, sd.value);
+        });
+
+        try {
+          if (showStatus) statusEl.textContent = "Saving...";
+          const res = await fetch("/save_buzzer", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params
+          });
+          if (showStatus) showBuzzerStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+          if (res.ok) {
+            try {
+              const btnRes = await fetch("/get_buttons");
+              _btnData = await btnRes.json();
+              _renderBtnConfig();
+            } catch (e) {}
+          }
+        } catch {
+          if (showStatus) showBuzzerStatus("⚠️ Save failed.");
+        }
+      }
+
+      let _alarmData = null;
+
+      function _renderAlarmConfig() {
+        if (!_alarmData) return;
+        document.getElementById("alarmEnabled").checked = !!_alarmData.enabled;
+        document.getElementById("alarmTime").value =
+          String(_alarmData.hour).padStart(2, "0") + ":" + String(_alarmData.minute).padStart(2, "0");
+        document.getElementById("alarmBrightnessSlider").value = _alarmData.brightness ?? 10;
+        document.getElementById("alarmBrightnessValue").textContent = _alarmData.brightness ?? 10;
+        document.getElementById("alarmSnooze").value = _alarmData.snoozeMinutes ?? 15;
+
+        for (let i = 0; i < 7; i++) {
+          const checked = (_alarmData.days || [])[i] !== false;
+          document.getElementById(`alarmDay${i}`).checked = checked;
+          document.querySelector(`.day-pill[data-day="${i}"]`).classList.toggle("checked", checked);
+        }
+        _updateAlarmPreview();
+        setAlarmFieldsEnabled(_alarmData.enabled);
+      }
+
+      document.querySelectorAll(".day-pill input").forEach(cb => {
+        cb.addEventListener("change", function () {
+          this.closest(".day-pill").classList.toggle("checked", this.checked);
+          _updateAlarmPreview();
+        });
+      });
+
+      function _updateAlarmPreview() {
+        const enabled = document.getElementById("alarmEnabled").checked;
+        const timeVal = document.getElementById("alarmTime").value || "00:00";
+        const dayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+        let selected = [];
+        for (let i = 0; i < 7; i++) {
+          if (document.getElementById(`alarmDay${i}`).checked) selected.push(dayLabels[i]);
+        }
+        let text;
+        if (!enabled) {
+          text = "NO ALARM SET";
+        } else if (selected.length === 0) {
+          text = `ALARM ${timeVal} (NO DAYS SELECTED)`;
+        } else if (selected.length === 7) {
+          text = `ALARM ${timeVal} EVERY DAY`;
+        } else {
+          text = `ALARM ${timeVal} ${selected.join(" ")}`;
+        }
+        document.getElementById("alarmPreviewText").textContent = text;
+      }
+
+      function testAlarm() {
+        fetch("/action?alarm_test").catch(() => {});
+      }
+
+      let alarmSaveStatusTimer = null;
+      function showAlarmStatus(msg) {
+        const el = document.getElementById("alarm-save-status");
+        el.textContent = msg;
+        clearTimeout(alarmSaveStatusTimer);
+        alarmSaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
+      }
+
+      async function saveAlarmConfig(showStatus = true) {
+        const statusEl = document.getElementById("alarm-save-status");
+        const params = new URLSearchParams();
+
+        params.set("enabled", document.getElementById("alarmEnabled").checked ? "1" : "0");
+
+        const timeVal = document.getElementById("alarmTime").value || "00:00";
+        const [h, m] = timeVal.split(":");
+        params.set("hour", h);
+        params.set("minute", m);
+
+        for (let i = 0; i < 7; i++) {
+          params.set(`day${i}`, document.getElementById(`alarmDay${i}`).checked ? "1" : "0");
+        }
+
+        params.set("brightness", document.getElementById("alarmBrightnessSlider").value);
+        params.set("snoozeMinutes", document.getElementById("alarmSnooze").value);
+
+        try {
+          if (showStatus) statusEl.textContent = "Saving...";
+          const res = await fetch("/save_alarm", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params
+          });
+          if (showStatus) showAlarmStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+        } catch {
+          if (showStatus) showAlarmStatus("⚠️ Save failed.");
+        }
+      }
+
+      let _alarmTestRinging = false;
+
+      function testAlarm() {
+        const btn = document.getElementById("testAlarmBtn");
+        if (_alarmTestRinging) {
+          fetch("/action?alarm_stop").catch(() => {});
+          _alarmTestRinging = false;
+          btn.textContent = "Test Alarm";
+        } else {
+          const brightness = document.getElementById("alarmBrightnessSlider").value;
+          fetch(`/action?alarm_test=${brightness}`).catch(() => {});
+          _alarmTestRinging = true;
+          btn.textContent = "Stop Test";
+        }
+      }
+
+      function setAlarmFieldsEnabled(enabled) {
+      document.getElementById("alarmTime").disabled = !enabled;
+      document.getElementById("alarmBrightnessSlider").disabled = !enabled;
+      document.getElementById("alarmSnooze").disabled = !enabled;
+
+      for (let i = 0; i < 7; i++) {
+        const cb = document.getElementById(`alarmDay${i}`);
+        cb.disabled = !enabled;
+        cb.closest(".day-pill").classList.toggle("disabled", !enabled);
+      }
+
+      const testBtn = document.getElementById("testAlarmBtn");
+      testBtn.disabled = !enabled || document.getElementById("clockOnlyDuringDimming").checked;
+      testBtn.classList.toggle("geo-disabled", !enabled || document.getElementById("clockOnlyDuringDimming").checked);
+
+      const alarmAppBtn = document.getElementById("alarmApplyBtn");
+      alarmAppBtn.disabled = !enabled;
+      alarmAppBtn.classList.toggle("geo-disabled", !enabled);
+    }
     </script>
   </body>
 </html>

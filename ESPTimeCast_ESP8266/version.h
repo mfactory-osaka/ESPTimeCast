@@ -10,7 +10,7 @@ See LICENSE.txt for full terms.
 */
 
 #pragma once
-#define FIRMWARE_VERSION "1.9.9"
+#define FIRMWARE_VERSION "2.0.0"
 
 // Auto-detect the specific chip family
 #if defined(ESP8266)
