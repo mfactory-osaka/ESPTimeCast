@@ -169,9 +169,11 @@ Advanced and developer-focused information is available below.
 - **Web-Based Configuration** – no apps required, configure everything from your browser  
 - **Accurate Time Sync (NTP)** with automatic retries and status feedback  
 - **Live Weather Updates** from OpenWeatherMap (temperature, humidity, conditions)  
-- **Custom Scroll Messages** with persistent display control  
+- **Custom Scroll Messages** with persistent display control
+- **Buzzer Support** – add a passive piezo buzzer for audible alerts.
+- **Alarm Clock** – set a recurring or daily alarm with day-of-week scheduling, snooze, dedicated wake brightness.
 - **Countdowns & Timers** – create event countdowns with custom messages or run quick timers (e.g. 15 min)  
-- **OTA Firmware Updates** – update your device directly from the browser, no reflashing required
+- **OTA Firmware Updates** – update your device directly from the browser, no re-flashing required
 - **Open API & Home Assistant Integration** for automation, remote control, and custom messages  
 - **Automatic Setup Mode (AP)** for first-time configuration or recovery  
 - **Timezone Support** using IANA database (DST handled automatically)  
@@ -315,6 +317,8 @@ Click the **cog icon** next to “Advanced Settings” in the Web UI to reveal e
 - **Automatic Dimming Feature** base on Sunrise/Sunset from weather API
 - **Custom Dimming Feature**: Start time, end time and desired brightness selection
 - **Countdown** function, set a countdown to your favorite/next event, 2 modes: Scroll/Dramatic! 
+- **Buzzer Support** – add a passive piezo buzzer for audible alerts on Timer, Countdown, Pomodoro, Stopwatch, and Alarm events, with per-event sound and volume control
+- **Alarm Clock** – set a recurring or daily alarm with day-of-week scheduling, snooze, dedicated wake brightness, and full display takeover when it fires
 
 >Non-English characters converted to their closest English alphabet.   
 >For Esperanto, Irish, and Swahili, weather description translations are not available. Japanese translations exist, but since the device cannot display all Japanese characters, English will be used in all these cases.  
@@ -521,7 +525,17 @@ POST http://<device_ip>/action
 | `metric` | -- | Set metric units |
 | `language` | e.g. `en`, `ja`, `sv` | Set display language |
 
-#### ⏱️ Timer, Stopwatch and Pomodoro
+#### ⏱️ Alarm, Timer, Stopwatch and Pomodoro
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `alarm_stop` | -- | Dismiss a ringing alarm |
+| `alarm_snooze` | -- | Snooze a ringing alarm |
+| `alarm_enable` | `0` or `1` (optional) | Enable/disable the alarm schedule. Toggles if no value sent. |
+| `alarm_test` | -- or brightness `0`–`15` | Fire the alarm now. Optional value previews at that brightness without saving it. |
+| `alarm_set` | `HH:MM[:DAYS[:SOUND[:VOL]]]` | Set schedule, and optionally sound/volume, in one call |
+
+> `alarm_set`'s optional `VOL` field sets the buzzer's **global** volume — it affects every sound the device plays, not just the alarm.
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -548,6 +562,16 @@ POST http://<device_ip>/action
 | `pomodoro_restart` | — | Restart from session 1 |
 | `pomodoro_pause` | — | Pause current phase |
 | `pomodoro_resume` | — | Resume paused phase |
+
+### 🔊 Buzzer
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `buzzer_enable` | `0` or `1` (optional) | Enable/disable the buzzer. Toggles if no value sent. |
+| `buzzer_volume` | `1`–`10` | Set and save volume |
+| `buzzer_stop` | -- | Immediately silence any currently playing sound |
+| `buzzer_event` | `name:sound` or `name:sound:repeat` | Configure an event's sound. `name` is `alarm`, `countdown`, `timer`, `pomodoro_work`, `pomodoro_break`, or `stopwatch`. `sound=0` disables that event. |
+| `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound once (or looped if `repeat=1`, until `buzzer_stop` is called) |
 
 #### ⚙️ System
 
@@ -787,7 +811,7 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 [NOTEMP][NONTP][WIFI][INFO][AP]  
 [C][F][TIMEISUP][TIMEISUPINVERTED][SUNNY]  
 [CLOUDY][NODATA][RAINY][THUNDER][SNOWY][WINDY][CLOCK]  
-[ALARM][UPDATE][BATTERYEMPTY][BATTERY33][BATTERY66][BATTERYFULL][BOLT][HOUSE][TEMP]  
+[ALARMICON][UPDATE][BATTERYEMPTY][BATTERY33][BATTERY66][BATTERYFULL][BOLT][HOUSE][TEMP]  
 [MUSICNOTE][PLAY][SPACE][PAUSE][EURO][SPEAKER][SPEAKEROFF][RED][UP][DOWN][RIGHT][LEFT]  
 [TALK][HEART][CHECK][INSTA][TV][YOUTUBE][BELL][LOCK][PERSON][HOURGLASS]  
 [HOURGLASS25][HOURGLASS75][HOURGLASSFULL][CAR][MAIL][CO2][MOON][SIGNAL1][SIGNAL2]  
@@ -802,12 +826,97 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 &nbsp;
 </details>
 <details>
-<summary>⏱️ Timer and Stopwatch Feature</summary>
+<summary>⏱️ Alarm, Timer and Stopwatch Feature</summary>
 &nbsp;
   
-ESPTimeCast includes a built-in countdown timer that can be triggered via the **Custom Message** field in the Web UI or through **Home Assistant** (or any HTTP client).
+ESPTimeCast includes a full alarm clock feature with day-of-week scheduling, snooze, and a dedicated wake brightness — independent of your normal display rotation.
 
-### Starting a Timer
+When the alarm fires, the display takes over completely, showing an inverting clock face until dismissed, snoozed, or automatically silenced after 15 minutes if left unattended.
+
+> If **Clock-only Dimming** is active when the alarm is due to fire, the alarm is skipped entirely for that occurrence — treat this as a "silent hours" window.
+
+### Configuration
+
+1. Open the ESPTimeCast web interface
+2. Navigate to **Alarm**
+3. Enable the alarm, set a time, and choose which days it repeats on
+4. Set a wake brightness and snooze duration
+5. Choose the alarm's sound in the **Buzzer** section's event list (Alarm row)
+
+Click **Test Alarm** to preview the full experience — sound, display takeover, and current brightness setting — before trusting it to wake you up.
+
+### Bracket Commands
+
+| Command | Description |
+|---------|-------------|
+| `[ALARM]` | Scroll the current alarm schedule as text |
+| `[ALARM STOP]` | Dismiss a ringing alarm |
+| `[ALARM SNOOZE]` | Snooze a ringing alarm |
+| `[ALARM ENABLE]` | Enable the alarm without changing its schedule |
+| `[ALARM DISABLE]` | Disable the alarm without changing its schedule |
+| `[ALARM TEST]` | Fire the alarm immediately, for testing |
+| `[ALARM SET HH:MM]` | Set the time, keep existing days |
+| `[ALARM SET HH:MM DAYS]` | Set time and days. `DAYS` is a digit string, `0`=Sun...`6`=Sat, e.g. `12345` = weekdays |
+| `[ALARM SET HH:MM DAYS SOUND]` | Also set the alarm's sound (`1`–`3`) |
+| `[ALARM SET HH:MM DAYS SOUND VOL]` | Also set the buzzer's global volume (`1`–`10`) |
+
+### `/action` Endpoint
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `alarm_stop` | -- | Dismiss a ringing alarm |
+| `alarm_snooze` | -- | Snooze a ringing alarm |
+| `alarm_enable` | `0` or `1` (optional) | Enable/disable the alarm schedule. Toggles if no value sent. |
+| `alarm_test` | -- or brightness `0`–`15` | Fire the alarm now. Optional value previews at that brightness without saving it. |
+| `alarm_set` | `HH:MM[:DAYS[:SOUND[:VOL]]]` | Set schedule, and optionally sound/volume, in one call |
+
+> `alarm_set`'s optional `VOL` field sets the buzzer's **global** volume — it affects every sound the device plays, not just the alarm.
+
+### curl Examples
+
+```bash
+# Set a 7:30 AM weekday alarm
+curl "http://<device_ip>/action?alarm_set=07:30:12345"
+
+# Set time, days, sound, and volume in one call
+curl "http://<device_ip>/action?alarm_set=07:30:12345:3:9"
+
+# Dismiss a ringing alarm
+curl "http://<device_ip>/action?alarm_stop"
+
+# Snooze a ringing alarm
+curl "http://<device_ip>/action?alarm_snooze"
+
+# Or use message/bracket commands
+curl -X POST -d "message=[ALARM SET 07:30 12345]" "http://<device_ip>/action"
+curl -X POST -d "message=[ALARM STOP]" "http://<device_ip>/action"
+```
+
+### Home Assistant Example
+
+```yaml
+alias: Set weekday alarm from HA
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "alarm_set=07:30:12345"
+```
+
+```yaml
+alias: Snooze ESPTimeCast alarm from a smart button
+trigger:
+  - platform: state
+    entity_id: sensor.bedside_button
+    to: "single"
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "alarm_snooze"
+```  
+
+### Timer
+
+ESPTimeCast includes a built-in countdown timer that can be triggered via the **Custom Message** field in the Web UI or through **Home Assistant** (or any HTTP client).
 
 Send a custom message using the `[TIMER]` token with your desired duration:
 
@@ -995,6 +1104,84 @@ action:
 
 &nbsp;
 </details>
+<details>
+<summary>🔊 Buzzer</summary>
+&nbsp;
+
+ESPTimeCast supports an optional passive piezo buzzer for audible alerts alongside the visual display — useful for Timer, Countdown, Pomodoro, Stopwatch, and Alarm events, or as a standalone notification sound triggered from Home Assistant.
+
+### Wiring
+
+Connect a passive piezo buzzer between a free GPIO pin and GND.
+```
+GPIO Pin  ──────────────  Button  ──────────────  GND
+```
+> Only passive piezo buzzers are supported — active buzzers (with a built-in oscillator) will not respond correctly to the volume/frequency control.
+
+### Configuration
+
+1. Open the ESPTimeCast web interface
+2. Navigate to **Buzzer**
+3. Select a GPIO pin, enable the buzzer, and set a volume
+4. For each event (Countdown, Timer, Pomodoro Work/Break, Stopwatch), choose whether it plays a sound and which one
+
+Changes to the pin and enable toggle apply immediately. Per-event sound choices apply after clicking **Apply**.
+
+### Available Sounds
+
+| ID | Name | Description |
+|----|------|--------------|
+| 1 | Beep | Single short beep |
+| 2 | Chirp | Short ascending chirp |
+| 3 | Alarm | Repeating alert pattern |
+
+### `/action` Endpoint
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `buzzer_enable` | `0` or `1` (optional) | Enable/disable the buzzer. Toggles if no value sent. |
+| `buzzer_volume` | `1`–`10` | Set and save volume |
+| `buzzer_stop` | -- | Immediately silence any currently playing sound |
+| `buzzer_event` | `name:sound` or `name:sound:repeat` | Configure an event's sound. `name` is `alarm`, `countdown`, `timer`, `pomodoro_work`, `pomodoro_break`, or `stopwatch`. `sound=0` disables that event. |
+| `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound once (or looped if `repeat=1`, until `buzzer_stop` is called) |
+
+### curl Examples
+
+```bash
+# Enable the buzzer
+curl "http://<device_ip>/action?buzzer_enable=1"
+
+# Set volume to 8
+curl "http://<device_ip>/action?buzzer_volume=8"
+
+# Play the Chirp sound once at volume 6
+curl "http://<device_ip>/action?play_sound=2:6"
+
+# Loop the Alarm sound until stopped
+curl "http://<device_ip>/action?play_sound=3:8:1"
+curl "http://<device_ip>/action?buzzer_stop"
+
+# Make Timer use the Chirp sound instead of the default
+curl "http://<device_ip>/action?buzzer_event=timer:2"
+```
+
+### Home Assistant Example
+
+```yaml
+alias: Play alert sound on doorbell
+trigger:
+  - platform: state
+    entity_id: binary_sensor.doorbell
+    to: "on"
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "play_sound=2:8"
+```
+
+&nbsp;
+</details>
+
 <details>
 <summary>📡 Bridge Mode (YouTube, Instagram, RSS, Nightscout)</summary>
 &nbsp;
