@@ -91,7 +91,6 @@ unsigned long buzzerStepStartTime = 0;
 unsigned long buzzerEventStopAt = 0;
 bool buzzerRepeating = false;
 uint8_t buzzerPreviewCyclesRemaining = 0;                        // 0 = not a preview, no cycle limit
-const unsigned long BUZZER_ALARM_TIMEOUT_MS = 15UL * 60 * 1000;  // 15 minutes
 const unsigned long BUZZER_EVENT_TIMEOUT_MS = 5000;              // 5 seconds — everything else
 const uint8_t defaultEventSound[BUZZER_EVENT_COUNT] = { 3, 3, 3, 3, 2, 1, 1 };
 const bool defaultEventRepeat[BUZZER_EVENT_COUNT] = { true, true, true, false, false, false, false };
@@ -107,13 +106,8 @@ bool alarmSavedDisplayOff = false;
 int alarmSavedBrightness = 7;
 bool alarmSavedRotationEnabled = true;
 unsigned long alarmSnoozedUntil = 0;  // 0 = not currently snoozed
-enum AlarmPhase { ALARM_FLASHING,
-                  ALARM_SHOWING_CLOCK };
-AlarmPhase alarmPhase = ALARM_FLASHING;
-const char *alarmFlashFrames[2] = { "\x08", "\x09" };
-uint8_t alarmFlashFrame = 0;
-unsigned long alarmLastFlashSwitch = 0;
-unsigned long alarmPhaseStart = 0;
+unsigned long alarmStopAt = 0;
+const unsigned long ALARM_TIMEOUT_MS = 15UL * 60 * 1000;  // 15 minutes
 
 // --- Global Scroll Speed Settings ---
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
@@ -1419,6 +1413,13 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
         Serial.println(F("[MESSAGE] Timer command executed."));
         request->send(200, "text/plain", "Timer Command Executed");
       }
+      return;
+    }
+
+    // PROTECTION: Alarm Active
+    if (alarmRinging && !isClearRequest && incomingAllowInterrupt) {
+      Serial.println(F("[MESSAGE] Rejected: Alarm is ringing."));
+      request->send(409, "text/plain", "Alarm active - stop or snooze alarm first");
       return;
     }
 
@@ -4811,6 +4812,7 @@ void buzzerStop() {
   buzzerRepeating = false;
   buzzerPreviewCyclesRemaining = 0;
   buzzerEventStopAt = 0;
+  alarmStopAt = 0;
 
   if (buzzerVolumeOverridden) {
     buzzerConfig.volume = buzzerSavedVolumeForPreview;
@@ -4860,33 +4862,7 @@ void buzzerLoop() {
     buzzerCurrentStep++;
     if (buzzerCurrentStep >= buzzerActivePattern->stepCount) {
       if (buzzerRepeating) {
-        if (buzzerEventStopAt && millis() >= buzzerEventStopAt) {
-          buzzerRepeating = false;
-          if (alarmRinging) {
-            displayMode = 0;
-            prevDisplayMode = 6;
-            clockScrollDone = false;
-            forceMessageRestart = true;
-            lastSwitch = millis();
-            rotationEnabled = alarmSavedRotationEnabled;
-            if (alarmSavedDisplayOff) {
-              handleBrightnessChange(-1, false);
-            } else {
-              handleBrightnessChange(alarmSavedBrightness, false);
-            }
-            Serial.println(F("[ALARM] Timed out (15 min), display restored."));
-          }
-          buzzerStop();
-          return;
-        }
         buzzerCurrentStep = 0;
-        if (buzzerPreviewCyclesRemaining > 0) {
-          buzzerPreviewCyclesRemaining--;
-          if (buzzerPreviewCyclesRemaining == 0) {
-            buzzerStop();
-            return;
-          }
-        }
       } else {
         buzzerStop();
         return;
@@ -4905,9 +4881,8 @@ void buzzerFireEvent(BuzzerEventIndex evt) {
   buzzerTrigger(getSoundPattern(buzzerConfig.eventSound[evt]));
   buzzerRepeating = buzzerConfig.eventRepeat[evt];
 
-  if (buzzerRepeating) {
-    unsigned long timeout = (evt == BUZZER_EVT_ALARM) ? BUZZER_ALARM_TIMEOUT_MS : BUZZER_EVENT_TIMEOUT_MS;
-    buzzerEventStopAt = millis() + timeout;
+  if (buzzerRepeating && evt != BUZZER_EVT_ALARM) {
+    buzzerEventStopAt = millis() + BUZZER_EVENT_TIMEOUT_MS;
   } else {
     buzzerEventStopAt = 0;
   }
@@ -4921,6 +4896,7 @@ void fireAlarm(int brightnessOverride) {
   }
 
   alarmRinging = true;
+  alarmStopAt = millis() + ALARM_TIMEOUT_MS;
   alarmPreviousDisplayMode = displayMode;
   alarmSavedDisplayOff = displayOff;
   alarmSavedBrightness = brightness;
@@ -4931,8 +4907,6 @@ void fireAlarm(int brightnessOverride) {
   handleBrightnessChange(targetBrightness, false);
 
   displayMode = 8;
-  alarmPhase = ALARM_FLASHING;
-  alarmPhaseStart = millis();
   forceMessageRestart = true;
 
   buzzerFireEvent(BUZZER_EVT_ALARM);
@@ -4973,6 +4947,15 @@ void checkAlarmSchedule() {
 
   if (timeinfo.tm_hour == alarmConfig.hour && timeinfo.tm_min == alarmConfig.minute) {
     fireAlarm();
+  }
+}
+
+void checkAlarmTimeout() {
+  if (!alarmRinging || !alarmStopAt) return;
+
+  if (millis() >= alarmStopAt) {
+    Serial.println(F("[ALARM] Timed out (15 min), display restored."));
+    buzzerStop();
   }
 }
 
@@ -5549,6 +5532,7 @@ void loop() {
   handleButtons();
   buzzerLoop();
   checkAlarmSchedule();
+  checkAlarmTimeout();
 
   // --- WIFI RECONNECTION ---
   static unsigned long lastReconnectAttempt = 0;
