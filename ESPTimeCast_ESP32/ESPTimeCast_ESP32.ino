@@ -90,8 +90,8 @@ uint8_t buzzerCurrentStep = 0;
 unsigned long buzzerStepStartTime = 0;
 unsigned long buzzerEventStopAt = 0;
 bool buzzerRepeating = false;
-uint8_t buzzerPreviewCyclesRemaining = 0;                        // 0 = not a preview, no cycle limit
-const unsigned long BUZZER_EVENT_TIMEOUT_MS = 5000;              // 5 seconds — everything else
+uint8_t buzzerPreviewCyclesRemaining = 0;            // 0 = not a preview, no cycle limit
+const unsigned long BUZZER_EVENT_TIMEOUT_MS = 5000;  // 5 seconds — everything else
 const uint8_t defaultEventSound[BUZZER_EVENT_COUNT] = { 3, 3, 3, 3, 2, 1, 1 };
 const bool defaultEventRepeat[BUZZER_EVENT_COUNT] = { true, true, true, false, false, false, false };
 uint8_t buzzerSavedVolumeForPreview = 0;
@@ -790,7 +790,7 @@ void loadConfig() {
       btnCfg[i].longAct = arr[i]["longAction"] | "";
 
       if (btnCfg[i].pin >= 0) {
-        Serial.printf("[BUTTON] Button %d → GPIO %d | short=%s | long=%s\n",
+        Serial.printf(PSTR("[BUTTON] Button %d → GPIO %d | short=%s | long=%s\n"),
                       i + 1,
                       btnCfg[i].pin,
                       btnCfg[i].shortAct.c_str(),
@@ -845,7 +845,7 @@ void connectWiFi() {
     isAPMode = true;
 
     WiFiMode_t mode = WiFi.getMode();
-    Serial.printf("[WIFI] WiFi mode after setting AP: %s\n",
+    Serial.printf(PSTR("[WIFI] WiFi mode after setting AP: %s\n"),
                   mode == WIFI_OFF ? "OFF" : mode == WIFI_STA    ? "STA ONLY"
                                            : mode == WIFI_AP     ? "AP ONLY"
                                            : mode == WIFI_AP_STA ? "AP + STA (Error!)"
@@ -881,11 +881,12 @@ void connectWiFi() {
   while (animating) {
     unsigned long now = millis();
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("[WIFI] Connected: " + WiFi.localIP().toString());
+      Serial.print(F("[WIFI] Connected: "));
+      Serial.println(WiFi.localIP().toString());
       isAPMode = false;
 
       WiFiMode_t mode = WiFi.getMode();
-      Serial.printf("[WIFI] WiFi mode after STA connection: %s\n",
+      Serial.printf(PSTR("[WIFI] WiFi mode after STA connection: %s\n"),
                     mode == WIFI_OFF ? "OFF" : mode == WIFI_STA    ? "STA ONLY"
                                              : mode == WIFI_AP     ? "AP ONLY"
                                              : mode == WIFI_AP_STA ? "AP + STA (Error!)"
@@ -922,7 +923,7 @@ void connectWiFi() {
 
       if (retryCount < maxRetries - 1) {
         retryCount++;
-        Serial.printf("[WIFI] Attempt failed. Retrying (%d/%d)...\n", retryCount + 1, maxRetries);
+        Serial.printf(PSTR("[WIFI] Attempt failed. Retrying (%d/%d)...\n"), retryCount + 1, maxRetries);
 
         WiFi.disconnect();
         delay(500);
@@ -939,7 +940,7 @@ void connectWiFi() {
         isAPMode = true;
 
         WiFiMode_t mode = WiFi.getMode();
-        Serial.printf("[WIFI] WiFi mode after STA failure and setting AP: %s\n",
+        Serial.printf(PSTR("[WIFI] WiFi mode after STA failure and setting AP: %s\n"),
                       mode == WIFI_OFF ? "OFF" : mode == WIFI_STA    ? "STA ONLY"
                                                : mode == WIFI_AP     ? "AP ONLY"
                                                : mode == WIFI_AP_STA ? "AP + STA (Error!)"
@@ -994,9 +995,9 @@ void setupMDNS() {
 
   if (mdnsStarted) {
     MDNS.addService("http", "tcp", 80);
-    Serial.printf("[WIFI] mDNS started: http://%s.local\n", deviceHostname.c_str());
+    Serial.printf(PSTR("[WIFI] mDNS started: http://%s.local\n"), deviceHostname.c_str());
   } else {
-    Serial.println("[WIFI] mDNS failed to start");
+    Serial.println(F("[WIFI] mDNS failed to start"));
   }
 }
 
@@ -1078,7 +1079,7 @@ void printConfigToSerial() {
     if ((sunriseHour == 6 && sunriseMinute == 0) && (sunsetHour == 18 && sunsetMinute == 0)) {
       Serial.println(F("Automatic Dimming Schedule: Sunrise/Sunset Data not available yet (waiting for weather update)"));
     } else {
-      Serial.printf("Automatic Dimming Schedule: Sunrise: %02d:%02d → Sunset: %02d:%02d\n",
+      Serial.printf(PSTR("Automatic Dimming Schedule: Sunrise: %02d:%02d → Sunset: %02d:%02d\n"),
                     sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
       time_t now_time = time(nullptr);
       struct tm localTime;
@@ -1089,14 +1090,14 @@ void printConfigToSerial() {
       bool autoActive = (startTotal < endTotal)
                           ? (curTotal >= startTotal && curTotal < endTotal)
                           : (curTotal >= startTotal || curTotal < endTotal);
-      Serial.printf("Current Auto-Dimming Status: %s\n", autoActive ? "ACTIVE" : "Inactive");
-      Serial.printf("Dimming Brightness (night): %d\n", dimBrightness);
+      Serial.printf(PSTR("Current Auto-Dimming Status: %s\n"), autoActive ? "ACTIVE" : "Inactive");
+      Serial.printf(PSTR("Dimming Brightness (night): %d\n"), dimBrightness);
     }
   } else {
     // --- Manual (Custom Schedule) dimming mode ---
-    Serial.printf("Custom Dimming Schedule: %02d:%02d → %02d:%02d\n",
+    Serial.printf(PSTR("Custom Dimming Schedule: %02d:%02d → %02d:%02d\n"),
                   dimStartHour, dimStartMinute, dimEndHour, dimEndMinute);
-    Serial.printf("Dimming Brightness: %d\n", dimBrightness);
+    Serial.printf(PSTR("Dimming Brightness: %d\n"), dimBrightness);
   }
   Serial.print(F("Countdown Enabled: "));
   Serial.println(countdownEnabled ? "Yes" : "No");
@@ -1128,14 +1129,14 @@ void printConfigToSerial() {
   }
   Serial.print(F("Hostname: "));
   Serial.println(deviceHostname);
-  Serial.printf("Matrix Pins: CLK=%d CS=%d DATA=%d\n",
+  Serial.printf(PSTR("Matrix Pins: CLK=%d CS=%d DATA=%d\n"),
                 CLK_PIN, CS_PIN, DATA_PIN);
   Serial.print(F("Physical Buttons:"));
   bool hasButtons = false;
   for (int i = 0; i < 4; i++) {
     if (btnCfg[i].pin >= 0) {
       hasButtons = true;
-      Serial.printf(" Button %d → GPIO %d | short=%s | long=%s\n",
+      Serial.printf(PSTR(" Button %d → GPIO %d | short=%s | long=%s\n"),
                     i + 1,
                     btnCfg[i].pin,
                     btnCfg[i].shortAct.c_str(),
@@ -1146,12 +1147,12 @@ void printConfigToSerial() {
     Serial.println(F(" None configured"));
   }
   Serial.println(F("Buzzer:"));
-  Serial.printf("  Enabled=%s | Pin=%d | Volume=%d\n",
+  Serial.printf(PSTR("  Enabled=%s | Pin=%d | Volume=%d\n"),
                 buzzerConfig.enabled ? "Yes" : "No",
                 buzzerConfig.pin,
                 buzzerConfig.volume);
   for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
-    Serial.printf("  %-14s → enabled=%s | sound=%d | repeat=%s\n",
+    Serial.printf(PSTR("  %-14s → enabled=%s | sound=%d | repeat=%s\n"),
                   buzzerEventNames[i],
                   buzzerConfig.eventEnabled[i] ? "Yes" : "No",
                   buzzerConfig.eventSound[i],
@@ -1372,7 +1373,7 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
 
     // PROTECTION: Clock-only dimming
     if (!isClearRequest && clockOnlyDuringDimming && dimActive) {
-      Serial.printf("[MESSAGE] Rejected (Dimming Mode): '%s'\n", msg.c_str());
+      Serial.printf(PSTR("[MESSAGE] Rejected (Dimming Mode): '%s'\n"), msg.c_str());
       request->send(409, "text/plain", "Clock-only dimming mode active");
       return;
     }
@@ -1821,6 +1822,69 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
         return ",\"alarm\":" + json;
       }
     case 14:
+      {
+        JsonDocument doc;
+
+#if defined(ESP32)
+        uint32_t freeHeap = ESP.getFreeHeap();
+        uint32_t maxAlloc = ESP.getMaxAllocHeap();
+
+        doc["freeHeap"] = freeHeap;
+        doc["minFreeHeap"] = ESP.getMinFreeHeap();
+        doc["maxAllocHeap"] = maxAlloc;
+        doc["heapFrag"] = (freeHeap > 0)
+                            ? (100 - (maxAlloc * 100 / freeHeap))
+                            : 0;
+
+        esp_reset_reason_t reason = esp_reset_reason();
+        doc["resetReason"] = (int)reason;
+
+        const char *reasonText = "UNKNOWN";
+
+        switch (reason) {
+          case ESP_RST_UNKNOWN: reasonText = "UNKNOWN"; break;
+          case ESP_RST_POWERON: reasonText = "POWERON"; break;
+          case ESP_RST_EXT: reasonText = "EXTERNAL"; break;
+          case ESP_RST_SW: reasonText = "SOFTWARE"; break;
+          case ESP_RST_PANIC: reasonText = "PANIC"; break;
+          case ESP_RST_INT_WDT: reasonText = "INT_WDT"; break;
+          case ESP_RST_TASK_WDT: reasonText = "TASK_WDT"; break;
+          case ESP_RST_WDT: reasonText = "WDT"; break;
+          case ESP_RST_DEEPSLEEP: reasonText = "DEEPSLEEP"; break;
+          case ESP_RST_BROWNOUT: reasonText = "BROWNOUT"; break;
+          case ESP_RST_SDIO: reasonText = "SDIO"; break;
+          default: reasonText = "OTHER"; break;
+        }
+
+        doc["resetReasonText"] = reasonText;
+
+#elif defined(ESP8266)
+        uint32_t freeHeap = ESP.getFreeHeap();
+        uint32_t maxBlock = ESP.getMaxFreeBlockSize();
+
+        doc["freeHeap"] = freeHeap;
+        doc["maxAllocHeap"] = maxBlock;
+        doc["heapFrag"] = (freeHeap > 0)
+                            ? (100 - (maxBlock * 100 / freeHeap))
+                            : 0;
+
+        doc["resetReason"] = ESP.getResetReason();
+#endif
+
+        doc["uptime"] = millis() / 1000;
+        doc["sketchFree"] = ESP.getFreeSketchSpace();
+
+        doc["ip"] = WiFi.localIP().toString();
+        doc["wifiRssi"] = WiFi.RSSI();
+        doc["wifiChannel"] = WiFi.channel();
+        doc["wifiBssid"] = WiFi.BSSIDstr();
+
+        String json;
+        serializeJson(doc, json);
+
+        return ",\"debug\":" + json;
+      }
+    case 15:
       return "}";
     default:
       return "";
@@ -1916,7 +1980,7 @@ void setupWebServer() {
 
   server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (getLargestFreeBlock() < 4000) {
-      Serial.printf("[SAVE] Aborting: heap too fragmented (%u largest)\n", getLargestFreeBlock());
+      Serial.printf(PSTR("[SAVE] Aborting: heap too fragmented (%u largest)\n"), getLargestFreeBlock());
       request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
       return;
     }
@@ -2013,10 +2077,10 @@ void setupWebServer() {
 
       newTargetTimestamp = mktime(&tm);
       if (newTargetTimestamp == (time_t)-1) {
-        Serial.println("[SAVE] Error converting countdown date/time to timestamp.");
+        Serial.println(F("[SAVE] Error converting countdown date/time to timestamp."));
         newTargetTimestamp = 0;
       } else {
-        Serial.printf("[SAVE] Converted countdown target: %s -> %lu\n", countdownDateStr.c_str(), newTargetTimestamp);
+        Serial.printf(PSTR("[SAVE] Converted countdown target: %s -> %lu\n"), countdownDateStr.c_str(), newTargetTimestamp);
       }
     }
 
@@ -2029,11 +2093,11 @@ void setupWebServer() {
 #if defined(ESP8266)
     FSInfo fs_info;
     LittleFS.info(fs_info);
-    Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", fs_info.totalBytes, fs_info.usedBytes);
+    Serial.printf(PSTR("[SAVE] LittleFS total bytes: %u, used bytes: %u\n"), fs_info.totalBytes, fs_info.usedBytes);
 #elif defined(ESP32)
       size_t total = LittleFS.totalBytes();
       size_t used = LittleFS.usedBytes();
-      Serial.printf("[SAVE] LittleFS total bytes: %u, used bytes: %u\n", (unsigned)total, (unsigned)used);
+      Serial.printf(PSTR("[SAVE] LittleFS total bytes: %u, used bytes: %u\n"), (unsigned)total, (unsigned)used);
 #endif
 
     if (LittleFS.exists("/config.json")) {
@@ -2052,7 +2116,7 @@ void setupWebServer() {
     }
 
     size_t bytesWritten = serializeJson(doc, f);
-    Serial.printf("[SAVE] Bytes written to /config.json: %u\n", bytesWritten);
+    Serial.printf(PSTR("[SAVE] Bytes written to /config.json: %u\n"), bytesWritten);
     f.close();
     Serial.println(F("[SAVE] /config.json file closed."));
 
@@ -2198,7 +2262,7 @@ void setupWebServer() {
     }
     hideDonationMsg = (value == "1" || value == "true" || value == "on");
     saveConfigRuntime();
-    Serial.printf("[DONATION] hideDonationMsg set to %s\n", hideDonationMsg ? "true" : "false");
+    Serial.printf(PSTR("[DONATION] hideDonationMsg set to %s\n"), hideDonationMsg ? "true" : "false");
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -2556,7 +2620,7 @@ void setupWebServer() {
       "application/json",
       [state](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
         while (state->bufPos >= state->buf.length()) {
-          if (state->section > 14) {
+          if (state->section > 15) {
             return 0;  // signals end of response
           }
           state->buf = statusSectionJson(state->section, state->snsType, state->nowTime);
@@ -2597,37 +2661,28 @@ void setupWebServer() {
           } else {
             return 0;
           }
-
           out = String();
         }
 
         if (!f) return 0;
-
         while (out.length() < maxLen && f.available()) {
-
           char c = f.read();
-
           // Detect protected keys
           if (c == '"') {
-
             String possibleKey = "\"";
-
             while (f.available()) {
               char k = f.read();
               possibleKey += k;
-
               if (k == '"')
                 break;
             }
 
             if (possibleKey == "\"ssid\"" || possibleKey == "\"password\"" || possibleKey == "\"openWeatherApiKey\"") {
               out += possibleKey;
-
               // Copy :"
               while (f.available()) {
                 char x = f.read();
                 out += x;
-
                 if (x == '"')
                   break;
               }
@@ -2635,7 +2690,6 @@ void setupWebServer() {
               // Skip original value
               while (f.available()) {
                 char x = f.read();
-
                 if (x == '"')
                   break;
               }
@@ -2643,23 +2697,17 @@ void setupWebServer() {
               String cleanKey = possibleKey.substring(1, possibleKey.length() - 1);
 
               if (!isAPMode && (cleanKey == "ssid" || cleanKey == "password" || cleanKey == "openWeatherApiKey")) {
-
                 if (cleanKey == "ssid")
                   out += "********";
                 else if (cleanKey == "password")
                   out += "********";
                 else
                   out += "********************************";
-
               } else if (cleanKey == "mode") {
-
                 out += isAPMode ? "ap" : "sta";
-
               } else {
-
                 out += "";
               }
-
               out += "\"";
               continue;
             }
@@ -2868,7 +2916,7 @@ void setupWebServer() {
     [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
       // This runs for every chunk of data received
       if (!index) {
-        Serial.printf("[OTA] Start: %s\n", filename.c_str());
+        Serial.printf(PSTR("[OTA] Start: %s\n"), filename.c_str());
 
 #ifdef ESP8266
         Update.runAsync(true);  // Critical: Prevent __yield panic on ESP8266
@@ -2889,7 +2937,7 @@ void setupWebServer() {
 
       if (final) {
         if (Update.end(true)) {
-          Serial.printf("[OTA] Finished: %u bytes\n", index + len);
+          Serial.printf(PSTR("[OTA] Finished: %u bytes\n"), index + len);
           // CREATE THE "SUCCESS" FLAG
           File f = LittleFS.open("/update_success.txt", "w");
           if (f) {
@@ -2978,12 +3026,12 @@ void setupWebServer() {
       for (auto &file : filesToRemove) {
         if (LittleFS.exists(file)) {
           if (LittleFS.remove(file)) {
-            Serial.printf("[RESET] Deleted %s\n", file);
+            Serial.printf(PSTR("[RESET] Deleted %s\n"), file);
           } else {
-            Serial.printf("[RESET] ERROR deleting %s\n", file);
+            Serial.printf(PSTR("[RESET] ERROR deleting %s\n"), file);
           }
         } else {
-          Serial.printf("[RESET] %s not found, skipping delete.\n", file);
+          Serial.printf(PSTR("[RESET] %s not found, skipping delete.\n"), file);
         }
       }
 
@@ -3031,7 +3079,7 @@ void handleCaptivePortal(AsyncWebServerRequest *request) {
   if (isAPMode) {
     IPAddress apIP = WiFi.softAPIP();
     String redirectUrl = "http://" + apIP.toString() + "/";
-    Serial.printf("[WEBSERVER] Captive fallback redirect: %s\n", uri.c_str());
+    Serial.printf(PSTR("[WEBSERVER] Captive fallback redirect: %s\n"), uri.c_str());
     AsyncWebServerResponse *response = request->beginResponse(302);
     response->addHeader("Location", redirectUrl);
     response->addHeader("Connection", "close");
@@ -3323,7 +3371,7 @@ void fetchWeather() {
     if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("temp"))) {
       float temp = doc[F("main")][F("temp")];
       currentTemp = String((int)round(temp)) + char(176);
-      Serial.printf("[WEATHER] Temp: %d°\n", (int)round(temp));
+      Serial.printf(PSTR("[WEATHER] Temp: %d°\n"), (int)round(temp));
       weatherAvailable = true;
     } else {
       Serial.println(F("[WEATHER] Temperature not found in JSON payload"));
@@ -3333,7 +3381,7 @@ void fetchWeather() {
 
     if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("humidity"))) {
       currentHumidity = doc[F("main")][F("humidity")];
-      Serial.printf("[WEATHER] Humidity: %d%%\n", currentHumidity);
+      Serial.printf(PSTR("[WEATHER] Humidity: %d%%\n"), currentHumidity);
     } else {
       currentHumidity = -1;
     }
@@ -3353,7 +3401,7 @@ void fetchWeather() {
       Serial.println(F("[WEATHER] Weather description not found in JSON payload"));
     }
     weatherDescription = String(weatherIcon) + " " + cleanTextForDisplay(detailedDesc);
-    Serial.printf("[WEATHER] Description used: %s\n", weatherDescription.c_str());
+    Serial.printf(PSTR("[WEATHER] Description used: %s\n"), weatherDescription.c_str());
 
     // -----------------------------------------
     // Sunrise/Sunset for Auto Dimming (local time)
@@ -3387,7 +3435,7 @@ void fetchWeather() {
         sunsetHour = tmSunset.tm_hour;
         sunsetMinute = tmSunset.tm_min;
 
-        Serial.printf("[WEATHER] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n",
+        Serial.printf(PSTR("[WEATHER] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n"),
                       sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
       } else {
         Serial.println(F("[WEATHER] Sunrise/Sunset not found in JSON."));
@@ -3440,7 +3488,7 @@ void fetchWeather() {
     }
 
   } else {
-    Serial.printf("[WEATHER] HTTP GET failed, error code: %d, reason: %s\n",
+    Serial.printf(PSTR("[WEATHER] HTTP GET failed, error code: %d, reason: %s\n"),
                   httpCode, http.errorToString(httpCode).c_str());
     weatherAvailable = false;
     weatherFetched = false;
@@ -3486,7 +3534,7 @@ void fetchNightscout() {
   bridgeUrl += urlEncode(rawUrl);
 
   isNetworkBusy = true;
-  Serial.println("[NIGHTSCOUT] Fetching via PHP bridge");
+  Serial.println(F("[NIGHTSCOUT] Fetching via PHP bridge"));
 
   WiFiClient client;
   HTTPClient http;
@@ -3497,7 +3545,7 @@ void fetchNightscout() {
     if (httpCode == 200) {
       String payload = http.getString();
       payload.trim();
-      Serial.printf("[NIGHTSCOUT] Payload: %s\n", payload.c_str());
+      Serial.printf(PSTR("[NIGHTSCOUT] Payload: %s\n"), payload.c_str());
 
       int space1 = payload.indexOf(' ');
       int space2 = payload.lastIndexOf(' ');
@@ -3508,18 +3556,18 @@ void fetchNightscout() {
           currentDirection = payload.substring(space1 + 1, space2);
           long long date = (long long)payload.substring(space2 + 1).toFloat();
           if (date > 0) lastGlucoseTime = date;  // already in seconds from PHP
-          Serial.printf("[NIGHTSCOUT] Fetched: %d (%s) %s\n",
+          Serial.printf(PSTR("[NIGHTSCOUT] Fetched: %d (%s) %s\n"),
                         currentGlucose,
                         nightscoutMmol ? "will display as mmol" : "mg/dL",
                         currentDirection.c_str());
           lastNightscoutFetchTime = millis();
           nightscoutFailCount = 0;
         } else {
-          Serial.println("[NIGHTSCOUT] Bridge returned error response, will retry");
+          Serial.println(F("[NIGHTSCOUT] Bridge returned error response, will retry"));
           lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
         }
       } else {
-        Serial.println("[NIGHTSCOUT] Failed to parse payload");
+        Serial.println(F("[NIGHTSCOUT] Failed to parse payload"));
         lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
       }
     } else if (httpCode == 404) {
@@ -3530,10 +3578,10 @@ void fetchNightscout() {
       nightscoutBackoffUntil = millis() + 1800000UL;
     } else {
       nightscoutFailCount++;
-      Serial.printf("[NIGHTSCOUT] HTTP failed (%d): %s\n", nightscoutFailCount, http.errorToString(httpCode).c_str());
+      Serial.printf(PSTR("[NIGHTSCOUT] HTTP failed (%d): %s\n"), nightscoutFailCount, http.errorToString(httpCode).c_str());
       if (nightscoutFailCount >= 3) {
         unsigned long backoff = (nightscoutFailCount >= 6) ? 1800000UL : 300000UL;
-        Serial.printf("[NIGHTSCOUT] %d consecutive failures, backing off %lu min.\n",
+        Serial.printf(PSTR("[NIGHTSCOUT] %d consecutive failures, backing off %lu min.\n"),
                       nightscoutFailCount, backoff / 60000UL);
         nightscoutBackoffUntil = millis() + backoff;
       }
@@ -3552,7 +3600,7 @@ void fetchNightscout() {
     rawUrl += (rawUrl.indexOf('?') == -1) ? "?count=1" : "&count=1";
 
   isNetworkBusy = true;
-  Serial.printf("[NIGHTSCOUT] Fetching%s direct\n", nightscoutMmol ? " (mmol)" : " (mg/dL)");
+  Serial.printf(PSTR("[NIGHTSCOUT] Fetching%s direct\n"), nightscoutMmol ? " (mmol)" : " (mg/dL)");
 
   WiFiClientSecure client;
   client.setInsecure();
@@ -3570,14 +3618,14 @@ void fetchNightscout() {
       currentDirection = firstReading["direction"] | "?";
       long long dateMs = firstReading["date"] | 0LL;
       if (dateMs > 0) lastGlucoseTime = dateMs / 1000;  // JSON returns ms, convert to seconds
-      Serial.printf("[NIGHTSCOUT] Fetched: %d (%s) %s\n",
+      Serial.printf(PSTR("[NIGHTSCOUT] Fetched: %d (%s) %s\n"),
                     currentGlucose,
                     nightscoutMmol ? "will display as mmol" : "mg/dL",
                     currentDirection.c_str());
       lastNightscoutFetchTime = millis();
       nightscoutFailCount = 0;
     } else {
-      Serial.println("[NIGHTSCOUT] Failed to parse JSON");
+      Serial.println(F("[NIGHTSCOUT] Failed to parse JSON"));
       lastNightscoutFetchTime = millis() - NIGHTSCOUT_FETCH_INTERVAL + 60000;
     }
   } else if (httpCode == 404) {
@@ -3590,10 +3638,10 @@ void fetchNightscout() {
     nightscoutFailCount = 0;
   } else {
     nightscoutFailCount++;
-    Serial.printf("[NIGHTSCOUT] HTTPS failed (%d): %s\n", nightscoutFailCount, https.errorToString(httpCode).c_str());
+    Serial.printf(PSTR("[NIGHTSCOUT] HTTPS failed (%d): %s\n"), nightscoutFailCount, https.errorToString(httpCode).c_str());
     if (nightscoutFailCount >= 3) {
       unsigned long backoff = (nightscoutFailCount >= 6) ? 1800000UL : 300000UL;
-      Serial.printf("[NIGHTSCOUT] %d consecutive failures, backing off %lu min.\n",
+      Serial.printf(PSTR("[NIGHTSCOUT] %d consecutive failures, backing off %lu min.\n"),
                     nightscoutFailCount, backoff / 60000UL);
       nightscoutBackoffUntil = millis() + backoff;
     }
@@ -3617,7 +3665,7 @@ void loadUptime() {
       totalUptimeSeconds = f.parseInt();
       f.close();
       bootMillis = millis();
-      Serial.printf("[UPTIME] Loaded accumulated uptime: %lu seconds (%.2f hours)\n",
+      Serial.printf(PSTR("[UPTIME] Loaded accumulated uptime: %lu seconds (%.2f hours)\n"),
                     totalUptimeSeconds, totalUptimeSeconds / 3600.0);
     } else {
       Serial.println(F("[UPTIME] Failed to open /uptime.dat for reading."));
@@ -3644,7 +3692,7 @@ void saveUptime() {
   if (f) {
     f.print(totalUptimeSeconds);
     f.close();
-    Serial.printf("[UPTIME] Saved accumulated uptime: %s\n", formatTotalRuntime().c_str());
+    Serial.printf(PSTR("[UPTIME] Saved accumulated uptime: %s\n"), formatTotalRuntime().c_str());
   } else {
     Serial.println(F("[UPTIME] Failed to write /uptime.dat"));
   }
@@ -3714,7 +3762,7 @@ void saveCustomMessageToConfig(const char *msg) {
 
   size_t bytesWritten = serializeJson(doc, f);
   f.close();
-  Serial.printf("[CONFIG] Saved customMessage='%s' (%u bytes written)\n", msg, bytesWritten);
+  Serial.printf(PSTR("[CONFIG] Saved customMessage='%s' (%u bytes written)\n"), msg, bytesWritten);
 }
 
 // Returns formatted uptime (for web UI or logs)
@@ -3900,7 +3948,7 @@ bool handlePomodoroCommand(String cmd) {
   lastSwitch = millis();
   forceMessageRestart = true;
 
-  Serial.printf("[POMODORO] Started: %d min work / %d min break\n", workMin, breakMin);
+  Serial.printf(PSTR("[POMODORO] Started: %d min work / %d min break\n"), workMin, breakMin);
   return true;
 }
 
@@ -3974,7 +4022,8 @@ bool handleAlarmCommand(String cmd) {
     prevDisplayMode = displayMode;
     displayMode = 6;
     forceMessageRestart = true;
-    Serial.println("[ALARM] Schedule requested: " + schedule);
+    Serial.print(F("[ALARM] Schedule requested: "));
+    Serial.println(schedule);
     return true;
   }
 
@@ -4040,7 +4089,7 @@ bool handleAlarmCommand(String cmd) {
       lastBrightnessChange = millis();
     }
 
-    Serial.printf("[ALARM] Set via command: %02d:%02d\n", h, m);
+    Serial.printf(PSTR("[ALARM] Set via command: %02d:%02d\n"), h, m);
     return true;
   }
 
@@ -4243,9 +4292,13 @@ bool handleTimerCommand(String cmd) {
 //Actions handler
 void executeAction(const String &action, const String &value) {
   if (value.length() > 0) {
-    Serial.println("[ACTION] " + action + " = " + value);
+    Serial.print(F("[ACTION] "));
+    Serial.print(action);
+    Serial.print(F(" = "));
+    Serial.println(value);
   } else {
-    Serial.println("[ACTION] " + action);
+    Serial.print(F("[ACTION] "));
+    Serial.println(action);
   }
   String v = value;
   v.trim();
@@ -4411,12 +4464,13 @@ void executeAction(const String &action, const String &value) {
         }
         configDirty = true;
         lastBrightnessChange = millis();
-        Serial.printf("[BUZZER] Event '%s' -> sound %d, repeat=%s (enabled=%s)\n",
+        Serial.printf(PSTR("[BUZZER] Event '%s' -> sound %d, repeat=%s (enabled=%s)\n"),
                       evtName.c_str(), soundId,
                       buzzerConfig.eventRepeat[idx] ? "true" : "false",
                       buzzerConfig.eventEnabled[idx] ? "true" : "false");
       } else {
-        Serial.println("[BUZZER] Unknown event name: " + evtName);
+        Serial.print(F("[BUZZER] Unknown event name: "));
+        Serial.println(evtName);
       }
     }
   }
@@ -4491,7 +4545,7 @@ void executeAction(const String &action, const String &value) {
       lastBrightnessChange = millis();
     }
 
-    Serial.printf("[ALARM] Set via action: %02d:%02d\n", h, m);
+    Serial.printf(PSTR("[ALARM] Set via action: %02d:%02d\n"), h, m);
   }
 
   // Timer commands
@@ -4593,7 +4647,8 @@ void executeAction(const String &action, const String &value) {
     Serial.println(F("[MESSAGE] clear_message_all: all messages cleared"));
 
   } else {
-    Serial.println("[ACTION] Unknown action: " + action);
+    Serial.print(F("[ACTION] Unknown action: "));
+    Serial.println(action);
   }
 }
 
@@ -4608,7 +4663,7 @@ void handleBrightnessChange(int newBrightness, bool isFromUI) {
       brightness = -1;
       configDirty = true;
       lastBrightnessChange = millis();
-      Serial.printf("[BRIGHTNESS] Display turned OFF via %s\n", isFromUI ? "UI" : "API");
+      Serial.printf(PSTR("[BRIGHTNESS] Display turned OFF via %s\n"), isFromUI ? "UI" : "API");
     }
     return;
   }
@@ -4628,9 +4683,9 @@ void handleBrightnessChange(int newBrightness, bool isFromUI) {
       P.displayShutdown(false);
       P.displayClear();
       displayOff = false;
-      Serial.printf("[BRIGHTNESS] Display woke from OFF via %s to %d\n", isFromUI ? "UI" : "API", brightness);
+      Serial.printf(PSTR("[BRIGHTNESS] Display woke from OFF via %s to %d\n"), isFromUI ? "UI" : "API", brightness);
     } else {
-      Serial.printf("[BRIGHTNESS] Intensity set to %d via %s\n", brightness, isFromUI ? "UI" : "API");
+      Serial.printf(PSTR("[BRIGHTNESS] Intensity set to %d via %s\n"), brightness, isFromUI ? "UI" : "API");
     }
   }
 }
@@ -4650,7 +4705,7 @@ void goToMode(const String &target) {
   else if (v == "7" || v == "timer") targetMode = 7;
 
   if (targetMode == -1 || !isModeAvailable(targetMode)) {
-    Serial.printf("[DISPLAY] go_to_mode: invalid or unavailable target '%s'\n", target.c_str());
+    Serial.printf(PSTR("[DISPLAY] go_to_mode: invalid or unavailable target '%s'\n"), target.c_str());
     return;
   }
 
@@ -4701,7 +4756,7 @@ void goToMode(const String &target) {
   descScrollEndTime = 0;
 
   const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "BRIDGE", "DATE", "CUSTOM MESSAGE", "TIMER" };
-  Serial.printf("[DISPLAY] go_to_mode: %s (from %s)\n", modeNames[targetMode], modeNames[prevDisplayMode]);
+  Serial.printf(PSTR("[DISPLAY] go_to_mode: %s (from %s)\n"), modeNames[targetMode], modeNames[prevDisplayMode]);
   lastSwitch = millis();
 }
 
@@ -4716,13 +4771,13 @@ void loadPins() {
 
   // Migration (SAFE: only write missing keys)
   if (!hasAll) {
-    Serial.println("[PIN CONFIG] Missing NVS keys - MIGRATION TRIGGERED");
+    Serial.println(F("[PIN CONFIG] Missing NVS keys - MIGRATION TRIGGERED"));
 
     if (!hasCLK) prefs.putInt("clk", L_CLK);
     if (!hasCS) prefs.putInt("cs", L_CS);
     if (!hasDATA) prefs.putInt("data", L_DATA);
 
-    Serial.println("[PIN CONFIG] Migration complete (non-destructive)");
+    Serial.println(F("[PIN CONFIG] Migration complete (non-destructive)"));
   }
 
   // Load
@@ -4732,14 +4787,14 @@ void loadPins() {
 
   // Validation + fallback (optional improvement below)
   if (CLK_PIN < 0 || CS_PIN < 0 || DATA_PIN < 0) {
-    Serial.println("[PIN CONFIG] Invalid pins - fallback to defaults");
+    Serial.println(F("[PIN CONFIG] Invalid pins - fallback to defaults"));
 
     CLK_PIN = L_CLK;
     CS_PIN = L_CS;
     DATA_PIN = L_DATA;
   }
 
-  Serial.printf("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n", CLK_PIN, CS_PIN, DATA_PIN);
+  Serial.printf(PSTR("[PIN CONFIG] Loaded pins - CLK:%d CS:%d DATA:%d\n"), CLK_PIN, CS_PIN, DATA_PIN);
 }
 
 // -----------------------------------------------------------------------------
@@ -4921,7 +4976,7 @@ void snoozeAlarm() {
   if (!alarmRinging) return;
   alarmSnoozedUntil = millis() + (unsigned long)alarmConfig.snoozeMinutes * 60000UL;
   buzzerStop();  // restores display state — see step 6
-  Serial.printf("[ALARM] Snoozed for %d minutes.\n", alarmConfig.snoozeMinutes);
+  Serial.printf(PSTR("[ALARM] Snoozed for %d minutes.\n"), alarmConfig.snoozeMinutes);
 }
 
 void checkAlarmSchedule() {
@@ -4963,7 +5018,7 @@ void setupButtons() {
   for (int i = 0; i < 4; i++) {
     if (btnCfg[i].pin >= 0) {
       pinMode(btnCfg[i].pin, INPUT_PULLUP);
-      Serial.printf("[BUTTON] Button %d ready on GPIO %d\n", i + 1, btnCfg[i].pin);
+      Serial.printf(PSTR("[BUTTON] Button %d ready on GPIO %d\n"), i + 1, btnCfg[i].pin);
     }
   }
 }
@@ -4986,7 +5041,7 @@ void handleButtons() {
       if (millis() - pressStart[i] >= BTN_LONG_MS) {
         longFired[i] = true;
         if (btnCfg[i].longAct.length() > 0) {
-          Serial.printf("[BUTTON] Button %d LONG → %s\n", i + 1, btnCfg[i].longAct.c_str());
+          Serial.printf(PSTR("[BUTTON] Button %d LONG → %s\n"), i + 1, btnCfg[i].longAct.c_str());
           executeAction(btnCfg[i].longAct, "");
         }
       }
@@ -4995,7 +5050,7 @@ void handleButtons() {
       if (!longFired[i] && millis() - lastPress[i] > 200) {
         lastPress[i] = millis();
         if (btnCfg[i].shortAct.length() > 0) {
-          Serial.printf("[BUTTON] Button %d SHORT → %s\n", i + 1, btnCfg[i].shortAct.c_str());
+          Serial.printf(PSTR("[BUTTON] Button %d SHORT → %s\n"), i + 1, btnCfg[i].shortAct.c_str());
           executeAction(btnCfg[i].shortAct, "");
         }
       }
@@ -5072,35 +5127,35 @@ void setup() {
       case ARDUINO_EVENT_WIFI_STA_GOT_IP:
         name = "GOT_IP";
         lastWifiConnectTime = millis();
-        Serial.println("[WIFI EVENT] Re-initializing mDNS due to new IP.");
+        Serial.println(F("[WIFI EVENT] Re-initializing mDNS due to new IP."));
         setupMDNS();
         break;
       case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
         name = "DISCONNECTED";
         MDNS.end();
-        Serial.println("[WIFI EVENT] mDNS stopped.");
+        Serial.println(F("[WIFI EVENT] mDNS stopped."));
         break;
       default: return;  // ignore all other events
     }
-    Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
+    Serial.printf(PSTR("[WIFI EVENT] %s (%d)\n"), name, event);
   });
 
 #elif defined(ESP8266)
   WiFi.setAutoReconnect(false);
   WiFi.persistent(false);
   mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
-    Serial.println("[WIFI EVENT] Connected");
+    Serial.println(F("[WIFI EVENT] Connected"));
   });
   mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
     if (isRebooting) {
       Serial.println(F("[WIFI] Disconnect ignored during reboot."));
       return;
     }
-    Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
+    Serial.printf(PSTR("[WIFI EVENT] Disconnected (Reason: %d)\n"), ev.reason);
     MDNS.end();
   });
   mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
-    Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
+    Serial.printf(PSTR("[WIFI EVENT] GOT_IP - IP: %s\n"), ev.ip.toString().c_str());
     lastWifiConnectTime = millis();
     setupMDNS();
   });
@@ -5119,10 +5174,10 @@ void setup() {
   }
 #endif
   setupWebServer();
+  setupTime();
   Serial.println(F("[SETUP] Webserver setup complete"));
   Serial.println(F("[SETUP] Setup complete"));
   Serial.println();
-  setupTime();
 #if !defined(ARDUINO_USB_MODE)
   printConfigToSerial();
 #endif
@@ -5218,7 +5273,7 @@ void advanceDisplayMode(bool forced) {
       const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "BRIDGE", "DATE", "CUSTOM MESSAGE", "TIMER" };
       const char *newName = displayMode < 8 ? modeNames[displayMode] : "UNKNOWN";
       const char *prevName = prevDisplayMode < 8 ? modeNames[prevDisplayMode] : "UNKNOWN";
-      Serial.printf("[DISPLAY] Switching to display mode: %s (from %s)\n", newName, prevName);
+      Serial.printf(PSTR("[DISPLAY] Switching to display mode: %s (from %s)\n"), newName, prevName);
 
       clockScrollDone = false;
       descScrolling = false;
@@ -5273,7 +5328,7 @@ void previousDisplayMode(bool forced) {
       const char *modeNames[] = { "CLOCK", "WEATHER", "WEATHER DESC", "COUNTDOWN", "BRIDGE", "DATE", "CUSTOM MESSAGE", "TIMER" };
       const char *newName = displayMode < 8 ? modeNames[displayMode] : "UNKNOWN";
       const char *prevName = prevDisplayMode < 8 ? modeNames[prevDisplayMode] : "UNKNOWN";
-      Serial.printf("[DISPLAY] Switching to display mode: %s (from %s)\n", newName, prevName);
+      Serial.printf(PSTR("[DISPLAY] Switching to display mode: %s (from %s)\n"), newName, prevName);
 
       clockScrollDone = false;
       descScrolling = false;
@@ -5339,7 +5394,7 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
   size_t bytesWritten = serializeJson(doc, f);
   f.close();
 
-  Serial.printf("[saveCountdownConfig] Config updated. %u bytes written.\n", bytesWritten);
+  Serial.printf(PSTR("[saveCountdownConfig] Config updated. %u bytes written.\n"), bytesWritten);
   return true;
 }
 
@@ -5485,14 +5540,14 @@ time_t calcNextDonationTime(bool forceTomorrow) {
     int rangeStart = max(curMinOfDay + 1, windowStart);
     if (rangeStart < windowEnd) {
       int chosen = random(rangeStart, windowEnd);
-      Serial.printf("[DONATION] Scheduled today at %02d:%02d\n", chosen / 60, chosen % 60);
+      Serial.printf(PSTR("[DONATION] Scheduled today at %02d:%02d\n"), chosen / 60, chosen % 60);
       return todayMidnight + ((time_t)chosen * 60L);
     }
   }
 
   time_t tomorrowMidnight = todayMidnight + 86400L;
   int chosen = random(windowStart, windowEnd);
-  Serial.printf("[DONATION] Scheduled tomorrow at %02d:%02d\n", chosen / 60, chosen % 60);
+  Serial.printf(PSTR("[DONATION] Scheduled tomorrow at %02d:%02d\n"), chosen / 60, chosen % 60);
   return tomorrowMidnight + ((time_t)chosen * 60L);
 }
 
@@ -5522,7 +5577,7 @@ void triggerDonationMessage() {
   clockScrollDone = false;
   forceMessageRestart = true;
 
-  Serial.printf("[DONATION] Showing message %d: %s\n", idx, DONATION_MESSAGES[idx]);
+  Serial.printf(PSTR("[DONATION] Showing message %d: %s\n"), idx, DONATION_MESSAGES[idx]);
 
   nextDonationTime = calcNextDonationTime(true);  // always tomorrow after firing
   saveConfigRuntime();
@@ -5692,9 +5747,9 @@ void loop() {
   if (dimActive != lastDimActive) {
     if (dimActive) {
       if (autoDimmingEnabled)
-        Serial.printf("[DISPLAY] Automatic dimming setting brightness to %d\n", targetBrightness);
+        Serial.printf(PSTR("[DISPLAY] Automatic dimming setting brightness to %d\n"), targetBrightness);
       else if (dimmingEnabled)
-        Serial.printf("[DISPLAY] Custom dimming setting brightness to %d\n", targetBrightness);
+        Serial.printf(PSTR("[DISPLAY] Custom dimming setting brightness to %d\n"), targetBrightness);
     } else {
       Serial.println(F("[DISPLAY] Waking display (dimming end)"));
     }
@@ -5739,7 +5794,7 @@ void loop() {
     hourglassPlayed = false;
     countdownFinishedMessageStartTime = millis();
 
-    Serial.println("[SYSTEM] Countdown target reached! Switching to Mode 3 to display finish sequence.");
+    Serial.println(F("[SYSTEM] Countdown target reached! Switching to Mode 3 to display finish sequence."));
     buzzerFireEvent(BUZZER_EVT_COUNTDOWN);
     yield();
   }
@@ -5794,7 +5849,7 @@ void loop() {
         } else {
           // Periodically print a more descriptive status message
           if (millis() - lastNtpStatusPrintTime >= ntpStatusPrintInterval) {
-            Serial.printf("[TIME] NTP sync in progress (attempt %d of %d)...\n", ntpRetryCount + 1, maxNtpRetries);
+            Serial.printf(PSTR("[TIME] NTP sync in progress (attempt %d of %d)...\n"), ntpRetryCount + 1, maxNtpRetries);
             lastNtpStatusPrintTime = millis();
           }
           // Still increment ntpRetryCount based on your original timing for the timeout logic
@@ -5926,7 +5981,8 @@ void loop() {
 
       // Send the extracted ID or Handle to the PHP bridge
       String bridgeUrl = "http://esptimecast.com/youtube-bridge.php?id=" + targetId;
-      Serial.println("[YOUTUBE] Fetching via PHP bridge: " + bridgeUrl);
+      Serial.print(F("[YOUTUBE] Fetching via PHP bridge: "));
+      Serial.println(bridgeUrl);
 
       WiFiClient client;
       HTTPClient http;
@@ -5952,15 +6008,15 @@ void loop() {
           long parsedSubs = subValueStr.toInt();
           if (parsedSubs >= 0) {
             youtubeSubscribers = parsedSubs;
-            Serial.printf("[YOUTUBE] Subscribers fetched from JSON: %ld\n", youtubeSubscribers);
+            Serial.printf(PSTR("[YOUTUBE] Subscribers fetched from JSON: %ld\n"), youtubeSubscribers);
           } else {
-            Serial.println("[YOUTUBE] Bridge JSON reported an error count (-1)");
+            Serial.println(F("[YOUTUBE] Bridge JSON reported an error count (-1)"));
           }
         } else {
-          Serial.println("[YOUTUBE] Failed to find 'subscribers' key in JSON payload");
+          Serial.println(F("[YOUTUBE] Failed to find 'subscribers' key in JSON payload"));
         }
       } else {
-        Serial.printf("[YOUTUBE] HTTP failed! Code: %d, Message: %s\n", httpCode, http.errorToString(httpCode).c_str());
+        Serial.printf(PSTR("[YOUTUBE] HTTP failed! Code: %d, Message: %s\n"), httpCode, http.errorToString(httpCode).c_str());
       }
 
       http.end();
@@ -6001,7 +6057,8 @@ void loop() {
       String bridgeUrl =
         "http://esptimecast.com/instagram-bridge.php?username=" + targetUsername;
 
-      Serial.println("[INSTAGRAM] Fetching via PHP bridge: " + bridgeUrl);
+      Serial.print(F("[INSTAGRAM] Fetching via PHP bridge: "));
+      Serial.println(bridgeUrl);
 
       WiFiClient client;
       HTTPClient http;
@@ -6091,7 +6148,8 @@ void loop() {
       String feedUrl = stripUrlParam(String(ntpServer2), "show_every");
 
       String bridgeUrl = "http://esptimecast.com/rss-bridge.php?url=" + urlEncode(feedUrl);
-      Serial.println("[RSS] Fetching via PHP bridge: " + bridgeUrl);
+      Serial.print(F("[RSS] Fetching via PHP bridge: "));
+      Serial.println(bridgeUrl);
 
       WiFiClient client;
       HTTPClient http;
@@ -6106,12 +6164,14 @@ void loop() {
         bool isError = (payload == "RSS ERROR" || payload == "INVALID RSS" || payload == "NO ENTRY" || payload == "FORBIDDEN" || payload == "NO URL" || payload == "INVALID URL");
         if (!isError && payload.length() > 0) {
           rssTitle = payload;
-          Serial.println("[RSS] Title fetched: " + rssTitle);
+          Serial.print(F("[RSS] Title fetched: "));
+          Serial.println(rssTitle);
         } else {
-          Serial.println("[RSS] Bridge returned error: " + payload);
+          Serial.print(F("[RSS] Bridge returned error: "));
+          Serial.println(payload);
         }
       } else {
-        Serial.printf("[RSS] HTTP failed! Code: %d\n", httpCode);
+        Serial.printf(PSTR("[RSS] HTTP failed! Code: %d\n"), httpCode);
       }
 
       http.end();
@@ -6429,7 +6489,7 @@ void loop() {
         countdownFinished = false;
         countdownFinishedMessageStartTime = 0;
         hourglassPlayed = false;  // Reset if we decide not to show it
-        Serial.println("[COUNTDOWN-FINISH] Countdown target invalid or not reached yet, skipping 'TIMES UP'. Advancing display.");
+        Serial.println(F("[COUNTDOWN-FINISH] Countdown target invalid or not reached yet, skipping 'TIMES UP'. Advancing display."));
         advanceDisplayMode();
         yield();
         return;
@@ -6479,7 +6539,7 @@ void loop() {
         return;  // Stay in this mode until the 15 seconds are over
       } else {
         // 15 seconds are over, clean up and advance
-        Serial.println("[COUNTDOWN-FINISH] Flashing duration over. Advancing to Clock.");
+        Serial.println(F("[COUNTDOWN-FINISH] Flashing duration over. Advancing to Clock."));
         countdownShowFinishedMessage = false;
         countdownFinishedMessageStartTime = 0;
         hourglassPlayed = false;  // <-- RESET this flag for the next countdown cycle!
@@ -6520,7 +6580,7 @@ void loop() {
             case 0:  // Days
               if (days > 0) {
                 currentSegmentText = String(days) + " " + (days == 1 ? "DAY" : "DAYS");
-                Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
+                Serial.printf(PSTR("[COUNTDOWN-STATIC] Displaying segment %d: %s\n"), countdownSegment, currentSegmentText.c_str());
                 countdownSegment++;
               } else {
                 // Skip days if zero
@@ -6533,7 +6593,7 @@ void loop() {
                 char buf[10];
                 sprintf(buf, "%02ld HRS", hours);  // pad hours with 0
                 currentSegmentText = String(buf);
-                Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
+                Serial.printf(PSTR("[COUNTDOWN-STATIC] Displaying segment %d: %s\n"), countdownSegment, currentSegmentText.c_str());
                 countdownSegment++;
                 break;
               }
@@ -6542,7 +6602,7 @@ void loop() {
                 char buf[10];
                 sprintf(buf, "%02ld MINS", minutes);  // pad minutes with 0
                 currentSegmentText = String(buf);
-                Serial.printf("[COUNTDOWN-STATIC] Displaying segment %d: %s\n", countdownSegment, currentSegmentText.c_str());
+                Serial.printf(PSTR("[COUNTDOWN-STATIC] Displaying segment %d: %s\n"), countdownSegment, currentSegmentText.c_str());
                 countdownSegment++;
                 break;
               }
@@ -6556,7 +6616,7 @@ void loop() {
                 char secondsBuf[10];
                 sprintf(secondsBuf, "%02ld %s", currentSecond, currentSecond == 1 ? "SEC" : "SECS");
                 String secondsText = String(secondsBuf);
-                Serial.printf("[COUNTDOWN-STATIC] Displaying segment 3: %s\n", secondsText.c_str());
+                Serial.printf(PSTR("[COUNTDOWN-STATIC] Displaying segment 3: %s\n"), secondsText.c_str());
                 P.displayClear();
                 P.setTextAlignment(PA_CENTER);
                 P.setCharSpacing(1);
@@ -6608,7 +6668,7 @@ void loop() {
                 break;
               }
             case 4:  // Exit countdown
-              Serial.println("[COUNTDOWN-STATIC] All segments and label displayed. Advancing to Clock.");
+              Serial.println(F("[COUNTDOWN-STATIC] All segments and label displayed. Advancing to Clock."));
               countdownSegment = 0;
               segmentStartTime = 0;
               P.setTextAlignment(PA_CENTER);
@@ -6618,7 +6678,7 @@ void loop() {
               return;
 
             default:
-              Serial.println("[COUNTDOWN-ERROR] Invalid countdownSegment, resetting.");
+              Serial.println(F("[COUNTDOWN-ERROR] Invalid countdownSegment, resetting."));
               countdownSegment = 0;
               segmentStartTime = 0;
               break;
@@ -6901,7 +6961,7 @@ void loop() {
         double diffSec = difftime(nowUTC, lastGlucoseTime);
         ageMinutes = (int)(diffSec / 60.0);
         isOutdated = (ageMinutes > NIGHTSCOUT_IDLE_THRESHOLD_MIN);
-        Serial.printf("[NIGHTSCOUT] Data age: %d minutes old (threshold: %d)\n", ageMinutes, NIGHTSCOUT_IDLE_THRESHOLD_MIN);
+        Serial.printf(PSTR("[NIGHTSCOUT] Data age: %d minutes old (threshold: %d)\n"), ageMinutes, NIGHTSCOUT_IDLE_THRESHOLD_MIN);
       }
 
       char arrow;
@@ -7230,12 +7290,12 @@ void loop() {
   if (configDirty && !alarmRinging && millis() - lastBrightnessChange > saveDelay) {
     saveConfigRuntime();
     configDirty = false;
-    Serial.println("[CONFIG] Auto-saved");
+    Serial.println(F("[CONFIG] Auto-saved"));
   }
 
   if (currentMillis - lastUptimeLog >= uptimeLogInterval) {
     lastUptimeLog = currentMillis;
-    Serial.printf("[UPTIME] Runtime: %s (total %.2f hours)\n",
+    Serial.printf(PSTR("[UPTIME] Runtime: %s (total %.2f hours)\n"),
                   formatUptime(currentTotal).c_str(), currentTotal / 3600.0);
     saveUptime();  // Save accumulated uptime every 10 minutes
   }
@@ -7282,7 +7342,7 @@ void showTimerMode7() {
         timerEndTime = millis() + pomodoroWorkMs;
         timerFinished = false;
         timerPaused = false;
-        Serial.printf("[POMODORO] Break over. Starting session %d.\n", pomodoroSession);
+        Serial.printf(PSTR("[POMODORO] Break over. Starting session %d.\n"), pomodoroSession);
         buzzerFireEvent(BUZZER_EVT_POMODORO_BREAK);
         return;
       }
@@ -7380,7 +7440,7 @@ void showTimerMode7() {
       timerActive = true;
       timerPaused = false;
       timerFinished = false;
-      Serial.printf("[POMODORO] Session %d done. Starting %s break.\n",
+      Serial.printf(PSTR("[POMODORO] Session %d done. Starting %s break.\n"),
                     pomodoroSession, pomodoroSession == 4 ? "long" : "short");
       buzzerFireEvent(BUZZER_EVT_POMODORO_WORK);
       return;
