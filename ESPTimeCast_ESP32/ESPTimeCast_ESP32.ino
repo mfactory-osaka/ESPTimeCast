@@ -98,16 +98,19 @@ uint8_t buzzerSavedVolumeForPreview = 0;
 bool buzzerVolumeOverridden = false;
 
 // --- Alarm variables ---
-AlarmConfig alarmConfig;
+#define MAX_ALARMS 4
+AlarmConfig alarmConfigs[MAX_ALARMS];
 bool alarmRinging = false;
+int alarmRingingIndex = -1;
 int alarmLastCheckedMinute = -1;
 int alarmPreviousDisplayMode = 0;
 bool alarmSavedDisplayOff = false;
 int alarmSavedBrightness = 7;
 bool alarmSavedRotationEnabled = true;
-unsigned long alarmSnoozedUntil = 0;  // 0 = not currently snoozed
+unsigned long alarmSnoozedUntil[MAX_ALARMS] = { 0, 0, 0, 0 };
 unsigned long alarmStopAt = 0;
-const unsigned long ALARM_TIMEOUT_MS = 15UL * 60 * 1000;  // 15 minutes
+const unsigned long ALARM_TIMEOUT_MS = 15UL * 60 * 1000;
+bool alarmTest = false;
 
 // --- Global Scroll Speed Settings ---
 const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Description and Countdown Label (e.g., 50 for faster, 200 for slower)
@@ -735,35 +738,80 @@ void loadConfig() {
   }
 
   // --- ALARM CONFIG LOADING / MIGRATION ---
-  if (doc.containsKey("alarm")) {
-    JsonObject al = doc["alarm"];
-    alarmConfig.enabled = al["enabled"] | false;
-    alarmConfig.hour = al["hour"] | 7;
-    alarmConfig.minute = al["minute"] | 0;
-    JsonArray days = al["days"];
-    for (int i = 0; i < 7; i++) {
-      alarmConfig.days[i] = (i < (int)days.size()) ? (bool)days[i] : true;
+  if (doc.containsKey("alarms")) {
+    JsonArray alarms = doc["alarms"];
+    for (int i = 0; i < MAX_ALARMS; i++) {
+      if (i < (int)alarms.size()) {
+        JsonObject al = alarms[i];
+        alarmConfigs[i].enabled = al["enabled"] | false;
+        alarmConfigs[i].hour = al["hour"] | 7;
+        alarmConfigs[i].minute = al["minute"] | 0;
+        JsonArray days = al["days"];
+        for (int d = 0; d < 7; d++) {
+          alarmConfigs[i].days[d] = (d < (int)days.size()) ? (bool)days[d] : true;
+        }
+        alarmConfigs[i].snoozeMinutes = al["snoozeMinutes"] | 15;
+        alarmConfigs[i].brightness = al["brightness"] | 10;
+        alarmConfigs[i].sound = al["sound"] | 3;
+      } else {
+        alarmConfigs[i].enabled = false;
+        alarmConfigs[i].hour = 7;
+        alarmConfigs[i].minute = 0;
+        for (int d = 0; d < 7; d++) alarmConfigs[i].days[d] = true;
+        alarmConfigs[i].snoozeMinutes = 15;
+        alarmConfigs[i].brightness = 10;
+        alarmConfigs[i].sound = 3;
+      }
     }
-    alarmConfig.snoozeMinutes = al["snoozeMinutes"] | 15;
-    alarmConfig.brightness = al["brightness"] | 10;
-  } else {
-    alarmConfig.enabled = false;
-    alarmConfig.hour = 7;
-    alarmConfig.minute = 0;
-    for (int i = 0; i < 7; i++) alarmConfig.days[i] = true;
-    alarmConfig.snoozeMinutes = 15;
-    alarmConfig.brightness = 10;
-
-    JsonObject al = doc.createNestedObject("alarm");
-    al["enabled"] = alarmConfig.enabled;
-    al["hour"] = alarmConfig.hour;
-    al["minute"] = alarmConfig.minute;
-    JsonArray days = al.createNestedArray("days");
-    for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
-    al["snoozeMinutes"] = alarmConfig.snoozeMinutes;
-    al["brightness"] = alarmConfig.brightness;
+  } else if (doc.containsKey("alarm")) {
+    // Migrating from single-alarm config — becomes alarm slot 0
+    JsonObject al = doc["alarm"];
+    alarmConfigs[0].enabled = al["enabled"] | false;
+    alarmConfigs[0].hour = al["hour"] | 7;
+    alarmConfigs[0].minute = al["minute"] | 0;
+    JsonArray days = al["days"];
+    for (int d = 0; d < 7; d++) {
+      alarmConfigs[0].days[d] = (d < (int)days.size()) ? (bool)days[d] : true;
+    }
+    alarmConfigs[0].snoozeMinutes = al["snoozeMinutes"] | 15;
+    alarmConfigs[0].brightness = al["brightness"] | 10;
+    alarmConfigs[0].sound = 3;
+    for (int i = 1; i < MAX_ALARMS; i++) {
+      alarmConfigs[i].enabled = false;
+      alarmConfigs[i].hour = 7;
+      alarmConfigs[i].minute = 0;
+      for (int d = 0; d < 7; d++) alarmConfigs[i].days[d] = true;
+      alarmConfigs[i].snoozeMinutes = 15;
+      alarmConfigs[i].brightness = 10;
+      alarmConfigs[i].sound = 3;
+    }
+    doc.remove("alarm");
     configChanged = true;
-    Serial.println(F("[CONFIG] Migrated: added alarm defaults."));
+    Serial.println(F("[CONFIG] Migrated: single alarm -> alarm slot 0."));
+  } else {
+    for (int i = 0; i < MAX_ALARMS; i++) {
+      alarmConfigs[i].enabled = false;
+      alarmConfigs[i].hour = 7;
+      alarmConfigs[i].minute = 0;
+      for (int d = 0; d < 7; d++) alarmConfigs[i].days[d] = true;
+      alarmConfigs[i].snoozeMinutes = 15;
+      alarmConfigs[i].brightness = 10;
+      alarmConfigs[i].sound = 3;
+    }
+    JsonArray alarms = doc.createNestedArray("alarms");
+    for (int i = 0; i < MAX_ALARMS; i++) {
+      JsonObject al = alarms.createNestedObject();
+      al["enabled"] = alarmConfigs[i].enabled;
+      al["hour"] = alarmConfigs[i].hour;
+      al["minute"] = alarmConfigs[i].minute;
+      JsonArray days = al.createNestedArray("days");
+      for (int d = 0; d < 7; d++) days.add(alarmConfigs[i].days[d]);
+      al["snoozeMinutes"] = alarmConfigs[i].snoozeMinutes;
+      al["brightness"] = alarmConfigs[i].brightness;
+      al["sound"] = alarmConfigs[i].sound;
+    }
+    configChanged = true;
+    Serial.println(F("[CONFIG] Migrated: added alarm defaults (4 slots)."));
   }
 
   // --- Save migrated config if needed ---
@@ -1808,15 +1856,21 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
       }
     case 13:
       {
-        JsonDocument doc;
-        doc["enabled"] = alarmConfig.enabled;
-        doc["hour"] = alarmConfig.hour;
-        doc["minute"] = alarmConfig.minute;
-        JsonArray days = doc.createNestedArray("days");
-        for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
-        doc["snoozeMinutes"] = alarmConfig.snoozeMinutes;
-        doc["brightness"] = alarmConfig.brightness;
+        DynamicJsonDocument doc(768);
+        JsonArray alarms = doc.createNestedArray("alarms");
+        for (int i = 0; i < MAX_ALARMS; i++) {
+          JsonObject al = alarms.createNestedObject();
+          al["enabled"] = alarmConfigs[i].enabled;
+          al["hour"] = alarmConfigs[i].hour;
+          al["minute"] = alarmConfigs[i].minute;
+          JsonArray days = al.createNestedArray("days");
+          for (int d = 0; d < 7; d++) days.add(alarmConfigs[i].days[d]);
+          al["snoozeMinutes"] = alarmConfigs[i].snoozeMinutes;
+          al["brightness"] = alarmConfigs[i].brightness;
+          al["sound"] = alarmConfigs[i].sound;
+        }
         doc["ringing"] = alarmRinging;
+        doc["ringingIndex"] = alarmRingingIndex;
         String json;
         serializeJson(doc, json);
         return ",\"alarm\":" + json;
@@ -2424,15 +2478,21 @@ void setupWebServer() {
   });
 
   server.on("/get_alarm", HTTP_GET, [](AsyncWebServerRequest *request) {
-    DynamicJsonDocument doc(256);
-    doc["enabled"] = alarmConfig.enabled;
-    doc["hour"] = alarmConfig.hour;
-    doc["minute"] = alarmConfig.minute;
-    JsonArray days = doc.createNestedArray("days");
-    for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
-    doc["snoozeMinutes"] = alarmConfig.snoozeMinutes;
-    doc["brightness"] = alarmConfig.brightness;
+    DynamicJsonDocument doc(1024);
+    JsonArray alarms = doc.createNestedArray("alarms");
+    for (int i = 0; i < MAX_ALARMS; i++) {
+      JsonObject al = alarms.createNestedObject();
+      al["enabled"] = alarmConfigs[i].enabled;
+      al["hour"] = alarmConfigs[i].hour;
+      al["minute"] = alarmConfigs[i].minute;
+      JsonArray days = al.createNestedArray("days");
+      for (int d = 0; d < 7; d++) days.add(alarmConfigs[i].days[d]);
+      al["snoozeMinutes"] = alarmConfigs[i].snoozeMinutes;
+      al["brightness"] = alarmConfigs[i].brightness;
+      al["sound"] = alarmConfigs[i].sound;
+    }
     doc["ringing"] = alarmRinging;
+    doc["ringingIndex"] = alarmRingingIndex;
 
     AsyncResponseStream *response = request->beginResponseStream("application/json");
     response->addHeader("Connection", "close");
@@ -2441,26 +2501,33 @@ void setupWebServer() {
   });
 
   server.on("/save_alarm", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("enabled", true)) {
-      alarmConfig.enabled = request->getParam("enabled", true)->value() == "1";
-    }
-    if (request->hasParam("hour", true)) {
-      alarmConfig.hour = constrain(request->getParam("hour", true)->value().toInt(), 0, 23);
-    }
-    if (request->hasParam("minute", true)) {
-      alarmConfig.minute = constrain(request->getParam("minute", true)->value().toInt(), 0, 59);
-    }
-    for (int i = 0; i < 7; i++) {
-      String key = "day" + String(i);
-      if (request->hasParam(key, true)) {
-        alarmConfig.days[i] = request->getParam(key, true)->value() == "1";
+    for (int i = 0; i < MAX_ALARMS; i++) {
+      String p = "alarm" + String(i) + "_";
+      if (request->hasParam(p + "enabled", true)) {
+        alarmConfigs[i].enabled = request->getParam(p + "enabled", true)->value() == "1";
       }
-    }
-    if (request->hasParam("snoozeMinutes", true)) {
-      alarmConfig.snoozeMinutes = constrain(request->getParam("snoozeMinutes", true)->value().toInt(), 1, 60);
-    }
-    if (request->hasParam("brightness", true)) {
-      alarmConfig.brightness = constrain(request->getParam("brightness", true)->value().toInt(), 0, 15);
+      if (request->hasParam(p + "hour", true)) {
+        alarmConfigs[i].hour = constrain(request->getParam(p + "hour", true)->value().toInt(), 0, 23);
+      }
+      if (request->hasParam(p + "minute", true)) {
+        alarmConfigs[i].minute = constrain(request->getParam(p + "minute", true)->value().toInt(), 0, 59);
+      }
+      for (int d = 0; d < 7; d++) {
+        String dayKey = p + "day" + String(d);
+        if (request->hasParam(dayKey, true)) {
+          alarmConfigs[i].days[d] = request->getParam(dayKey, true)->value() == "1";
+        }
+      }
+      if (request->hasParam(p + "snoozeMinutes", true)) {
+        alarmConfigs[i].snoozeMinutes = constrain(request->getParam(p + "snoozeMinutes", true)->value().toInt(), 1, 60);
+      }
+      if (request->hasParam(p + "brightness", true)) {
+        alarmConfigs[i].brightness = constrain(request->getParam(p + "brightness", true)->value().toInt(), 0, 15);
+      }
+      if (request->hasParam(p + "sound", true)) {
+        int s = request->getParam(p + "sound", true)->value().toInt();
+        if (s >= 1 && s <= 3) alarmConfigs[i].sound = (uint8_t)s;
+      }
     }
 
     saveConfigRuntime();
@@ -3698,15 +3765,19 @@ void saveUptime() {
   }
 }
 
-void setAlarmSchedule(int hour, int minute, const bool days[7]) {
-  alarmConfig.hour = hour;
-  alarmConfig.minute = minute;
-  for (int i = 0; i < 7; i++) alarmConfig.days[i] = days[i];
-  alarmConfig.enabled = true;
+void setAlarmSchedule(int index, int hour, int minute, const bool days[7]) {
+  if (index < 0 || index >= MAX_ALARMS) return;
+  alarmConfigs[index].hour = hour;
+  alarmConfigs[index].minute = minute;
+  for (int i = 0; i < 7; i++) alarmConfigs[index].days[i] = days[i];
+  alarmConfigs[index].enabled = true;
   configDirty = true;
   lastBrightnessChange = millis();
 }
 
+void setAlarmSchedule(int hour, int minute, const bool days[7]) {
+  setAlarmSchedule(0, hour, minute, days);
+}
 
 // -----------------------------
 // Get total uptime including current session
@@ -3960,38 +4031,50 @@ bool handlePomodoroCommand(String cmd) {
 //         [ALARM TEST]    — fire the alarm now, for testing
 // -----------------------------------------------------------------------------
 bool handleAlarmCommand(String cmd) {
-  cmd.toUpperCase();
+  cmd.toUpperCase();  // Reassign the uppercase result
   if (cmd.indexOf("[ALARM") == -1) return false;
 
-  // STOP and SNOOZE always pass through, same reasoning as Timer/Pomodoro STOP/PAUSE
-  if (cmd.indexOf("[ALARM STOP]") != -1) {
-    buzzerStop();
+  // Detect which slot: [ALARM ...] = 0, [ALARM2 ...] = 1, [ALARM3 ...] = 2, [ALARM4 ...] = 3
+  int index = 0;
+  int prefixLen = 6;  // length of "[ALARM"
+  if (cmd.length() > 6 && isDigit(cmd.charAt(6))) {
+    index = cmd.charAt(6) - '0' - 1;
+    prefixLen = 7;
+    if (index < 0 || index >= MAX_ALARMS) return false;
+  }
+
+  String rest = cmd.substring(prefixLen);
+  // REMOVED: rest.trim(); -- keep spaces so startsWith(" ENABLE]") works properly
+
+  if (rest.startsWith("] STOP]") || rest.startsWith(" STOP]")) {
+    if (alarmRinging) {
+      buzzerStop();
+      showAlarmNotification("ALARM OFF");
+    }
     return true;
   }
 
-  if (cmd.indexOf("[ALARM SNOOZE]") != -1) {
-    snoozeAlarm();
+  if (rest.startsWith(" SNOOZE]")) {
+    if (alarmRinging) snoozeAlarm();
     return true;
   }
 
-  // ENABLE/DISABLE are pure config toggles — no display action, no guard needed
-  if (cmd.indexOf("[ALARM ENABLE]") != -1) {
-    alarmConfig.enabled = true;
+  if (rest.startsWith(" ENABLE]")) {
+    alarmConfigs[index].enabled = true;
     configDirty = true;
     lastBrightnessChange = millis();
-    Serial.println(F("[ALARM] Enabled via command."));
+    Serial.printf(PSTR("[ALARM] Slot %d enabled via command.\n"), index);
     return true;
   }
 
-  if (cmd.indexOf("[ALARM DISABLE]") != -1) {
-    alarmConfig.enabled = false;
+  if (rest.startsWith(" DISABLE]")) {
+    alarmConfigs[index].enabled = false;
     configDirty = true;
     lastBrightnessChange = millis();
-    Serial.println(F("[ALARM] Disabled via command."));
+    Serial.printf(PSTR("[ALARM] Slot %d disabled via command.\n"), index);
     return true;
   }
 
-  // TEST and bare [ALARM] respect the same guards as Timer/Pomodoro starts
   if (clockOnlyDuringDimming && dimActive) {
     Serial.println(F("[ALARM] Ignored: Clock-only Dimming is active."));
     return true;
@@ -4001,48 +4084,43 @@ bool handleAlarmCommand(String cmd) {
     return true;
   }
 
-  if (cmd.indexOf("[ALARM TEST]") != -1) {
-    fireAlarm();
-    Serial.println(F("[ALARM] Test fired via command."));
+  if (rest.startsWith(" TEST]")) {
+    alarmTest = true;
+    fireAlarm(index, -1, -1);
+    Serial.printf(PSTR("[ALARM] Slot %d test fired via command.\n"), index);
     return true;
   }
 
-  if (cmd.indexOf("[ALARM]") != -1) {
+  if (rest.startsWith("]")) {
     if (alarmRinging) {
-      Serial.println(F("[ALARM] Ignored: alarm is currently ringing."));
+      Serial.println(F("[ALARM] Ignored: an alarm is currently ringing."));
       return true;
     }
-    String schedule = formatAlarmSchedule(alarmConfig);
+    String schedule = formatAlarmSchedule(alarmConfigs[index]);
     strncpy(customMessage, schedule.c_str(), sizeof(customMessage) - 1);
     customMessage[sizeof(customMessage) - 1] = '\0';
     messageBigNumbers = false;
     messageDisplaySeconds = 0;
     messageScrollTimes = 1;
-    messageScrollSpeed = GENERAL_SCROLL_SPEED;
+    messageScrollSpeed = RSS_SCROLL_SPEED;
     prevDisplayMode = displayMode;
     displayMode = 6;
     forceMessageRestart = true;
-    Serial.print(F("[ALARM] Schedule requested: "));
-    Serial.println(schedule);
+    Serial.println("[ALARM] Schedule requested: " + schedule);
     return true;
   }
 
-  // [ALARM SET HH:MM]                  — time only, keeps existing days
-  // [ALARM SET HH:MM DAYS]             — DAYS = digit string, 0=Sun...6=Sat
-  // [ALARM SET HH:MM DAYS SOUND]       — SOUND = 1-3
-  // [ALARM SET HH:MM DAYS SOUND VOL]   — VOL = 1-10 (buzzer's global volume)
-  if (cmd.indexOf("[ALARM SET ") != -1) {
-    int start = cmd.indexOf("[ALARM SET ") + 11;
-    int end = cmd.indexOf("]", start);
+  if (rest.startsWith(" SET ")) {
+    int start = 5;
+    int end = rest.indexOf("]", start);
     if (end == -1) return false;
-    String params = cmd.substring(start, end);
+    String params = rest.substring(start, end);
     params.trim();
 
-    // Split on spaces into up to 4 tokens
-    String tokens[4];
+    String tokens[6];
     int tokenCount = 0;
     int pos = 0;
-    while (tokenCount < 4 && pos < (int)params.length()) {
+    while (tokenCount < 6 && pos < (int)params.length()) {
       int sp = params.indexOf(' ', pos);
       if (sp == -1) {
         tokens[tokenCount++] = params.substring(pos);
@@ -4069,27 +4147,28 @@ bool handleAlarmCommand(String cmd) {
       }
     }
 
-    setAlarmSchedule(h, m, days);
+    setAlarmSchedule(index, h, m, days);
 
     if (tokenCount >= 3) {
       int soundId = tokens[2].toInt();
-      if (soundId >= 1 && soundId <= 3) {
-        buzzerConfig.eventSound[BUZZER_EVT_ALARM] = (uint8_t)soundId;
-        buzzerConfig.eventEnabled[BUZZER_EVT_ALARM] = true;
-      }
+      if (soundId >= 1 && soundId <= 3) alarmConfigs[index].sound = (uint8_t)soundId;
     }
     if (tokenCount >= 4) {
-      int vol = tokens[3].toInt();
-      if (vol >= 1 && vol <= 10) {
-        buzzerConfig.volume = (uint8_t)vol;
-      }
+      int bri = tokens[3].toInt();
+      if (bri >= 0 && bri <= 15) alarmConfigs[index].brightness = (uint8_t)bri;
     }
-    if (tokenCount >= 3) {
-      configDirty = true;
-      lastBrightnessChange = millis();
+    if (tokenCount >= 5) {
+      int snooze = tokens[4].toInt();
+      if (snooze >= 1 && snooze <= 60) alarmConfigs[index].snoozeMinutes = (uint8_t)snooze;
     }
+    if (tokenCount >= 6) {
+      int vol = tokens[5].toInt();
+      if (vol >= 1 && vol <= 10) buzzerConfig.volume = (uint8_t)vol;
+    }
+    configDirty = true;
+    lastBrightnessChange = millis();
 
-    Serial.printf(PSTR("[ALARM] Set via command: %02d:%02d\n"), h, m);
+    Serial.printf(PSTR("[ALARM] Slot %d set via command: %02d:%02d\n"), index, h, m);
     return true;
   }
 
@@ -4143,6 +4222,7 @@ bool handleTimerCommand(String cmd) {
       timerFinished = false;
       timerPaused = false;
       isStopwatch = false;
+      buzzerStop();
       displayMode = 0;
       prevDisplayMode = 6;
       clockScrollDone = false;
@@ -4476,76 +4556,112 @@ void executeAction(const String &action, const String &value) {
   }
 
   // Alarm actions
-  else if (action == "alarm_stop") {
-    buzzerStop();
+  else if (action.startsWith("alarm") && (action.indexOf("_") != -1)) {
+    int underscorePos = action.indexOf("_");
+    String prefix = action.substring(0, underscorePos);
+    String sub = action.substring(underscorePos + 1);
 
-  } else if (action == "alarm_snooze") {
-    snoozeAlarm();
-
-  } else if (action == "alarm_enable") {
-    alarmConfig.enabled = hasValue ? boolVal : !alarmConfig.enabled;
-    configDirty = true;
-    lastBrightnessChange = millis();
-
-  } else if (action == "alarm_test") {
-    int previewBrightness = hasValue ? value.toInt() : -1;
-    fireAlarm(previewBrightness);
-
-  } else if (action == "alarm_set") {
-    // "HH:MM" or "HH:MM:DAYS" or "HH:MM:DAYS:SOUND" or "HH:MM:DAYS:SOUND:VOLUME"
-    int c1 = value.indexOf(':');
-    int c2 = value.indexOf(':', c1 + 1);
-    int c3 = (c2 == -1) ? -1 : value.indexOf(':', c2 + 1);
-    int c4 = (c3 == -1) ? -1 : value.indexOf(':', c3 + 1);
-
-    int h = value.substring(0, c1).toInt();
-    int m;
-    String daysPart = "";
-    int soundId = -1;
-    int vol = -1;
-
-    if (c2 == -1) {
-      m = value.substring(c1 + 1).toInt();
-    } else if (c3 == -1) {
-      m = value.substring(c1 + 1, c2).toInt();
-      daysPart = value.substring(c2 + 1);
-    } else if (c4 == -1) {
-      m = value.substring(c1 + 1, c2).toInt();
-      daysPart = value.substring(c2 + 1, c3);
-      soundId = value.substring(c3 + 1).toInt();
-    } else {
-      m = value.substring(c1 + 1, c2).toInt();
-      daysPart = value.substring(c2 + 1, c3);
-      soundId = value.substring(c3 + 1, c4).toInt();
-      vol = value.substring(c4 + 1).toInt();
+    int index = 0;
+    if (prefix.length() > 5) {
+      index = prefix.substring(5).toInt() - 1;
+      if (index < 0 || index >= MAX_ALARMS) return;
     }
 
-    bool days[7];
-    if (daysPart.length() == 0) {
-      for (int i = 0; i < 7; i++) days[i] = true;
-    } else {
-      for (int i = 0; i < 7; i++) days[i] = false;
-      for (unsigned int i = 0; i < daysPart.length(); i++) {
-        int d = daysPart.charAt(i) - '0';
-        if (d >= 0 && d <= 6) days[d] = true;
+    if (sub == "stop") {
+      if (alarmRinging) {
+        buzzerStop();
+        showAlarmNotification("ALARM OFF");
       }
-    }
 
-    setAlarmSchedule(h, m, days);
+    } else if (sub == "snooze") {
+      if (alarmRinging) snoozeAlarm();
 
-    if (soundId >= 1 && soundId <= 3) {
-      buzzerConfig.eventSound[BUZZER_EVT_ALARM] = (uint8_t)soundId;
-      buzzerConfig.eventEnabled[BUZZER_EVT_ALARM] = true;
-    }
-    if (vol >= 1 && vol <= 10) {
-      buzzerConfig.volume = (uint8_t)vol;
-    }
-    if (soundId >= 1 || vol >= 1) {
+    } else if (sub == "enable") {
+      alarmConfigs[index].enabled = hasValue ? boolVal : !alarmConfigs[index].enabled;
       configDirty = true;
       lastBrightnessChange = millis();
-    }
 
-    Serial.printf(PSTR("[ALARM] Set via action: %02d:%02d\n"), h, m);
+    } else if (sub == "test") {
+      int previewBrightness = -1;
+      int previewSound = -1;
+      if (hasValue) {
+        int sep = value.indexOf(':');
+        if (sep == -1) {
+          previewBrightness = value.toInt();
+        } else {
+          previewBrightness = value.substring(0, sep).toInt();
+          previewSound = value.substring(sep + 1).toInt();
+        }
+      }
+      alarmTest = true;
+      fireAlarm(index, previewBrightness, previewSound);
+    } else if (sub == "set") {
+      int c1 = value.indexOf(':');
+      int c2 = value.indexOf(':', c1 + 1);
+      int c3 = (c2 == -1) ? -1 : value.indexOf(':', c2 + 1);
+      int c4 = (c3 == -1) ? -1 : value.indexOf(':', c3 + 1);
+      int c5 = (c4 == -1) ? -1 : value.indexOf(':', c4 + 1);
+      int c6 = (c5 == -1) ? -1 : value.indexOf(':', c5 + 1);
+
+      int h = value.substring(0, c1).toInt();
+      int m;
+      String daysPart = "";
+      int soundId = -1;
+      int bri = -1;
+      int snooze = -1;
+      int vol = -1;
+
+      if (c2 == -1) {
+        m = value.substring(c1 + 1).toInt();
+      } else if (c3 == -1) {
+        m = value.substring(c1 + 1, c2).toInt();
+        daysPart = value.substring(c2 + 1);
+      } else if (c4 == -1) {
+        m = value.substring(c1 + 1, c2).toInt();
+        daysPart = value.substring(c2 + 1, c3);
+        soundId = value.substring(c3 + 1).toInt();
+      } else if (c5 == -1) {
+        m = value.substring(c1 + 1, c2).toInt();
+        daysPart = value.substring(c2 + 1, c3);
+        soundId = value.substring(c3 + 1, c4).toInt();
+        bri = value.substring(c4 + 1).toInt();
+      } else if (c6 == -1) {
+        m = value.substring(c1 + 1, c2).toInt();
+        daysPart = value.substring(c2 + 1, c3);
+        soundId = value.substring(c3 + 1, c4).toInt();
+        bri = value.substring(c4 + 1, c5).toInt();
+        snooze = value.substring(c5 + 1).toInt();
+      } else {
+        m = value.substring(c1 + 1, c2).toInt();
+        daysPart = value.substring(c2 + 1, c3);
+        soundId = value.substring(c3 + 1, c4).toInt();
+        bri = value.substring(c4 + 1, c5).toInt();
+        snooze = value.substring(c5 + 1, c6).toInt();
+        vol = value.substring(c6 + 1).toInt();
+      }
+
+      bool days[7];
+      if (daysPart.length() == 0) {
+        for (int i = 0; i < 7; i++) days[i] = true;
+      } else {
+        for (int i = 0; i < 7; i++) days[i] = false;
+        for (unsigned int i = 0; i < daysPart.length(); i++) {
+          int d = daysPart.charAt(i) - '0';
+          if (d >= 0 && d <= 6) days[d] = true;
+        }
+      }
+
+      setAlarmSchedule(index, h, m, days);
+
+      if (soundId >= 1 && soundId <= 3) alarmConfigs[index].sound = (uint8_t)soundId;
+      if (bri >= 0 && bri <= 15) alarmConfigs[index].brightness = (uint8_t)bri;
+      if (snooze >= 1 && snooze <= 60) alarmConfigs[index].snoozeMinutes = (uint8_t)snooze;
+      if (vol >= 1 && vol <= 10) buzzerConfig.volume = (uint8_t)vol;
+      configDirty = true;
+      lastBrightnessChange = millis();
+
+      Serial.printf(PSTR("[ALARM] Slot %d set via action: %02d:%02d\n"), index, h, m);
+    }
   }
 
   // Timer commands
@@ -4812,6 +4928,7 @@ void buzzerHwWrite(uint16_t freq, uint32_t duty) {
   if (buzzerConfig.pin == 255) return;
   if (freq == 0 || duty == 0) {
     ledcWrite(buzzerConfig.pin, 0);
+    digitalWrite(buzzerConfig.pin, LOW);
   } else {
     ledcChangeFrequency(buzzerConfig.pin, freq, BUZZER_LEDC_RES);
     ledcWrite(buzzerConfig.pin, duty);
@@ -4860,6 +4977,28 @@ void buzzerApplyStep(uint8_t i) {
   }
 }
 
+void showAlarmNotification(const String &message) {
+  if (alarmTest) {
+    alarmTest = false;
+    return;
+  }
+  strncpy(customMessage, message.c_str(), sizeof(customMessage) - 1);
+  customMessage[sizeof(customMessage) - 1] = '\0';
+
+  messageBigNumbers = false;
+  messageDisplaySeconds = 0;
+  messageScrollTimes = 1;
+  messageScrollSpeed = RSS_SCROLL_SPEED;
+
+  prevDisplayMode = 6;
+  displayMode = 6;
+  forceMessageRestart = true;
+  lastSwitch = millis();
+
+  Serial.print(F("[ALARM] Notification: "));
+  Serial.println(message);
+}
+
 void buzzerStop() {
   buzzerHwWrite(0, 0);
   buzzerState = BUZZER_IDLE;
@@ -4888,6 +5027,7 @@ void buzzerStop() {
   }
   P.setInvert(0);
   alarmRinging = false;
+  alarmRingingIndex = -1;
 }
 
 void buzzerTrigger(const BuzzerPattern *pattern, bool forceNoRepeat, bool ignoreEnabledFlag) {
@@ -4911,6 +5051,11 @@ void buzzerTrigger(const BuzzerPattern *pattern) {
 
 void buzzerLoop() {
   if (buzzerState != BUZZER_PLAYING || !buzzerActivePattern) return;
+
+  if (buzzerEventStopAt != 0 && millis() >= buzzerEventStopAt) {
+    buzzerStop();
+    return;
+  }
 
   BuzzerStep step = buzzerActivePattern->steps[buzzerCurrentStep];
   if (millis() - buzzerStepStartTime >= step.durationMs) {
@@ -4943,7 +5088,8 @@ void buzzerFireEvent(BuzzerEventIndex evt) {
   }
 }
 
-void fireAlarm(int brightnessOverride) {
+void fireAlarm(int index, int brightnessOverride, int soundOverride) {
+  if (index < 0 || index >= MAX_ALARMS) return;
   if (!ntpSyncSuccessful) return;
   if (clockOnlyDuringDimming && dimActive) {
     Serial.println(F("[ALARM] Skipped: Clock-only Dimming is active."));
@@ -4951,41 +5097,49 @@ void fireAlarm(int brightnessOverride) {
   }
 
   alarmRinging = true;
-  alarmStopAt = millis() + ALARM_TIMEOUT_MS;
+  alarmRingingIndex = index;
   alarmPreviousDisplayMode = displayMode;
   alarmSavedDisplayOff = displayOff;
   alarmSavedBrightness = brightness;
   alarmSavedRotationEnabled = rotationEnabled;
+  alarmStopAt = millis() + ALARM_TIMEOUT_MS;
 
   rotationEnabled = false;
-  int targetBrightness = (brightnessOverride >= 0 && brightnessOverride <= 15) ? brightnessOverride : alarmConfig.brightness;
+  int targetBrightness = (brightnessOverride >= 0 && brightnessOverride <= 15) ? brightnessOverride : alarmConfigs[index].brightness;
   handleBrightnessChange(targetBrightness, false);
 
   displayMode = 8;
   forceMessageRestart = true;
 
-  buzzerFireEvent(BUZZER_EVT_ALARM);
-  Serial.println(F("[ALARM] Firing."));
-}
+  int soundToUse = (soundOverride >= 1 && soundOverride <= 3) ? soundOverride : alarmConfigs[index].sound;
+  buzzerTrigger(getSoundPattern(soundToUse), true, true);
+  buzzerRepeating = true;
+  buzzerEventStopAt = 0;
 
-void fireAlarm() {
-  fireAlarm(-1);
+  Serial.printf(PSTR("[ALARM] Firing (slot %d).\n"), index);
 }
 
 void snoozeAlarm() {
-  if (!alarmRinging) return;
-  alarmSnoozedUntil = millis() + (unsigned long)alarmConfig.snoozeMinutes * 60000UL;
-  buzzerStop();  // restores display state — see step 6
-  Serial.printf(PSTR("[ALARM] Snoozed for %d minutes.\n"), alarmConfig.snoozeMinutes);
+  if (!alarmRinging || alarmRingingIndex < 0) return;
+  int idx = alarmRingingIndex;
+  int snoozeMinutes = alarmConfigs[idx].snoozeMinutes;
+  alarmSnoozedUntil[idx] = millis() + (unsigned long)snoozeMinutes * 60000UL;
+  buzzerStop();
+  char message[32];
+  snprintf(message, sizeof(message), "SNOOZED %d MIN", snoozeMinutes);
+  showAlarmNotification(message);
+  Serial.printf(PSTR("[ALARM] Slot %d snoozed for %d minutes.\n"), idx, snoozeMinutes);
 }
 
 void checkAlarmSchedule() {
   if (isRebooting) return;
 
-  if (alarmSnoozedUntil > 0 && millis() >= alarmSnoozedUntil) {
-    alarmSnoozedUntil = 0;
-    fireAlarm();
-    return;
+  for (int i = 0; i < MAX_ALARMS; i++) {
+    if (alarmSnoozedUntil[i] > 0 && millis() >= alarmSnoozedUntil[i]) {
+      alarmSnoozedUntil[i] = 0;
+      fireAlarm(i, -1, -1);
+      return;
+    }
   }
 
   if (!ntpSyncSuccessful) return;
@@ -4997,19 +5151,22 @@ void checkAlarmSchedule() {
   if (timeinfo.tm_min == alarmLastCheckedMinute) return;
   alarmLastCheckedMinute = timeinfo.tm_min;
 
-  if (!alarmConfig.enabled || alarmRinging) return;
-  if (!alarmConfig.days[timeinfo.tm_wday]) return;
+  if (alarmRinging) return;
 
-  if (timeinfo.tm_hour == alarmConfig.hour && timeinfo.tm_min == alarmConfig.minute) {
-    fireAlarm();
+  for (int i = 0; i < MAX_ALARMS; i++) {
+    if (!alarmConfigs[i].enabled) continue;
+    if (!alarmConfigs[i].days[timeinfo.tm_wday]) continue;
+    if (timeinfo.tm_hour == alarmConfigs[i].hour && timeinfo.tm_min == alarmConfigs[i].minute) {
+      fireAlarm(i, -1, -1);
+      return;  // first match this minute wins; others wait for their next scheduled day
+    }
   }
 }
 
 void checkAlarmTimeout() {
   if (!alarmRinging || !alarmStopAt) return;
-
   if (millis() >= alarmStopAt) {
-    Serial.println(F("[ALARM] Timed out (15 min), display restored."));
+    Serial.println(F("[ALARM] Timed out (15 min), stopping."));
     buzzerStop();
   }
 }
@@ -5449,14 +5606,19 @@ bool saveConfigRuntime() {
   }
 
   doc.remove("alarm");
-  JsonObject al = doc.createNestedObject("alarm");
-  al["enabled"] = alarmConfig.enabled;
-  al["hour"] = alarmConfig.hour;
-  al["minute"] = alarmConfig.minute;
-  JsonArray days = al.createNestedArray("days");
-  for (int i = 0; i < 7; i++) days.add(alarmConfig.days[i]);
-  al["snoozeMinutes"] = alarmConfig.snoozeMinutes;
-  al["brightness"] = alarmConfig.brightness;
+  doc.remove("alarms");
+  JsonArray alarms = doc.createNestedArray("alarms");
+  for (int i = 0; i < MAX_ALARMS; i++) {
+    JsonObject al = alarms.createNestedObject();
+    al["enabled"] = alarmConfigs[i].enabled;
+    al["hour"] = alarmConfigs[i].hour;
+    al["minute"] = alarmConfigs[i].minute;
+    JsonArray days = al.createNestedArray("days");
+    for (int d = 0; d < 7; d++) days.add(alarmConfigs[i].days[d]);
+    al["snoozeMinutes"] = alarmConfigs[i].snoozeMinutes;
+    al["brightness"] = alarmConfigs[i].brightness;
+    al["sound"] = alarmConfigs[i].sound;
+  }
 
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {
@@ -6540,6 +6702,7 @@ void loop() {
       } else {
         // 15 seconds are over, clean up and advance
         Serial.println(F("[COUNTDOWN-FINISH] Flashing duration over. Advancing to Clock."));
+        buzzerStop();
         countdownShowFinishedMessage = false;
         countdownFinishedMessageStartTime = 0;
         hourglassPlayed = false;  // <-- RESET this flag for the next countdown cycle!
@@ -6552,7 +6715,11 @@ void loop() {
 
         P.displayClear();
         P.setInvert(false);
-        advanceDisplayMode();
+        displayMode = 0;
+        prevDisplayMode = 6;
+        clockScrollDone = false;
+        forceMessageRestart = true;
+        lastSwitch = millis();
         yield();
         return;  // Exit loop after processing
       }
@@ -7448,11 +7615,14 @@ void showTimerMode7() {
 
     // Normal timer: alarm animation for 5 seconds
     if (now - timerFinishStartTime > 5000) {
+      buzzerStop();
       timerActive = false;
       timerFinished = false;
       displayMode = 0;
+      prevDisplayMode = 6;
       clockScrollDone = false;
-      lastSwitch = now;
+      forceMessageRestart = true;
+      lastSwitch = millis();
       return;
     }
     if ((now / 500) % 2 == 0) P.print("\x08");

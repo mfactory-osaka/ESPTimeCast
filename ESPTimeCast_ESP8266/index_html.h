@@ -954,6 +954,12 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-bottom: 1.5rem;
       }
 
+      .alarm-preview-text {
+        opacity: 0.7;
+        font-size: 0.85rem;
+        margin: 0.75rem 0 0.25rem 0;
+      }
+
       .day-pill {
         display: inline-flex;
         align-items: center;
@@ -1566,55 +1572,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         </button>
         <div class="sub-collapsible-content" aria-hidden="true">
           <div class="content-wrapper">
-            <div class="toggle-padding">
-              <label class="toggle-row-lg">
-                <span class="label-text">Enable Alarm:</span>
-                <span class="toggle-switch">
-                  <input type="checkbox" id="alarmEnabled" onchange="_updateAlarmPreview(); setAlarmFieldsEnabled(this.checked); saveAlarmConfig(false);" />
-                  <span class="toggle-slider"></span>
-                </span>
-              </label>
-
-              <label for="alarmTime">Time:</label>
-              <input type="time" id="alarmTime" oninput="_updateAlarmPreview()" />
-
-              <label>Repeat:</label>
-              <div class="alarm-days-row" id="alarmDaysRow">
-                <label class="day-pill" data-day="0"><input type="checkbox" id="alarmDay0" checked />Su</label>
-                <label class="day-pill" data-day="1"><input type="checkbox" id="alarmDay1" checked />Mo</label>
-                <label class="day-pill" data-day="2"><input type="checkbox" id="alarmDay2" checked />Tu</label>
-                <label class="day-pill" data-day="3"><input type="checkbox" id="alarmDay3" checked />We</label>
-                <label class="day-pill" data-day="4"><input type="checkbox" id="alarmDay4" checked />Th</label>
-                <label class="day-pill" data-day="5"><input type="checkbox" id="alarmDay5" checked />Fr</label>
-                <label class="day-pill" data-day="6"><input type="checkbox" id="alarmDay6" checked />Sa</label>
-              </div>
-
-              <label>Alarm Brightness: <span id="alarmBrightnessValue">10</span></label>
-              <input
-                class="range-full"
-                type="range"
-                min="0"
-                max="15"
-                id="alarmBrightnessSlider"
-                value="10"
-                oninput="alarmBrightnessValue.textContent = this.value;"
-              />
-
-              <label for="alarmSnooze">Snooze duration (minutes):</label>
-              <input type="number" id="alarmSnooze" min="1" max="60" value="15" />
-              <p id="alarmPreviewText">ALARM 07:00 EVERY DAY</p>
+            <div id="alarm-config-container">
+              <p class="small loading-hint">Loading...</p>
             </div>
-            <div class="button-row">
-                  <div class="btn-apply-wrap">
-                    <button type="button" id="testAlarmBtn" class="primary-button cmsg1 btn-apply-top" onclick="testAlarm()">
-                      Test Alarm
-                    </button>
-                  </div>
-                  <div class="btn-apply-wrap">
-                    <button type="button" id="alarmApplyBtn" class="primary-button cmsg1 btn-apply-top" onclick="saveAlarmConfig()">
-                      Apply
-                    </button>
-                  </div>
+            <div class="btn-apply-wrap">
+              <button type="button" class="primary-button cmsg1 btn-apply-top" onclick="saveAlarmConfig()">
+                Apply
+              </button>
             </div>
             <p id="alarm-save-status"></p>
           </div>
@@ -2169,8 +2133,10 @@ const char index_html[] PROGMEM = R"rawliteral(
                 } catch (e) {}
 
                 try {
-                  _alarmData = await fetch("/get_alarm").then(r => r.json());
-                  _renderAlarmConfig();
+                  fetch("/get_alarm").then(r => r.json()).then(d => {
+                    _alarmData = d;
+                    _renderAlarmConfig();
+                  }).catch(() => {});
                 } catch (e) {}
               }
             }, 100);
@@ -3871,7 +3837,6 @@ function setBuzzerFieldsEnabled(enabled) {
       let _buzzerData = null;
 
       const BUZZER_EVENTS = [
-        { idx: 0, label: "Alarm" },
         { idx: 1, label: "Countdown Finished" },
         { idx: 2, label: "Timer Finished" },
         { idx: 3, label: "Pomodoro Work Finished" },
@@ -3996,133 +3961,243 @@ function setBuzzerFieldsEnabled(enabled) {
           if (showStatus) showBuzzerStatus("⚠️ Save failed.");
         }
       }
+let _alarmData = null;
+let _alarmExpanded = [true, false, false, false];
 
-      let _alarmData = null;
+const ALARM_SOUND_OPTS = [
+  { id: 1, label: "Beep" },
+  { id: 2, label: "Chirp" },
+  { id: 3, label: "Alarm" }
+];
 
-      function _renderAlarmConfig() {
-        if (!_alarmData) return;
-        document.getElementById("alarmEnabled").checked = !!_alarmData.enabled;
-        document.getElementById("alarmTime").value =
-          String(_alarmData.hour).padStart(2, "0") + ":" + String(_alarmData.minute).padStart(2, "0");
-        document.getElementById("alarmBrightnessSlider").value = _alarmData.brightness ?? 10;
-        document.getElementById("alarmBrightnessValue").textContent = _alarmData.brightness ?? 10;
-        document.getElementById("alarmSnooze").value = _alarmData.snoozeMinutes ?? 15;
+function _alarmSoundOpts(selected) {
+  return ALARM_SOUND_OPTS.map(s =>
+    `<option value="${s.id}"${selected === s.id ? " selected" : ""}>${s.label}</option>`
+  ).join("");
+}
 
-        for (let i = 0; i < 7; i++) {
-          const checked = (_alarmData.days || [])[i] !== false;
-          document.getElementById(`alarmDay${i}`).checked = checked;
-          document.querySelector(`.day-pill[data-day="${i}"]`).classList.toggle("checked", checked);
-        }
-        _updateAlarmPreview();
-        setAlarmFieldsEnabled(_alarmData.enabled);
-      }
+function _alarmScheduleText(a) {
+  if (!a.enabled) return "NO ALARM SET";
+  const timeVal = String(a.hour).padStart(2, "0") + ":" + String(a.minute).padStart(2, "0");
+  const dayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  const selected = [];
+  for (let i = 0; i < 7; i++) if (a.days[i]) selected.push(dayLabels[i]);
+  if (selected.length === 0) return `ALARM ${timeVal} (NO DAYS SELECTED)`;
+  if (selected.length === 7) return `ALARM ${timeVal} EVERY DAY`;
+  return `ALARM ${timeVal} ${selected.join(" ")}`;
+}
 
-      document.querySelectorAll(".day-pill input").forEach(cb => {
-        cb.addEventListener("change", function () {
-          this.closest(".day-pill").classList.toggle("checked", this.checked);
-          _updateAlarmPreview();
-        });
-      });
+function _renderAlarmConfig() {
+  const el = document.getElementById("alarm-config-container");
+  if (!el || !_alarmData) return;
 
-      function _updateAlarmPreview() {
-        const enabled = document.getElementById("alarmEnabled").checked;
-        const timeVal = document.getElementById("alarmTime").value || "00:00";
-        const dayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-        let selected = [];
-        for (let i = 0; i < 7; i++) {
-          if (document.getElementById(`alarmDay${i}`).checked) selected.push(dayLabels[i]);
-        }
-        let text;
-        if (!enabled) {
-          text = "NO ALARM SET";
-        } else if (selected.length === 0) {
-          text = `ALARM ${timeVal} (NO DAYS SELECTED)`;
-        } else if (selected.length === 7) {
-          text = `ALARM ${timeVal} EVERY DAY`;
-        } else {
-          text = `ALARM ${timeVal} ${selected.join(" ")}`;
-        }
-        document.getElementById("alarmPreviewText").textContent = text;
-      }
+  _alarmData.alarms.forEach((a, i) => { if (a.enabled) _alarmExpanded[i] = true; });
 
-      function testAlarm() {
-        fetch("/action?alarm_test").catch(() => {});
-      }
-
-      let alarmSaveStatusTimer = null;
-      function showAlarmStatus(msg) {
-        const el = document.getElementById("alarm-save-status");
-        el.textContent = msg;
-        clearTimeout(alarmSaveStatusTimer);
-        alarmSaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
-      }
-
-      async function saveAlarmConfig(showStatus = true) {
-        const statusEl = document.getElementById("alarm-save-status");
-        const params = new URLSearchParams();
-
-        params.set("enabled", document.getElementById("alarmEnabled").checked ? "1" : "0");
-
-        const timeVal = document.getElementById("alarmTime").value || "00:00";
-        const [h, m] = timeVal.split(":");
-        params.set("hour", h);
-        params.set("minute", m);
-
-        for (let i = 0; i < 7; i++) {
-          params.set(`day${i}`, document.getElementById(`alarmDay${i}`).checked ? "1" : "0");
-        }
-
-        params.set("brightness", document.getElementById("alarmBrightnessSlider").value);
-        params.set("snoozeMinutes", document.getElementById("alarmSnooze").value);
-
-        try {
-          if (showStatus) statusEl.textContent = "Saving...";
-          const res = await fetch("/save_alarm", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: params
-          });
-          if (showStatus) showAlarmStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
-        } catch {
-          if (showStatus) showAlarmStatus("⚠️ Save failed.");
-        }
-      }
-
-      let _alarmTestRinging = false;
-
-      function testAlarm() {
-        const btn = document.getElementById("testAlarmBtn");
-        if (_alarmTestRinging) {
-          fetch("/action?alarm_stop").catch(() => {});
-          _alarmTestRinging = false;
-          btn.textContent = "Test Alarm";
-        } else {
-          const brightness = document.getElementById("alarmBrightnessSlider").value;
-          fetch(`/action?alarm_test=${brightness}`).catch(() => {});
-          _alarmTestRinging = true;
-          btn.textContent = "Stop Test";
-        }
-      }
-
-      function setAlarmFieldsEnabled(enabled) {
-      document.getElementById("alarmTime").disabled = !enabled;
-      document.getElementById("alarmBrightnessSlider").disabled = !enabled;
-      document.getElementById("alarmSnooze").disabled = !enabled;
-
-      for (let i = 0; i < 7; i++) {
-        const cb = document.getElementById(`alarmDay${i}`);
-        cb.disabled = !enabled;
-        cb.closest(".day-pill").classList.toggle("disabled", !enabled);
-      }
-
-      const testBtn = document.getElementById("testAlarmBtn");
-      testBtn.disabled = !enabled || document.getElementById("clockOnlyDuringDimming").checked;
-      testBtn.classList.toggle("geo-disabled", !enabled || document.getElementById("clockOnlyDuringDimming").checked);
-
-      const alarmAppBtn = document.getElementById("alarmApplyBtn");
-      alarmAppBtn.disabled = !enabled;
-      alarmAppBtn.classList.toggle("geo-disabled", !enabled);
+  el.innerHTML = _alarmData.alarms.map((a, i) => {
+    if (!_alarmExpanded[i]) {
+      const canAdd = i === 0 || _alarmExpanded[i - 1];
+      if (!canAdd) return "";
+      return `
+        <button type="button" class="btn-add-button" onclick="_expandAlarm(${i})">
+          + Add Alarm ${i + 1}
+        </button>`;
     }
+
+    return `
+      ${i > 0 ? '<hr class="btn-config-separator">' : ""}
+      <div class="btn-config-row">
+        <div class="btn-config-header">
+          <label class="btn-config-label">Alarm ${i + 1}</label>
+          ${i > 0 ? `<button type="button" class="btn-config-remove" onclick="_collapseAlarm(${i})">✕ Remove</button>` : ""}
+        </div>
+
+        <label class="toggle-row-lg">
+          <span class="label-text">Enable Alarm:</span>
+          <span class="toggle-switch">
+            <input type="checkbox" id="alarm${i}_enabled" ${a.enabled ? "checked" : ""} onchange="_updateAlarmPreview(${i})" />
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
+
+        <label>Alarm ${i + 1} Brightness: <span id="alarm${i}_brightnessValue">${a.brightness}</span></label>
+        <input class="range-full" type="range" min="0" max="15" id="alarm${i}_brightness" value="${a.brightness}"
+          oninput="document.getElementById('alarm${i}_brightnessValue').textContent = this.value;" />
+
+        <label for="alarm${i}_time">Time:</label>
+        <input type="time" id="alarm${i}_time" value="${String(a.hour).padStart(2, "0")}:${String(a.minute).padStart(2, "0")}" oninput="_updateAlarmPreview(${i})" />
+
+        <label>Repeat:</label>
+        <div class="alarm-days-row" id="alarm${i}_daysRow">
+          ${["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((lbl, d) => `
+            <label class="day-pill${a.days[d] ? " checked" : ""}" data-day="${d}">
+              <input type="checkbox" id="alarm${i}_day${d}" ${a.days[d] ? "checked" : ""} onchange="this.closest('.day-pill').classList.toggle('checked', this.checked); _updateAlarmPreview(${i});" />${lbl}
+            </label>`).join("")}
+        </div>
+
+        <label for="alarm${i}_sound">Sound:</label>
+        <select id="alarm${i}_sound" onchange="previewAlarmSound(${i})">
+          ${_alarmSoundOpts(a.sound)}
+        </select>
+
+        <label for="alarm${i}_snooze">Snooze duration (minutes):</label>
+        <input type="number" id="alarm${i}_snooze" min="1" max="60" value="${a.snoozeMinutes}" />
+
+        <p id="alarm${i}_previewText" class="alarm-preview-text">${_alarmScheduleText(a)}</p>
+
+        <div class="btn-apply-wrap">
+          <button type="button" id="alarm${i}_testBtn" class="primary-button cmsg1 btn-apply-top" onclick="testAlarm(${i})">
+            Test Alarm
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  for (let i = 0; i < 4; i++) {
+    if (_alarmExpanded[i]) setAlarmFieldsEnabled(i, _alarmData.alarms[i].enabled);
+  }
+}
+
+function _expandAlarm(i) {
+  _syncAlarmData();
+  _alarmExpanded[i] = true;
+  if (!_alarmData.alarms[i]) {
+    _alarmData.alarms[i] = { enabled: false, hour: 7, minute: 0, days: [true,true,true,true,true,true,true], snoozeMinutes: 15, brightness: 10, sound: 3 };
+  }
+  _renderAlarmConfig();
+}
+
+async function _collapseAlarm(i) {
+  _syncAlarmData();
+  const needsSave = _alarmData.alarms[i].enabled;
+  _alarmData.alarms[i] = { enabled: false, hour: 7, minute: 0, days: [true,true,true,true,true,true,true], snoozeMinutes: 15, brightness: 10, sound: 3 };
+  _alarmExpanded[i] = false;
+  _renderAlarmConfig();
+  if (needsSave) await saveAlarmConfig(false);
+}
+
+function _syncAlarmData() {
+  if (!_alarmData) return;
+  for (let i = 0; i < 4; i++) {
+    if (!_alarmExpanded[i]) continue;
+    const enabledEl = document.getElementById(`alarm${i}_enabled`);
+    if (!enabledEl) continue;
+    const timeEl = document.getElementById(`alarm${i}_time`);
+    const [h, m] = (timeEl.value || "07:00").split(":");
+
+    _alarmData.alarms[i].enabled = enabledEl.checked;
+    _alarmData.alarms[i].hour = parseInt(h);
+    _alarmData.alarms[i].minute = parseInt(m);
+    for (let d = 0; d < 7; d++) {
+      _alarmData.alarms[i].days[d] = document.getElementById(`alarm${i}_day${d}`).checked;
+    }
+    _alarmData.alarms[i].sound = parseInt(document.getElementById(`alarm${i}_sound`).value);
+    _alarmData.alarms[i].brightness = parseInt(document.getElementById(`alarm${i}_brightness`).value);
+    _alarmData.alarms[i].snoozeMinutes = parseInt(document.getElementById(`alarm${i}_snooze`).value);
+  }
+}
+
+function _updateAlarmPreview(i) {
+  const enabledEl = document.getElementById(`alarm${i}_enabled`);
+  const timeEl = document.getElementById(`alarm${i}_time`);
+  if (!enabledEl || !timeEl) return;
+  const enabled = enabledEl.checked;
+  const timeVal = timeEl.value || "00:00";
+  const dayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  let selected = [];
+  for (let d = 0; d < 7; d++) {
+    const cb = document.getElementById(`alarm${i}_day${d}`);
+    if (cb && cb.checked) selected.push(dayLabels[d]);
+  }
+  let text;
+  if (!enabled) text = "NO ALARM SET";
+  else if (selected.length === 0) text = `ALARM ${timeVal} (NO DAYS SELECTED)`;
+  else if (selected.length === 7) text = `ALARM ${timeVal} EVERY DAY`;
+  else text = `ALARM ${timeVal} ${selected.join(" ")}`;
+  document.getElementById(`alarm${i}_previewText`).textContent = text;
+  setAlarmFieldsEnabled(i, enabled);
+}
+
+function setAlarmFieldsEnabled(i, enabled) {
+  [`alarm${i}_time`, `alarm${i}_brightness`, `alarm${i}_sound`, `alarm${i}_snooze`].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !enabled;
+  });
+  for (let d = 0; d < 7; d++) {
+    const cb = document.getElementById(`alarm${i}_day${d}`);
+    if (cb) {
+      cb.disabled = !enabled;
+      cb.closest(".day-pill").classList.toggle("disabled", !enabled);
+    }
+  }
+  const testBtn = document.getElementById(`alarm${i}_testBtn`);
+  if (testBtn) {
+    testBtn.disabled = !enabled;
+    testBtn.classList.toggle("geo-disabled", !enabled);
+  }
+}
+
+let _alarmTestRinging = [false, false, false, false];
+function testAlarm(i) {
+  const btn = document.getElementById(`alarm${i}_testBtn`);
+  const actionPrefix = i === 0 ? "alarm" : `alarm${i + 1}`;
+  if (_alarmTestRinging[i]) {
+    fetch(`/action?${actionPrefix}_stop`).catch(() => {});
+    _alarmTestRinging[i] = false;
+    btn.textContent = "Test Alarm";
+  } else {
+    const brightness = document.getElementById(`alarm${i}_brightness`).value;
+    const sound = document.getElementById(`alarm${i}_sound`).value;
+    fetch(`/action?${actionPrefix}_test=${brightness}:${sound}`).catch(() => {});
+    _alarmTestRinging[i] = true;
+    btn.textContent = "Stop Test";
+  }
+}
+
+function previewAlarmSound(i) {
+  const sel = document.getElementById(`alarm${i}_sound`);
+  if (!sel) return;
+  fetch(`/action?play_sound=${sel.value}`).catch(() => {});
+}
+
+let alarmSaveStatusTimer = null;
+function showAlarmStatus(msg) {
+  const el = document.getElementById("alarm-save-status");
+  el.textContent = msg;
+  clearTimeout(alarmSaveStatusTimer);
+  alarmSaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
+}
+
+async function saveAlarmConfig(showStatus = true) {
+  if (!_alarmData) return;
+  _syncAlarmData();
+  const statusEl = document.getElementById("alarm-save-status");
+  const params = new URLSearchParams();
+
+  for (let i = 0; i < 4; i++) {
+    const a = _alarmData.alarms[i];
+    const p = `alarm${i}_`;
+    params.set(p + "enabled", a.enabled ? "1" : "0");
+    params.set(p + "hour", a.hour);
+    params.set(p + "minute", a.minute);
+    for (let d = 0; d < 7; d++) params.set(`${p}day${d}`, a.days[d] ? "1" : "0");
+    params.set(p + "snoozeMinutes", a.snoozeMinutes);
+    params.set(p + "brightness", a.brightness);
+    params.set(p + "sound", a.sound);
+  }
+
+  try {
+    if (showStatus) statusEl.textContent = "Saving...";
+    const res = await fetch("/save_alarm", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params
+    });
+    if (showStatus) showAlarmStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+  } catch {
+    if (showStatus) showAlarmStatus("⚠️ Save failed.");
+  }
+}
     </script>
   </body>
 </html>

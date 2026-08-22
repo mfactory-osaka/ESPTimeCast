@@ -8,6 +8,7 @@ struct AlarmConfig {
   bool days[7];           // 0=Sun ... 6=Sat
   uint8_t snoozeMinutes;
   uint8_t brightness;
+  uint8_t sound;
 };
 
 inline String formatAlarmSchedule(const AlarmConfig &cfg) {
