@@ -529,13 +529,17 @@ POST http://<device_ip>/action
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| `alarm_stop` | -- | Dismiss a ringing alarm |
-| `alarm_snooze` | -- | Snooze a ringing alarm |
+| `alarm_stop` | -- | Dismiss any currently ringing alarm |
+| `alarm_snooze` | -- |Snooze any currently ringing alarm |
 | `alarm_enable` | `0` or `1` (optional) | Enable/disable the alarm schedule. Toggles if no value sent. |
-| `alarm_test` | -- or brightness `0`–`15` | Fire the alarm now. Optional value previews at that brightness without saving it. |
-| `alarm_set` | `HH:MM[:DAYS[:SOUND[:VOL]]]` | Set schedule, and optionally sound/volume, in one call |
+| `alarm_test` |  -- or brightness `0`–`15` | Fire an alarm immediately. Optional brightness can be specified as `alarm_test=v`, where v is `0–15`, for a preview without changing the saved brightness. |
+| `alarm_set` | `TIME:DAYS:SOUND:BRIGHTNESS:SNOOZE:VOLUME` | Set schedule, sound, brightness, snooze and optionally sound/volume, in one call
 
 > `alarm_set`'s optional `VOL` field sets the buzzer's **global** volume — it affects every sound the device plays, not just the alarm.
+
+> For Alarm 2, 3, or 4, add the alarm number to the command name. For example, alarm2_set, alarm3_test, or alarm4_enable. The unnumbered alarm_stop and alarm_snooze commands apply to whichever alarm is currently ringing, so you don’t need to know the alarm number.  
+
+> The unnumbered `alarm_stop` and `alarm_snooze` commands are convenient when controlling ESPTimeCast externally, since you don't need to know which alarm is currently active.
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -829,73 +833,164 @@ ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
 <summary>⏱️ Alarm, Timer and Stopwatch Feature</summary>
 &nbsp;
   
-ESPTimeCast includes a full alarm clock feature with day-of-week scheduling, snooze, and a dedicated wake brightness — independent of your normal display rotation.
+ESPTimeCast supports up to 4 independent alarms:
 
-When the alarm fires, the display takes over completely, showing an inverting clock face until dismissed, snoozed, or automatically silenced after 15 minutes if left unattended.
+* **ALARM** — Alarm 1
+* **ALARM2** — Alarm 2
+* **ALARM3** — Alarm 3
+* **ALARM4** — Alarm 4
 
-> If **Clock-only Dimming** is active when the alarm is due to fire, the alarm is skipped entirely for that occurrence — treat this as a "silent hours" window.
+Each alarm has its own schedule, sound, brightness and snooze settings.
 
-### Configuration
+### Alarm Set Syntax
 
-1. Open the ESPTimeCast web interface
-2. Navigate to **Alarm**
-3. Enable the alarm, set a time, and choose which days it repeats on
-4. Set a wake brightness and snooze duration
-5. Choose the alarm's sound in the **Buzzer** section's event list (Alarm row)
+Alarm settings use the following order:
 
-Click **Test Alarm** to preview the full experience — sound, display takeover, and current brightness setting — before trusting it to wake you up.
+`TIME : DAYS : SOUND : BRIGHTNESS : SNOOZE : VOLUME`
+
+For bracket commands:
+
+`[ALARM SET TIME DAYS SOUND BRIGHTNESS SNOOZE VOLUME]`
+
+For the `/action` endpoint:
+
+`alarm_set=TIME:DAYS:SOUND:BRIGHTNESS:SNOOZE:VOLUME`
+
+For example:
+
+`[ALARM SET 15:50 0123456 2 15 5 10]`
+
+or:
+
+`/action?alarm_set=15:50:0123456:2:15:5:10`
+
+This means:
+
+| Parameter | Example | Description |
+| --- | --- | --- |
+| **TIME** | 15:50 | Time the alarm fires |
+| **DAYS** | 0123456 | Days the alarm is active. `0` = Sunday through `6` = Saturday |
+| **SOUND** | 2 | Alarm sound (`1`–`3`) |
+| **BRIGHTNESS** | 15 | Display brightness while the alarm is active (`0`–`15`) |
+| **SNOOZE** | 5 | Snooze duration in minutes |
+| **VOLUME** | 10 | Global buzzer volume (`1`–`10`) |
+
+So the example above sets Alarm 1 to fire at 15:50 every day, using sound 2, brightness 15, with a 5-minute snooze and global buzzer volume 10.
+
+> **Note:** `VOLUME` is a global setting. Changing it for an alarm changes the buzzer volume for all sounds played by the device, not just that alarm.
+
+All parameters after `TIME` are optional. If omitted, the existing value is kept.
+
+For example:
+
+`[ALARM SET 07:30 12345]`
+
+sets the time and days while keeping the existing sound, brightness, snooze and volume settings.
 
 ### Bracket Commands
 
+Use `ALARM`, `ALARM2`, `ALARM3`, or `ALARM4` to select which alarm the command applies to.
+
 | Command | Description |
-|---------|-------------|
-| `[ALARM]` | Scroll the current alarm schedule as text |
-| `[ALARM STOP]` | Dismiss a ringing alarm |
-| `[ALARM SNOOZE]` | Snooze a ringing alarm |
-| `[ALARM ENABLE]` | Enable the alarm without changing its schedule |
-| `[ALARM DISABLE]` | Disable the alarm without changing its schedule |
-| `[ALARM TEST]` | Fire the alarm immediately, for testing |
-| `[ALARM SET HH:MM]` | Set the time, keep existing days |
-| `[ALARM SET HH:MM DAYS]` | Set time and days. `DAYS` is a digit string, `0`=Sun...`6`=Sat, e.g. `12345` = weekdays |
-| `[ALARM SET HH:MM DAYS SOUND]` | Also set the alarm's sound (`1`–`3`) |
-| `[ALARM SET HH:MM DAYS SOUND VOL]` | Also set the buzzer's global volume (`1`–`10`) |
+| --- | --- |
+| `[ALARM]` | Show the current Alarm 1 schedule |
+| `[ALARM2]` | Show the current Alarm 2 schedule |
+| `[ALARM3]` | Show the current Alarm 3 schedule |
+| `[ALARM4]` | Show the current Alarm 4 schedule |
+| `[ALARM STOP]` | Dismiss any currently ringing alarm |
+| `[ALARM SNOOZE]` | Snooze any currently ringing alarm |
+| `[ALARM ENABLE]` | Enable Alarm 1 without changing its schedule |
+| `[ALARM DISABLE]` | Disable Alarm 1 without changing its schedule |
+| `[ALARM TEST]` | Fire Alarm 1 immediately for testing |
+| `[ALARM SET TIME DAYS ...]` | Configure Alarm 1 |
+| `[ALARM2 SET TIME DAYS ...]` | Configure Alarm 2 |
+| `[ALARM3 SET TIME DAYS ...]` | Configure Alarm 3 |
+| `[ALARM4 SET TIME DAYS ...]` | Configure Alarm 4 |
+
+The `STOP` and `SNOOZE` commands can be used without knowing which alarm slot is currently ringing. They automatically apply to the active alarm.
+
+The `ENABLE`, `DISABLE`, `TEST`, and `SET` commands can be used with `ALARM2`, `ALARM3`, and `ALARM4` to control a specific alarm.
+
+For example:
+
+```text
+[ALARM3 SET 06:30 12345 1 10 5 8]
+[ALARM3 ENABLE]
+[ALARM3 TEST]
+[ALARM STOP]
+```
 
 ### `/action` Endpoint
 
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `alarm_stop` | -- | Dismiss a ringing alarm |
-| `alarm_snooze` | -- | Snooze a ringing alarm |
-| `alarm_enable` | `0` or `1` (optional) | Enable/disable the alarm schedule. Toggles if no value sent. |
-| `alarm_test` | -- or brightness `0`–`15` | Fire the alarm now. Optional value previews at that brightness without saving it. |
-| `alarm_set` | `HH:MM[:DAYS[:SOUND[:VOL]]]` | Set schedule, and optionally sound/volume, in one call |
+The `/action` endpoint follows the same alarm numbering:
 
-> `alarm_set`'s optional `VOL` field sets the buzzer's **global** volume — it affects every sound the device plays, not just the alarm.
+| Parameter | Description |
+| --- | --- |
+| `alarm_stop` | Dismiss any currently ringing alarm |
+| `alarm_snooze` | Snooze any currently ringing alarm |
+| `alarm_enable` | Enable/disable Alarm 1. Toggles if no value is supplied |
+| `alarm_test` | alarm_test | Fire an alarm immediately. Optional brightness can be specified as `alarm_test=v`, where v is `0–15`, for a preview without changing the saved brightness. |
+| `alarm_set` | Configure an alarm using the syntax described above |
+
+> For Alarm 2, 3, or 4, add the alarm number to the command name. For example, alarm2_set, alarm3_test, or alarm4_enable. The unnumbered alarm_stop and alarm_snooze commands apply to whichever alarm is currently ringing, so you don’t need to know the alarm number.  
+
+> The unnumbered `alarm_stop` and `alarm_snooze` commands are convenient when controlling ESPTimeCast externally, since you don't need to know which alarm is currently active.
 
 ### curl Examples
 
+Set a 7:30 AM weekday Alarm 1:
+
 ```bash
-# Set a 7:30 AM weekday alarm
 curl "http://<device_ip>/action?alarm_set=07:30:12345"
+```
 
-# Set time, days, sound, and volume in one call
-curl "http://<device_ip>/action?alarm_set=07:30:12345:3:9"
+Set Alarm 2 with time, days, sound, brightness, snooze and volume:
 
-# Dismiss a ringing alarm
+```bash
+curl "http://<device_ip>/action?alarm2_set=06:30:12345:2:15:5:10"
+```
+
+Set Alarm 3:
+
+```bash
+curl "http://<device_ip>/action?alarm3_set=08:00:0123456:1:10:10:8"
+```
+
+Dismiss whichever alarm is currently ringing:
+
+```bash
 curl "http://<device_ip>/action?alarm_stop"
+```
 
-# Snooze a ringing alarm
+Snooze whichever alarm is currently ringing:
+
+```bash
 curl "http://<device_ip>/action?alarm_snooze"
+```
 
-# Or use message/bracket commands
+Dismiss Alarm 2 specifically:
+
+```bash
+curl "http://<device_ip>/action?alarm2_stop"
+```
+
+Test Alarm 4:
+
+```bash
+curl "http://<device_ip>/action?alarm4_test"
+```
+
+Or use bracket commands:
+
+```bash
 curl -X POST -d "message=[ALARM SET 07:30 12345]" "http://<device_ip>/action"
-curl -X POST -d "message=[ALARM STOP]" "http://<device_ip>/action"
+curl -X POST -d "message=[ALARM3 STOP]" "http://<device_ip>/action"
 ```
 
 ### Home Assistant Example
 
 ```yaml
-alias: Set weekday alarm from HA
+alias: Set weekday Alarm 1 from HA
 action:
   - service: rest_command.esptimecast
     data:
@@ -903,7 +998,7 @@ action:
 ```
 
 ```yaml
-alias: Snooze ESPTimeCast alarm from a smart button
+alias: Snooze currently ringing ESPTimeCast alarm
 trigger:
   - platform: state
     entity_id: sensor.bedside_button
@@ -912,8 +1007,9 @@ action:
   - service: rest_command.esptimecast
     data:
       payload: "alarm_snooze"
-```  
+``` 
 
+&nbsp;
 ### Timer
 
 ESPTimeCast includes a built-in countdown timer that can be triggered via the **Custom Message** field in the Web UI or through **Home Assistant** (or any HTTP client).
