@@ -256,6 +256,7 @@ int messageScrollTimes;
 unsigned long messageStartTime = 0;
 int currentScrollCount = 0;
 int currentDisplayCycleCount = 0;
+bool pendingModeShiftOut = false;
 
 // Dimming
 bool dimmingEnabled = false;
@@ -370,6 +371,7 @@ static bool hourglassPlayed = false;
 // Weather Description Mode handling
 unsigned long descStartTime = 0;  // For static description
 bool descScrolling = false;
+int totalPixelWidth = 0;
 const unsigned long descriptionDuration = 3000;    // 3s for short text
 static unsigned long descScrollEndTime = 0;        // for post-scroll delay (re-used for scroll timing)
 const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
@@ -1218,10 +1220,10 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
   };
 
   static const IconMap icons[] = {
-    { "[NOTEMP]", "\x01", 25 },
-    { "[NONTP]", "\x02", 20 },
+    { "[NOTEMP]", "\x01", 28 },
+    { "[NONTP]", "\x02", 24 },
     { "[WIFI]", "\x03", 13 },
-    { "[INFO]", "\x04", 22 },
+    { "[INFO]", "\x04", 26 },
     { "[AP]", "\x05", 9 },
     { "[C]", "\x06", 4 },
     { "[F]", "\x07", 4 },
@@ -1229,7 +1231,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[TIMEISUPINVERTED]", "\x09", 32 },
     { "[SUNNY]", "\x0C", 8 },
     { "[CLOUDY]", "\x0D", 8 },
-    { "[NODATA]", "\x0F", 23 },
+    { "[NODATA]", "\x0F", 28 },
     { "[RAINY]", "\x10", 8 },
     { "[THUNDER]", "\x11", 8 },
     { "[SNOWY]", "\x12", 8 },
@@ -1284,7 +1286,8 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[THURSDAYJP]", "\xB5", 7 },
     { "[FRIDAYJP]", "\xB6", 7 },
     { "[SATURDAYJP]", "\xB7", 7 },
-    { "[MIST]", "\xB9", 7 }
+    { "[MIST]", "\xB9", 7 },
+    { "[ONAIR]", "\xBC", 26 }
   };
 
   // 1. Replace all tokens with glyphs first
@@ -4389,7 +4392,9 @@ void executeAction(const String &action, const String &value) {
   // Display actions
   if (action == "next_mode") {
     advanceDisplayMode(true);
-
+    if (displayMode == 0 && (prevDisplayMode != 6 || totalPixelWidth >= 27)) {
+      pendingModeShiftOut = true;
+    }
   } else if (action == "prev_mode") {
     previousDisplayMode(true);
 
@@ -4480,7 +4485,7 @@ void executeAction(const String &action, const String &value) {
 
   } else if (action == "enable_rotation") {
     rotationEnabled = hasValue ? boolVal : !rotationEnabled;
-    if (rotationEnabled) advanceDisplayMode();
+    if (rotationEnabled && displayMode != 6) advanceDisplayMode();
 
   }
 
@@ -5111,10 +5116,12 @@ void fireAlarm(int index, int brightnessOverride, int soundOverride) {
   displayMode = 8;
   forceMessageRestart = true;
 
-  int soundToUse = (soundOverride >= 1 && soundOverride <= 3) ? soundOverride : alarmConfigs[index].sound;
-  buzzerTrigger(getSoundPattern(soundToUse), true, true);
-  buzzerRepeating = true;
-  buzzerEventStopAt = 0;
+  if (buzzerConfig.enabled && buzzerConfig.eventEnabled[BUZZER_EVT_ALARM]) {
+    int soundToUse = (soundOverride >= 1 && soundOverride <= 3) ? soundOverride : alarmConfigs[index].sound;
+    buzzerTrigger(getSoundPattern(soundToUse), true, true);
+    buzzerRepeating = true;
+    buzzerEventStopAt = 0;
+  }
 
   Serial.printf(PSTR("[ALARM] Firing (slot %d).\n"), index);
 }
@@ -5750,6 +5757,14 @@ void loop() {
   buzzerLoop();
   checkAlarmSchedule();
   checkAlarmTimeout();
+  if (pendingModeShiftOut) {
+    pendingModeShiftOut = false;
+    for (uint8_t i = 0; i < 5; i++) {
+      if (flipDisplay) P.getGraphicObject()->transform(MD_MAX72XX::TSR);
+      else P.getGraphicObject()->transform(MD_MAX72XX::TSL);
+      delay(messageScrollSpeed);
+    }
+  }
 
   // --- WIFI RECONNECTION ---
   static unsigned long lastReconnectAttempt = 0;
@@ -7276,7 +7291,7 @@ void loop() {
 
   // --- Custom Message Display Mode (displayMode == 6) ---
   if (displayMode == 6) {
-    int totalPixelWidth = 0;
+    totalPixelWidth = 0;
 
     if (forceMessageRestart) {
       P.displayReset();
@@ -7381,7 +7396,7 @@ void loop() {
       bool isLastCycle = (messageScrollTimes > 0 && (currentDisplayCycleCount + 1 >= messageScrollTimes))
                          || (messageScrollTimes == 0);
 
-      if (totalPixelWidth >= 27 && isLastCycle) {
+      if (totalPixelWidth >= 27 && isLastCycle && rotationEnabled) {
         // Shift the internal pixel buffer 5 times
         for (uint8_t i = 0; i < 5; i++) {
           if (displayMode != 6) return;
