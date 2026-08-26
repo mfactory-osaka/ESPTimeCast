@@ -2705,6 +2705,7 @@ void setupWebServer() {
       }
     }
 
+    countdownEnabled = newCountdownEnabled;
     countdownTargetTimestamp = newTargetTimestamp;
     strlcpy(countdownLabel, countdownLabelStr.c_str(), sizeof(countdownLabel));
     isDramaticCountdown = newIsDramaticCountdown;
@@ -2714,6 +2715,7 @@ void setupWebServer() {
     Serial.println(F("[COUNTDOWN] Config saved."));
     request->send(200, "application/json", "{\"ok\":true}");
   });
+
   server.onNotFound([](AsyncWebServerRequest *request) {
     if (request->method() == HTTP_OPTIONS) {
       AsyncWebServerResponse *response = request->beginResponse(200);
