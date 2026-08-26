@@ -1287,7 +1287,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[FRIDAYJP]", "\xB6", 7 },
     { "[SATURDAYJP]", "\xB7", 7 },
     { "[MIST]", "\xB9", 7 },
-    { "[ONAIR]", "\xBC", 26 }
+    { "[ONAIR]", "\xCF", 26 }
   };
 
   // 1. Replace all tokens with glyphs first
@@ -1653,6 +1653,7 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
           case 5: doc["mode"] = "date"; break;
           case 6: doc["mode"] = "message"; break;
           case 7: doc["mode"] = "timer"; break;
+          case 8: doc["mode"] = "alarm"; break;
           default: doc["mode"] = "cycling"; break;
         }
         doc["message"] = (strlen(customMessage) > 0) ? customMessage : "";
@@ -2538,6 +2539,181 @@ void setupWebServer() {
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
+  server.on("/save_weather", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (getLargestFreeBlock() < 4000) {
+      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+      return;
+    }
+    if (request->hasParam("weatherDuration", true)) {
+      weatherDuration = (unsigned long)request->getParam("weatherDuration", true)->value().toInt();
+    }
+    if (request->hasParam("openWeatherApiKey", true)) {
+      String v = request->getParam("openWeatherApiKey", true)->value();
+      if (v != "********************************") {  // ignore mask, same convention as /save
+        strlcpy(openWeatherApiKey, v.c_str(), sizeof(openWeatherApiKey));
+      }
+    }
+    if (request->hasParam("openWeatherCity", true)) {
+      strlcpy(openWeatherCity, request->getParam("openWeatherCity", true)->value().c_str(), sizeof(openWeatherCity));
+    }
+    if (request->hasParam("openWeatherCountry", true)) {
+      strlcpy(openWeatherCountry, request->getParam("openWeatherCountry", true)->value().c_str(), sizeof(openWeatherCountry));
+    }
+    if (request->hasParam("weatherUnits", true)) {
+      strlcpy(weatherUnits, request->getParam("weatherUnits", true)->value().c_str(), sizeof(weatherUnits));
+      tempSymbol = (strcmp(weatherUnits, "imperial") == 0) ? '\007' : '\006';
+    }
+    if (request->hasParam("showHumidity", true)) {
+      String v = request->getParam("showHumidity", true)->value();
+      showHumidity = (v == "true" || v == "on" || v == "1");
+    }
+    if (request->hasParam("showWeatherDescription", true)) {
+      String v = request->getParam("showWeatherDescription", true)->value();
+      showWeatherDescription = (v == "true" || v == "on" || v == "1");
+    }
+
+    shouldFetchWeatherNow = true;
+    saveConfigRuntime();
+    Serial.println(F("[WEATHER] Config saved."));
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server.on("/save_timedate", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (getLargestFreeBlock() < 4000) {
+      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+      return;
+    }
+    if (request->hasParam("timeZone", true)) {
+      strlcpy(timeZone, request->getParam("timeZone", true)->value().c_str(), sizeof(timeZone));
+    }
+    if (request->hasParam("clockDuration", true)) {
+      clockDuration = (unsigned long)request->getParam("clockDuration", true)->value().toInt();
+    }
+    if (request->hasParam("ntpServer1", true)) {
+      strlcpy(ntpServer1, request->getParam("ntpServer1", true)->value().c_str(), sizeof(ntpServer1));
+    }
+    if (request->hasParam("ntpServer2", true)) {
+      strlcpy(ntpServer2, request->getParam("ntpServer2", true)->value().c_str(), sizeof(ntpServer2));
+    }
+    if (request->hasParam("showDayOfWeek", true)) {
+      String v = request->getParam("showDayOfWeek", true)->value();
+      showDayOfWeek = (v == "true" || v == "on" || v == "1");
+    }
+    if (request->hasParam("colonBlinkEnabled", true)) {
+      String v = request->getParam("colonBlinkEnabled", true)->value();
+      colonBlinkEnabled = (v == "true" || v == "on" || v == "1");
+    }
+    if (request->hasParam("showDate", true)) {
+      String v = request->getParam("showDate", true)->value();
+      showDate = (v == "true" || v == "on" || v == "1");
+    }
+    if (request->hasParam("twelveHourToggle", true)) {
+      String v = request->getParam("twelveHourToggle", true)->value();
+      twelveHourToggle = (v == "true" || v == "on" || v == "1");
+    }
+
+    saveConfigRuntime();
+    setupTime();  // re-applies TZ and re-kicks NTP sync against (possibly new) servers — no reboot needed
+    Serial.println(F("[TIMEDATE] Config saved."));
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server.on("/save_display", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (getLargestFreeBlock() < 4000) {
+      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+      return;
+    }
+    if (request->hasParam("brightness", true)) {
+      handleBrightnessChange(request->getParam("brightness", true)->value().toInt(), false);
+    }
+    if (request->hasParam("flipDisplay", true)) {
+      String v = request->getParam("flipDisplay", true)->value();
+      flipDisplay = (v == "true" || v == "on" || v == "1");
+      P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
+      P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
+    }
+
+    bool autoDimmingChecked = request->hasParam("autoDimmingEnabled", true) && request->getParam("autoDimmingEnabled", true)->value() == "true";
+    bool customDimmingChecked = request->hasParam("dimmingEnabled", true) && request->getParam("dimmingEnabled", true)->value() == "true";
+    if (autoDimmingChecked && customDimmingChecked) {
+      autoDimmingEnabled = true;
+      dimmingEnabled = false;
+    } else {
+      autoDimmingEnabled = autoDimmingChecked;
+      dimmingEnabled = customDimmingChecked;
+    }
+
+    if (request->hasParam("dimStartHour", true)) {
+      dimStartHour = constrain(request->getParam("dimStartHour", true)->value().toInt(), 0, 23);
+    }
+    if (request->hasParam("dimStartMinute", true)) {
+      dimStartMinute = constrain(request->getParam("dimStartMinute", true)->value().toInt(), 0, 59);
+    }
+    if (request->hasParam("dimEndHour", true)) {
+      dimEndHour = constrain(request->getParam("dimEndHour", true)->value().toInt(), 0, 23);
+    }
+    if (request->hasParam("dimEndMinute", true)) {
+      dimEndMinute = constrain(request->getParam("dimEndMinute", true)->value().toInt(), 0, 59);
+    }
+    if (request->hasParam("dimBrightness", true)) {
+      String v = request->getParam("dimBrightness", true)->value();
+      dimBrightness = (v == "Off" || v == "off") ? -1 : v.toInt();
+    }
+    if (request->hasParam("clockOnlyDuringDimming", true)) {
+      String v = request->getParam("clockOnlyDuringDimming", true)->value();
+      clockOnlyDuringDimming = (v == "true" || v == "on" || v == "1");
+    }
+
+    saveConfigRuntime();
+    Serial.println(F("[DISPLAY] Config saved."));
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server.on("/save_countdown", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (getLargestFreeBlock() < 4000) {
+      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+      return;
+    }
+    bool newCountdownEnabled = request->hasParam("countdownEnabled", true) && (request->getParam("countdownEnabled", true)->value() == "true" || request->getParam("countdownEnabled", true)->value() == "on" || request->getParam("countdownEnabled", true)->value() == "1");
+    String countdownDateStr = request->hasParam("countdownDate", true) ? request->getParam("countdownDate", true)->value() : "";
+    String countdownTimeStr = request->hasParam("countdownTime", true) ? request->getParam("countdownTime", true)->value() : "";
+    String countdownLabelStr = request->hasParam("countdownLabel", true) ? request->getParam("countdownLabel", true)->value() : "";
+    bool newIsDramaticCountdown = request->hasParam("isDramaticCountdown", true) && (request->getParam("isDramaticCountdown", true)->value() == "true" || request->getParam("isDramaticCountdown", true)->value() == "on" || request->getParam("isDramaticCountdown", true)->value() == "1");
+
+    // Same date/time -> epoch conversion as /save, kept identical on purpose
+    time_t newTargetTimestamp = 0;
+    if (newCountdownEnabled && countdownDateStr.length() > 0 && countdownTimeStr.length() > 0) {
+      int year = countdownDateStr.substring(0, 4).toInt();
+      int month = countdownDateStr.substring(5, 7).toInt();
+      int day = countdownDateStr.substring(8, 10).toInt();
+      int hour = countdownTimeStr.substring(0, 2).toInt();
+      int minute = countdownTimeStr.substring(3, 5).toInt();
+
+      struct tm tm;
+      tm.tm_year = year - 1900;
+      tm.tm_mon = month - 1;
+      tm.tm_mday = day;
+      tm.tm_hour = hour;
+      tm.tm_min = minute;
+      tm.tm_sec = 0;
+      tm.tm_isdst = -1;
+
+      newTargetTimestamp = mktime(&tm);
+      if (newTargetTimestamp == (time_t)-1) {
+        Serial.println(F("[COUNTDOWN] Error converting date/time to timestamp."));
+        newTargetTimestamp = 0;
+      }
+    }
+
+    countdownTargetTimestamp = newTargetTimestamp;
+    strlcpy(countdownLabel, countdownLabelStr.c_str(), sizeof(countdownLabel));
+    isDramaticCountdown = newIsDramaticCountdown;
+    countdownFinished = false;  // clear any stale "finished" state on a fresh target
+
+    saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
+    Serial.println(F("[COUNTDOWN] Config saved."));
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
   server.onNotFound([](AsyncWebServerRequest *request) {
     if (request->method() == HTTP_OPTIONS) {
       AsyncWebServerResponse *response = request->beginResponse(200);
@@ -4391,8 +4567,16 @@ void executeAction(const String &action, const String &value) {
 
   // Display actions
   if (action == "next_mode") {
+    if (alarmRinging || displayMode == 8) {
+      Serial.println(F("[ACTION] next_mode ignored: Alarm is active."));
+      return;
+    }
+    if (displayMode == 0 && prevDisplayMode == 0) {
+      Serial.println(F("[ACTION] next_mode ignored: already in CLOCK."));
+      return;
+    }
     advanceDisplayMode(true);
-    if (displayMode == 0 && (prevDisplayMode != 6 || totalPixelWidth >= 27)) {
+    if (displayMode == 0 && prevDisplayMode != 1 && prevDisplayMode != 5 && (prevDisplayMode != 6 || totalPixelWidth >= 27)) {
       pendingModeShiftOut = true;
     }
   } else if (action == "prev_mode") {
@@ -5595,6 +5779,23 @@ bool saveConfigRuntime() {
   doc["showHumidity"] = showHumidity;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
   doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
+  doc["showWeatherDescription"] = showWeatherDescription;
+  doc["weatherUnits"] = weatherUnits;
+  doc["weatherDuration"] = weatherDuration;
+  doc["clockDuration"] = clockDuration;
+  doc["timeZone"] = timeZone;
+  doc["ntpServer1"] = ntpServer1;
+  doc["ntpServer2"] = ntpServer2;
+  doc["openWeatherApiKey"] = openWeatherApiKey;
+  doc["openWeatherCity"] = openWeatherCity;
+  doc["openWeatherCountry"] = openWeatherCountry;
+  doc["dimmingEnabled"] = dimmingEnabled;
+  doc["autoDimmingEnabled"] = autoDimmingEnabled;
+  doc["dimStartHour"] = dimStartHour;
+  doc["dimStartMinute"] = dimStartMinute;
+  doc["dimEndHour"] = dimEndHour;
+  doc["dimEndMinute"] = dimEndMinute;
+  doc["dimBrightness"] = dimBrightness;
   doc["hideDonationMsg"] = hideDonationMsg;
   doc["nextDonationTime"] = (uint32_t)nextDonationTime;
 
