@@ -5715,7 +5715,7 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
     DeserializationError err = deserializeJson(doc, configFile);
     configFile.close();
     if (err) {
-      Serial.print(F("[saveCountdownConfig] Error parsing config.json: "));
+      Serial.print(F("[COUNTDOWN] Error parsing config.json: "));
       Serial.println(err.f_str());
       return false;
     }
@@ -5737,14 +5737,14 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
 
   File f = LittleFS.open("/config.json", "w");
   if (!f) {
-    Serial.println(F("[saveCountdownConfig] ERROR: Cannot write to /config.json"));
+    Serial.println(F("[COUNTDOWN] ERROR: Cannot write to /config.json"));
     return false;
   }
 
   size_t bytesWritten = serializeJson(doc, f);
   f.close();
 
-  Serial.printf(PSTR("[saveCountdownConfig] Config updated. %u bytes written.\n"), bytesWritten);
+  Serial.printf(PSTR("[COUNTDOWN] Config updated. %u bytes written.\n"), bytesWritten);
   return true;
 }
 

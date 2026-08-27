@@ -33,6 +33,11 @@ const char index_html[] PROGMEM = R"rawliteral(
     <meta http-equiv="Expires" content="0" />
     <title>ESPTimeCast Settings</title>
     <style>
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
       :root {
         --bg-gradient: linear-gradient(
           135deg,
@@ -1166,10 +1171,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         display: grid;
         grid-auto-flow: column;
         gap: 0.5rem;
+        grid-template-columns: repeat(2, 1fr);
       }
 
       .quick-buttons-section > button {
-        white-space: nowrap;
         background: var(--glass-border);
         border: none;
         color: white;
@@ -1275,6 +1280,40 @@ const char index_html[] PROGMEM = R"rawliteral(
         background: #f0f2f6;
         color: var(--text);
       }
+
+      .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 90px;
+      transform: translateX(-50%) translateY(12px);
+      background: #fff;
+      color: #000;
+      padding: 11px 17px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      box-shadow: 0 6px 20px rgb(255 255 255 / 18%);
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
+      z-index: 9999;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 500px) {
+      .toast {
+        bottom: 85px;
+        max-width: calc(100% - 32px);
+        white-space: normal;
+        text-align: center;
+      }
+    }
 
       @media (max-width: 430px) {
         .quick {
@@ -1443,7 +1482,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           <div class="quick-section">
             <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-timer-icon lucide-timer"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>STOPWATCH</span>
             <div class="quick-buttons-section">
-              <button type="button" onclick="quickAction('stopwatch')">Start &middot Pause</button>
+              <button type="button" onclick="quickAction('stopwatch')">Start</button>
               <button type="button" onclick="quickAction('stopwatch_clear')">Clear</button>
             </div>
           </div>
@@ -1465,10 +1504,10 @@ const char index_html[] PROGMEM = R"rawliteral(
           </div>
 
           <div class="quick-section">
-            <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw-icon lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>MODE ROTATION</span>
+            <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw-icon lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>MODE</span>
             <div class="quick-buttons-section">
-              <button type="button" onclick="quickAction('enable_rotation')">Stop &middot Start</button>
-              <button type="button" onclick="quickAction('next_mode')">Next Mode</button>
+              <button type="button" onclick="quickAction('enable_rotation')">Pause</button>
+              <button type="button" onclick="quickAction('next_mode')">Next</button>
             </div>
           </div>
 
@@ -2279,6 +2318,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
 
       <div id="savingMessage"></div>
+      <div id="toast" class="toast"></div>
     </form>
 
     <script>
@@ -3513,103 +3553,87 @@ const char index_html[] PROGMEM = R"rawliteral(
         return timePart;
       }
 
-      function sendCustomMessage() {
-        const input = document.getElementById("customMessage");
-        let rawValue = input.value.toUpperCase();
+function sendCustomMessage() {
+  const input = document.getElementById("customMessage");
+  let rawValue = input.value.toUpperCase();
 
-        // 1. SURGICAL ADDITION: Detect digits in brackets and set flag
-        let useBigNumbers = "0";
-        if (/\[\d+\]/.test(rawValue)) {
-          useBigNumbers = "1";
-        }
+  // Detect digits in brackets and set flag
+  let useBigNumbers = "0";
+  if (/\[\d+\]/.test(rawValue)) {
+    useBigNumbers = "1";
+  }
 
-        // 2. CLEAN MESSAGE (using the updated regex)
-        let message = rawValue
-          .replace(safeRegex, "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .substring(0, 120);
+  // Clean message
+  let message = rawValue
+    .replace(safeRegex, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .substring(0, 120);
 
-        if (message.length === 0 && input.value.trim().length > 0) return;
+  if (message.length === 0 && input.value.trim().length > 0) return;
 
-        // 1. All data goes into the URL for a GET request
-        const url = `/action?message=${encodeURIComponent(message)}&bignumbers=${useBigNumbers}&scrolls=0&seconds=0`;
+  // All data goes into the URL for a GET request
+  const url = `/action?message=${encodeURIComponent(message)}&bignumbers=${useBigNumbers}&scrolls=0&seconds=0`;
 
-        // 2. Fetch with your custom header, but NO body
-        fetch(url, {
-          method: "GET",
-          headers: {
-            "X-Source": "UI", //
-          },
-        })
-          .then((res) => {
-            if (res.status === 409) {
-              throw new Error(
-                "<h3>Display temporarily locked.</h3>" +
-                  "<p>A protected message is active or the clock is in dimming mode.<br>" +
-                  "Wait for the dimming period to end, or press <b>Clear Message</b> and send the message again.</p>",
-              );
-            }
-            if (!res.ok) throw new Error("Failed to send message.");
-            return res.text();
-          })
-          .then((res) => {
-            showSavingModal("");
-            updateSavingModal(
-              "<h3>✅ Message sent successfully!</h3><p>Now displaying your custom message.</p>",
-              false,
-            );
-            setTimeout(hideSavingModal, 2000);
-          })
-          .catch((err) => {
-            console.error("Error sending custom message:", err);
-            showSavingModal("");
-            // Use the specific error message if it's the 409, otherwise use generic
-            const errorMsg = err.message.includes("protected")
-              ? "<h3>⚠️ " + err.message + "</h3>"
-              : "<h3>⚠️ Failed to send message.</h3><p>Check connection.</p>";
-            updateSavingModal(errorMsg, false);
-            setTimeout(
-              hideSavingModal,
-              err.message.includes("protected") ? 5000 : 3000,
-            );
-          });
+  fetch(url, {
+    method: "GET",
+    headers: {
+      "X-Source": "UI",
+    },
+  })
+    .then((res) => {
+      if (res.status === 409) {
+        throw new Error(
+          "Display temporarily locked. " +
+          "A protected message is active or the clock is in dimming mode."
+        );
       }
 
-      function clearCustomMessage() {
-        // We use /action?message= to clear, hitting our reliable C++ bridge
-        const url = "/action?message=&scrolls=0&seconds=0";
+      if (!res.ok) throw new Error("Failed to send message.");
 
-        fetch(url, {
-          method: "GET",
-          headers: {
-            "X-Source": "UI",
-          },
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error("Failed to clear message.");
-            return res.text();
-          })
-          .then((res) => {
-            // This is your original UI success logic
-            document.getElementById("customMessage").value = "";
-            showSavingModal("");
-            updateSavingModal(
-              "<h3>✅ Custom message cleared.</h3><p>Display reverted to normal.</p>",
-              false,
-            );
-            setTimeout(hideSavingModal, 2000);
-          })
-          .catch((err) => {
-            console.error("Error clearing custom message:", err);
-            showSavingModal("");
-            updateSavingModal(
-              "<h3>⚠️ Failed to clear message.</h3><p>Check connection.</p>",
-              false,
-            );
-            setTimeout(hideSavingModal, 3000);
-          });
+      return res.text();
+    })
+    .then((res) => {
+      showToast("✓ Message sent", 3000);
+    })
+    .catch((err) => {
+      console.error("Error sending custom message:", err);
+
+      if (err.message.includes("protected")) {
+        showToast("⚠️ \u00A0\u00A0Display temporarily locked", 5000);
+      } else {
+        showToast("⚠️ \u00A0\u00A0Failed to send message", 3000);
       }
+    });
+}
+
+
+function clearCustomMessage() {
+  // Use /action?message= to clear the message
+  const url = "/action?message=&scrolls=0&seconds=0";
+
+  fetch(url, {
+    method: "GET",
+    headers: {
+      "X-Source": "UI",
+    },
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error("Failed to clear message.");
+
+      return res.text();
+    })
+    .then((res) => {
+      document.getElementById("customMessage").value = "";
+
+      showToast("✓ Custom message cleared", 3000);
+    })
+    .catch((err) => {
+      console.error("Error clearing custom message:", err);
+
+      showToast("⚠️ \u00A0\u00A0Failed to clear message", 3000);
+    });
+}
 
       // --- Dimming Controls Logic (The correct version) ---
       function setDimmingFieldsEnabled() {
@@ -3824,7 +3848,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         updateDiv.style.display = "none";
         statusText.style.color = "";
         statusText.style.fontWeight = "normal";
-        statusText.innerText = "Checking for updates...";
 
         try {
           // STEP 1: Get current version and specific board type
@@ -3882,7 +3905,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             checkBtn.style.display = "none";
             updateDiv.style.display = "block";
           } else {
-            statusText.innerText = `Up to date (v${currentVersion})`;
+            showToast(`Up to date (v${currentVersion})`, 3000); 
             setTimeout(() => {
               checkBtn.disabled = false;
               statusText.innerText = "";
@@ -3891,7 +3914,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         } catch (e) {
           console.error("OTA Check Error:", e);
           statusText.style.color = "#ff4444";
-          statusText.innerText = "Check Failed: " + e.message;
+          showToast(`⚠️ \u00A0\u00A0${e.message}`, 5000);
           setTimeout(() => {
             checkBtn.disabled = false;
           }, 5000);
@@ -4252,10 +4275,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         try {
-          if (showStatus) {
-            statusEl.textContent = "Saving...";
-          }
-
           const res = await fetch("/save_buttons", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -4263,7 +4282,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           });
 
           if (showStatus) {
-            showBtnStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+            showToast(res.ok ? "✓ Settings applied!" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
           }
 
           if (res.ok) {
@@ -4277,7 +4296,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           }
         } catch {
           if (showStatus) {
-            showBtnStatus("⚠️ Save failed.");
+            showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
           }
         }
       }
@@ -4426,14 +4445,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         });
 
         try {
-          if (showStatus) statusEl.textContent = "Saving...";
           const res = await fetch("/save_buzzer", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: params,
           });
           if (showStatus)
-            showBuzzerStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+            showToast(res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
           if (res.ok) {
             try {
               const btnRes = await fetch("/get_buttons");
@@ -4442,7 +4460,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             } catch (e) {}
           }
         } catch {
-          if (showStatus) showBuzzerStatus("⚠️ Save failed.");
+          if (showStatus) {
+            showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
+          }        
         }
       }
       let _alarmData = null;
@@ -4721,16 +4741,15 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         try {
-          if (showStatus) statusEl.textContent = "Saving...";
           const res = await fetch("/save_alarm", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: params,
           });
           if (showStatus)
-            showAlarmStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+            showToast(res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
         } catch {
-          if (showStatus) showAlarmStatus("⚠️ Save failed.");
+          if (showStatus) showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
         }
       }
 
@@ -4772,15 +4791,14 @@ async function saveWeatherConfig(showStatus = true) {
   );
 
   try {
-    if (showStatus) statusEl.textContent = "Saving...";
     const res = await fetch("/save_weather", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
     });
-    if (showStatus) showWeatherStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+    showToast(res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
   } catch {
-    if (showStatus) showWeatherStatus("⚠️ Save failed.");
+    showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
   }
 }
 
@@ -4810,15 +4828,14 @@ async function saveTimeDateConfig(showStatus = true) {
   params.set("twelveHourToggle", document.getElementById("twelveHourToggle").checked ? "on" : "");
 
   try {
-    if (showStatus) statusEl.textContent = "Saving...";
     const res = await fetch("/save_timedate", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
     });
-    if (showStatus) showTimeDateStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+    showToast(res.ok ? "✓ Settings applied" : "⚠️  Save failed.", res.ok ? 3000 : 5000);
   } catch {
-    if (showStatus) showTimeDateStatus("⚠️ Save failed.");
+    showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
   }
 }
 
@@ -4869,15 +4886,14 @@ async function saveDisplayConfig(showStatus = true) {
   );
 
   try {
-    if (showStatus) statusEl.textContent = "Saving...";
     const res = await fetch("/save_display", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
     });
-    if (showStatus) showDisplayStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+    showToast(res.ok ? "✓ Settings applied" : "⚠️ Save failed.", res.ok ? 3000 : 5000);
   } catch {
-    if (showStatus) showDisplayStatus("⚠️ Save failed.");
+    showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
   }
 }
 
@@ -4901,15 +4917,19 @@ async function saveCountdownConfig(showStatus = true) {
   params.set("countdownLabel", document.getElementById("countdownLabel").value);
 
   try {
-    if (showStatus) statusEl.textContent = "Saving...";
     const res = await fetch("/save_countdown", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
     });
-    if (showStatus) showCountdownStatus(res.ok ? "Applied!" : "⚠️ Save failed.");
+
+    if (showStatus) {
+      showToast(res.ok ? "✓ Countdown applied" : "⚠️ Save failed.", res.ok ? 3000 : 5000);
+    }
   } catch {
-    if (showStatus) showCountdownStatus("⚠️ Save failed.");
+    if (showStatus) {
+      showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
+    }
   }
 }
 
@@ -4938,6 +4958,23 @@ function startQuickTimer() {
   }
 
   quickAction("timer", value);
+}
+
+let toastTimeout;
+
+function showToast(message, duration = 2000) {
+  const toast = document.getElementById("toast");
+
+  if (!toast) return;
+
+  clearTimeout(toastTimeout);
+
+  toast.textContent = message;
+  toast.classList.add("show");
+
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove("show");
+  }, duration);
 }
     </script>
     <!--
