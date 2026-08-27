@@ -804,12 +804,12 @@ Examples include:
 <summary>🎨 Icons & Custom Font</summary>
 &nbsp;
   
-ESPTimeCast™ v1.2.3 introduces **65 new icons** you can use in:
+ESPTimeCast™ v1.2.3 introduces **67 new icons** you can use in:
 
 - **Home Assistant messages** – send temporary or scrollable messages with visual icons.  
 - **Web UI custom messages** – include icons in persistent or scrolling text.  
 
-<img src="assets/icons2.png" alt="ESPTimeCast mfactoryfont.h Icon Set Preview" width="640"/>
+<img src="assets/icons3.png" alt="ESPTimeCast mfactoryfont.h Icon Set Preview" width="640"/>
 
 **Full Icons List**  
 [NOTEMP][NONTP][WIFI][INFO][AP]  
