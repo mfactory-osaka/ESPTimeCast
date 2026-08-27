@@ -291,7 +291,7 @@ mDNS / Bonjour - Works on macOS, iOS, Windows with Bonjour, and most modern brow
 
 &nbsp;
 ## UI Example:
-<img src="assets/webui11.png" alt="Web Interface" width="640">  
+<img src="assets/webui12.png" alt="Web Interface" width="640">  
 
 &nbsp;
 </details>
