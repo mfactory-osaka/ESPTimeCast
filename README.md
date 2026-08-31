@@ -9,7 +9,7 @@
 [![Hackster](https://img.shields.io/badge/Featured%20on-Hackster-orange?logo=hackster&logoColor=white)](https://www.hackster.io/news/the-perfect-minimalist-led-clock-49a4e4440518)
 
 
-🎉 **1,400+ GitHub stars - thank you to the community!**  
+🎉 **1,500+ GitHub stars - thank you to the community!**  
 
 **ESPTimeCast™** is a sleek, WiFi-connected LED matrix clock and weather display built on **ESP8266/ESP32** and **MAX7219**.
 It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern web-based configuration interface — all in one compact design.
@@ -112,8 +112,11 @@ To help support the project’s development, the official **ESPTimeCast™** cas
 
 If you prefer a free option, there are many compatible **MAX7219 LED matrix enclosures** shared by the community - you can find plenty by searching for “MAX7219 case” on Printables, Cults3D, or similar sites.
 
-<img src="assets/image01.png" alt="3D Printable Case V1" width="640" />
-<img src="assets/image02.png" alt="3D Printable Case V2" width="640" />
+<p align="center">
+  <img src="assets/image01.png" alt="3D Printable Case V1" width="320" />  &nbsp;
+  <img src="assets/image02.png" alt="3D Printable Case V2" width="320" />  &nbsp;
+  <img src="assets/image03.png" alt="3D Printable Case V3" width="320" />
+</p>
 
 <p align="left">
   <a href="https://www.printables.com/model/1344276-esptimecast-wi-fi-clock-weather-display">
