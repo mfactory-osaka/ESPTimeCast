@@ -2363,6 +2363,17 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
       };
 
+      (function () {
+        const sel = document.getElementById("timeZone");
+        if (!sel) return;
+        try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          sel.value = tz && sel.querySelector(`[value="${tz}"]`) ? tz : "UTC";
+        } catch (e) {
+          sel.value = "UTC";
+        }
+      })();
+
       window.onload = function () {        
         fetch("/ap_status")
           .then((r) => r.json())

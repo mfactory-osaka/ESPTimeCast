@@ -1040,24 +1040,30 @@ void setupMDNS() {
 // Time / NTP Functions
 // -----------------------------------------------------------------------------
 void setupTime() {
-  sntp_stop();
   if (!isAPMode) {
     Serial.println(F("[TIME] Starting NTP sync"));
   }
 
+  String posixTZ = ianaToPosix(timeZone);
+
+#ifdef ESP8266
+  configTime(
+    posixTZ.c_str(),
+    ntpServer1,
+    ntpServer2
+  );
+#else
   configTime(0, 0, ntpServer1, ntpServer2);
 
-  // Set the Time Zone
-  setenv("TZ", ianaToPosix(timeZone), 1);
+  setenv("TZ", posixTZ.c_str(), 1);
   tzset();
+#endif
 
-  // Initialize state flags (essential for your loop logic to handle retries)
   ntpState = NTP_SYNCING;
   ntpStartTime = millis();
   ntpRetryCount = 0;
   ntpSyncSuccessful = false;
 }
-
 
 // -----------------------------------------------------------------------------
 // Utility
@@ -3699,7 +3705,9 @@ void fetchNightscout() {
   if (WiFi.status() != WL_CONNECTED) return;
   if (ESP.getFreeHeap() < 10000 || isNetworkBusy) return;
 
-#ifdef ESP8266
+// ESP8266 and ESP32-S2 have limited/fragmented heap for direct TLS.
+// Route Nightscout requests through the PHP bridge instead.
+#if defined(ESP8266) || defined(CONFIG_IDF_TARGET_ESP32S2)
   // --- URL encode helper ---
   auto urlEncode = [](String str) -> String {
     String encoded = "";
