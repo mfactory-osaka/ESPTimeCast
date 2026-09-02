@@ -33,10 +33,11 @@ const char index_html[] PROGMEM = R"rawliteral(
     <meta http-equiv="Expires" content="0" />
     <title>ESPTimeCast Settings</title>
     <style>
-
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
 
       :root {
         --bg-gradient: linear-gradient(
@@ -233,15 +234,32 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       .logo {
+        margin: auto;
+        width: 90%;
         display: flex;
-        justify-content: center;
+        flex-flow: column;
+        align-items: center;
       }
 
       .logo svg {
         filter: drop-shadow(0px 5px 10px black);
-        width: 90%;
         height: auto;
         margin: 0.5rem 0;
+        width: 100%;
+      }
+
+      #device-status {
+        min-height: 1.5rem;
+        align-self: flex-end;
+        padding-right: 0.25rem;
+        opacity: 0;
+        transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        visibility: hidden;
+      }
+
+      #device-status.loaded {
+        visibility: visible;
+        opacity: 1;
       }
 
       form {
@@ -872,8 +890,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         display: none;
       }
 
-      .geo-note > .small{
-        margin-top: 0.5rem
+      .geo-note > .small {
+        margin-top: 0.5rem;
       }
 
       #geo-button {
@@ -1044,10 +1062,10 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       #weather-save-status,
-      #timedate-save-status, 
-      #display-save-status, 
+      #timedate-save-status,
+      #display-save-status,
       #alarm-save-status,
-      #countdown-save-status, 
+      #countdown-save-status,
       #buzzer-save-status,
       #btn-save-status,
       #ota-status-text {
@@ -1138,16 +1156,16 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-top: 0.5rem;
       }
 
-       #saveandreboot {
-            margin-top: 3rem;
+      #saveandreboot {
+        margin-top: 3rem;
       }
 
       .spanholder {
-          display: grid;
-          gap: 0.5rem;
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 0.9rem;
-          margin-top: 1rem;
+        display: grid;
+        gap: 0.5rem;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.9rem;
+        margin-top: 1rem;
       }
 
       .quick-grid {
@@ -1164,7 +1182,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         min-height: 82px;
         padding: 1rem;
         text-align: left;
-        color: inherit;        
+        color: inherit;
       }
 
       .quick-buttons-section {
@@ -1182,7 +1200,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         padding: 0.5rem;
         border-radius: 8px;
         cursor: pointer;
-        transition: .15s;
+        transition: 0.15s;
       }
 
       @media (hover: hover) {
@@ -1204,7 +1222,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       .quick:active {
-        transform: scale(.98);
+        transform: scale(0.98);
       }
 
       .quick.active {
@@ -1282,38 +1300,38 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       .toast {
-      position: fixed;
-      left: 50%;
-      bottom: 90px;
-      transform: translateX(-50%) translateY(12px);
-      background: #fff;
-      color: #000;
-      padding: 11px 17px;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      box-shadow: 0 6px 20px rgb(255 255 255 / 18%);
-      opacity: 0;
-      pointer-events: none;
-      transition:
-        opacity 0.2s ease,
-        transform 0.2s ease;
-      z-index: 9999;
-      white-space: nowrap;
-    }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    @media (max-width: 500px) {
-      .toast {
-        bottom: 85px;
-        max-width: calc(100% - 32px);
-        white-space: normal;
-        text-align: center;
+        position: fixed;
+        left: 50%;
+        bottom: 90px;
+        transform: translateX(-50%) translateY(12px);
+        background: #fff;
+        color: #000;
+        padding: 11px 17px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        box-shadow: 0 6px 20px rgb(255 255 255 / 18%);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity 0.2s ease,
+          transform 0.2s ease;
+        z-index: 9999;
+        white-space: nowrap;
       }
-    }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      @media (max-width: 500px) {
+        .toast {
+          bottom: 85px;
+          max-width: calc(100% - 32px);
+          white-space: normal;
+          text-align: center;
+        }
+      }
 
       @media (max-width: 430px) {
         .quick {
@@ -1336,7 +1354,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       #quickactions {
-        margin: 4vh 0 8vh 0;
+        margin: 3vh 0 8vh 0;
       }
 
       @media (max-width: 360px) {
@@ -1350,7 +1368,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
       }
 
-      #message-buttons{
+      #message-buttons {
         margin-top: 1rem;
       }
 
@@ -1381,6 +1399,14 @@ const char index_html[] PROGMEM = R"rawliteral(
             d="M.75 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 .75 0m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 24.654 0m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 48.558 0m29.987 0a.75.75 0 1 0-.002 1.495A.75.75 0 0 0 78.545 0M80.5 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M114.4 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 1.955a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .002-1.5m11.952 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m4.126 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .002-1.5m7.826 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m8.039 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m36.069 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m29.986 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498M.75 3.91a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m11.952 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m11.952 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m7.826 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m13.908 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.125 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 5.866a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.5m1.957 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m1.956 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.956 0a.749.749 0 1 0 0 1.497.75.75 0 1 0 0-1.498m8.039 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.957 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m1.956 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m6.083 0a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.5m1.957 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m1.956 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 .001-1.498m1.956 0a.749.749 0 1 0 0 1.497.75.75 0 1 0 0-1.498m9.996 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m8.04 0a.75.75 0 1 0-.003 1.499.75.75 0 0 0 .002-1.5m4.125 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m7.827 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m11.951 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m7.827 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m13.908 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497M.75 7.82a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m19.778 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m15.865 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.5m3.913 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.125 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.5m11.951 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m7.827 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m8.038 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498M.75 9.776a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.499m11.952 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m7.826 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m4.126 0a.75.75 0 1 0-.002 1.499.75.75 0 0 0 .002-1.499m15.865 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m8.04 0a.75.75 0 1 0-.003 1.499.75.75 0 0 0 .002-1.499m4.125 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m3.913 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m11.953 0a.749.749 0 1 0-.002 1.498.749.749 0 0 0 .002-1.498m7.826 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m4.125 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m5.87 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m1.957 0a.749.749 0 1 0-.001 1.497.749.749 0 0 0 .001-1.497m11.952 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497m6.082 0a.749.749 0 1 0-.002 1.497.749.749 0 0 0 .002-1.497M.75 11.731a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m1.957 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.083 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5m15.865 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.002 1.5.75.75 0 0 0 .001-1.5m4.125 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m3.913 0a.749.749 0 1 0-.001 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m6.082 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.04 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m8.039 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.957 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m3.913 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m4.126 0a.75.75 0 1 0-.001 1.499.75.75 0 0 0 0-1.499m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 0-1.5m1.956 0a.75.75 0 1 0 0 1.499.75.75 0 0 0 0-1.499m1.957 0a.75.75 0 1 0-.001 1.5.75.75 0 0 0 .001-1.5m9.995 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498m1.956 0a.749.749 0 1 0 0 1.498.749.749 0 0 0 0-1.498"
           />
         </svg>
+        <div id="device-status" class="no-ap">
+          <div id="weather-status">
+            <span id="weather-city"></span>
+            <span id="weather-icon"></span>
+            <span id="weather-temp"></span>
+            <span id="weather-condition"></span>
+          </div>
+        </div>
       </div>
       <h2 class="no-st">Wi-Fi Settings</h2>
       <div id="move-wifi">
@@ -1474,43 +1500,131 @@ const char index_html[] PROGMEM = R"rawliteral(
           </select>
         </div>
       </div>
-
       <div id="quickactions" class="no-ap">
         <h2>Quick Actions</h2>
         <div class="quick-grid">
-
           <div class="quick-section">
-            <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-timer-icon lucide-timer"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>STOPWATCH</span>
+            <span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-timer-icon lucide-timer"
+              >
+                <line x1="10" x2="14" y1="2" y2="2" />
+                <line x1="12" x2="15" y1="14" y2="11" />
+                <circle cx="12" cy="14" r="8" /></svg
+              >STOPWATCH</span
+            >
             <div class="quick-buttons-section">
-              <button type="button" onclick="quickAction('stopwatch')">Start</button>
-              <button type="button" onclick="quickAction('stopwatch_clear')">Clear</button>
+              <button type="button" onclick="quickAction('stopwatch')">
+                Start
+              </button>
+              <button type="button" onclick="quickAction('stopwatch_clear')">
+                Clear
+              </button>
             </div>
           </div>
 
           <div class="quick-section">
-            <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alarm-clock-check-icon lucide-alarm-clock-check"><circle cx="12" cy="13" r="8"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/><path d="m9 13 2 2 4-4"/></svg>POMODORO</span>
+            <span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-alarm-clock-check-icon lucide-alarm-clock-check"
+              >
+                <circle cx="12" cy="13" r="8" />
+                <path d="M5 3 2 6" />
+                <path d="m22 6-3-3" />
+                <path d="M6.38 18.7 4 21" />
+                <path d="M17.64 18.67 20 21" />
+                <path d="m9 13 2 2 4-4" /></svg
+              >POMODORO</span
+            >
             <div class="quick-buttons-section">
-              <button type="button" onclick="quickAction('pomodoro_start')">Start</button>
-              <button type="button" onclick="quickAction('pomodoro_stop')">Stop</button>
+              <button type="button" onclick="quickAction('pomodoro_start')">
+                Start
+              </button>
+              <button type="button" onclick="quickAction('pomodoro_stop')">
+                Stop
+              </button>
             </div>
           </div>
 
           <div class="quick-section">
-            <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell-ring-icon lucide-bell-ring"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M22 8c0-2.3-.8-4.3-2-6"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/></svg>ALARM</span>
+            <span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-bell-ring-icon lucide-bell-ring"
+              >
+                <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+                <path d="M22 8c0-2.3-.8-4.3-2-6" />
+                <path
+                  d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"
+                />
+                <path d="M4 2C2.8 3.7 2 5.7 2 8" /></svg
+              >ALARM</span
+            >
             <div class="quick-buttons-section">
-              <button type="button" onclick="quickAction('alarm_stop')">Stop</button>
-              <button type="button" onclick="quickAction('alarm_snooze')">Snooze</button>
+              <button type="button" onclick="quickAction('alarm_stop')">
+                Stop
+              </button>
+              <button type="button" onclick="quickAction('alarm_snooze')">
+                Snooze
+              </button>
             </div>
           </div>
 
           <div class="quick-section">
-            <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw-icon lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>MODE</span>
+            <span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-refresh-cw-icon lucide-refresh-cw"
+              >
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" /></svg
+              >MODE</span
+            >
             <div class="quick-buttons-section">
-              <button type="button" onclick="quickAction('enable_rotation')">Pause</button>
-              <button type="button" onclick="quickAction('next_mode')">Next</button>
+              <button type="button" onclick="quickAction('enable_rotation')">
+                Pause
+              </button>
+              <button type="button" onclick="quickAction('next_mode')">
+                Next
+              </button>
             </div>
           </div>
-
         </div>
 
         <div class="form-group no-ap">
@@ -1826,7 +1940,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             />
           </div>
           <div class="small">
-            Enter a Nightscout URL, YouTube URL, RSS Feed URL, Instagram URL or secondary NTP server.
+            Enter a Nightscout URL, YouTube URL, RSS Feed URL, Instagram URL or
+            secondary NTP server.
           </div>
           <div class="toggles toggle-padding">
             <label class="toggle-row-lg">
@@ -1943,7 +2058,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                 />
                 <span class="toggle-slider"></span>
               </span>
-
             </label>
 
             <label class="toggle-row-lg">
@@ -2251,8 +2365,9 @@ const char index_html[] PROGMEM = R"rawliteral(
               </span>
             </label>
             <p class="donation-note">
-                Thanks for supporting the project!<br>
-                Turn this on if you'd rather keep those occasional encouragement messages off your display.
+              Thanks for supporting the project!<br />
+              Turn this on if you'd rather keep those occasional encouragement
+              messages off your display.
             </p>
             <div id="ota-container">
               <button
@@ -2273,7 +2388,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                 </button>
               </div>
               <p id="ota-status-text"></p>
-
             </div>
           </div>
         </div>
@@ -2289,33 +2403,43 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="sub-collapsible-content no-ap" aria-hidden="true">
         <div class="content-wrapper" id="device">
           <div class="toggle-padding device-info" id="device-settings">
-            <span>Host: <input type="text" id="hostnameInput" oninput=" this.value = this.value.replace(/[^a-zA-Z0-9-]/g, ''); resizeHostname(this);"/>.local</span>
+            <span
+              >Host:
+              <input
+                type="text"
+                id="hostnameInput"
+                oninput="
+                  this.value = this.value.replace(/[^a-zA-Z0-9-]/g, '');
+                  resizeHostname(this);
+                "
+              />.local</span
+            >
             <div class="spanholder">
               <span>IP: <span id="ipDisplay">Fetching...</span></span>
               <span>Firmware: <span id="fwVersion">...</span></span>
-              <span>Session Uptime: <span id="sessionDisplay">Loading...</span></span>
-              <span>Total Lifetime: <span id="totalDisplay">Loading...</span></span>
+              <span
+                >Session Uptime:
+                <span id="sessionDisplay">Loading...</span></span
+              >
+              <span
+                >Total Lifetime: <span id="totalDisplay">Loading...</span></span
+              >
             </div>
           </div>
           <div class="btn-apply-wrap" id="saveandreboot">
-            <input
-              type="submit"              
-              class="primary-button"
-              value="Save & Reboot"
-            />
+            <input type="submit" class="primary-button" value="Save & Reboot" />
           </div>
         </div>
       </div>
-              <div class="footer no-ap">
-                <a
-                  href="https://esptimecast.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  ESPTimeCast<span class="tm">™</span> by M-Factory
-                </a>
-              </div>
-
+      <div class="footer no-ap">
+        <a
+          href="https://esptimecast.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          ESPTimeCast<span class="tm">™</span> by M-Factory
+        </a>
+      </div>
 
       <div id="savingMessage"></div>
       <div id="toast" class="toast"></div>
@@ -2374,7 +2498,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
       })();
 
-      window.onload = function () {        
+      window.onload = function () {
         fetch("/ap_status")
           .then((r) => r.json())
           .then((apStatus) => {
@@ -2453,6 +2577,8 @@ const char index_html[] PROGMEM = R"rawliteral(
               data.openWeatherCountry || "";
             document.getElementById("weatherUnits").checked =
               data.weatherUnits === "imperial";
+            window._showFullTemp = !!data.showFullTemp;
+            window._isImperial = data.weatherUnits === "imperial";
             document.getElementById("clockDuration").value =
               (data.clockDuration || 10000) / 1000;
             document.getElementById("weatherDuration").value =
@@ -2643,7 +2769,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             setTimeout(async () => {
               try {
                 deviceIP = await fetch("/ip").then((r) => r.text());
-                document.getElementById("ipDisplay").textContent = deviceIP || "—";
+                document.getElementById("ipDisplay").textContent =
+                  deviceIP || "—";
               } catch (e) {}
 
               await fetchUptimeAsync();
@@ -2663,6 +2790,40 @@ const char index_html[] PROGMEM = R"rawliteral(
                   setBuzzerFieldsEnabled(_buzzerData.enabled);
                 } catch (e) {}
 
+                function getNextAlarm(alarms) {
+                  const now = new Date();
+                  let best = null;
+                  for (const alarm of alarms) {
+                    if (!alarm.enabled) continue;
+                    for (let offset = 0; offset < 8; offset++) {
+                      const d = new Date(now);
+                      d.setDate(d.getDate() + offset);
+                      if (!alarm.days[d.getDay()]) continue; // assumes days[0]=Sun..days[6]=Sat
+                      d.setHours(alarm.hour, alarm.minute, 0, 0);
+                      if (d <= now) continue;
+                      if (!best || d < best) best = d;
+                      break;
+                    }
+                  }
+                  return best;
+                }
+
+                function formatNextAlarm(d) {
+                  if (!d) return "No alarms set";
+                  const now = new Date();
+                  const isToday = d.toDateString() === now.toDateString();
+                  const tomorrow = new Date(now);
+                  tomorrow.setDate(now.getDate() + 1);
+                  const isTomorrow =
+                    d.toDateString() === tomorrow.toDateString();
+                  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+                  const day = isToday
+                    ? "Today"
+                    : isTomorrow
+                      ? "Tomorrow"
+                      : d.toLocaleDateString(undefined, { weekday: "long" });
+                  return `${day} ${time}`;
+                }
                 try {
                   fetch("/get_alarm")
                     .then((r) => r.json())
@@ -2672,6 +2833,59 @@ const char index_html[] PROGMEM = R"rawliteral(
                     })
                     .catch(() => {});
                 } catch (e) {}
+
+                const OWM_ICONS = {
+                  "01d": "☀️",
+                  "01n": "🌙",
+                  "02d": "⛅",
+                  "02n": "☁️",
+                  "03d": "☁️",
+                  "03n": "☁️",
+                  "04d": "☁️",
+                  "04n": "☁️",
+                  "09d": "🌧️",
+                  "09n": "🌧️",
+                  "10d": "🌦️",
+                  "10n": "🌧️",
+                  "11d": "⛈️",
+                  "11n": "⛈️",
+                  "13d": "❄️",
+                  "13n": "❄️",
+                  "50d": "🌫️",
+                  "50n": "🌫️",
+                };
+
+                function pollWeather(attempt = 0) {
+                  fetch("/status?section=weather")
+                    .then((r) => r.json())
+                    .then((data) => {
+                      const w = data.weather;
+                      if (
+                        w &&
+                        w.currentTemperature !== undefined &&
+                        w.currentTemperature !== null
+                      ) {
+                        document.getElementById("weather-temp").textContent = window._showFullTemp
+                          ? `${w.currentTemperatureFull.toFixed(1)}°${window._isImperial ? "F" : "C"}`
+                          : `${w.currentTemperature}°${window._isImperial ? "F" : "C"}`;
+                        document.getElementById(
+                          "weather-condition",
+                        ).textContent = w.descriptionShort || "";
+                        document.getElementById("weather-city").textContent =
+                          w.city ? `${w.city} -` : "";
+                        document.getElementById("weather-icon").textContent =
+                          OWM_ICONS[w.icon] || "";
+                        document.getElementById("device-status").classList.add("loaded");
+                      } else if (attempt < 15) {
+                        setTimeout(() => pollWeather(attempt + 1), 2000);
+                      }
+                    })
+                    .catch(() => {
+                      if (attempt < 15)
+                        setTimeout(() => pollWeather(attempt + 1), 2000);
+                    });
+                }
+                pollWeather();
               }
             }, 100);
 
@@ -3271,11 +3485,40 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       function setWeatherUnits(val) {
+        window._isImperial = !!val;
         fetch("/set_units", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "value=" + (val ? 1 : 0),
-        });
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to set units");
+            refetchWeatherAfterUnitChange();
+          })
+          .catch(() => {});
+      }
+
+      function refetchWeatherAfterUnitChange() {
+        setTimeout(() => {
+          fetch("/status?section=weather")
+            .then((r) => r.json())
+            .then((data) => {
+              const w = data.weather;
+              if (w) {
+                document.getElementById("weather-temp").textContent = window._showFullTemp
+                  ? `${w.currentTemperatureFull.toFixed(1)}°${window._isImperial ? "F" : "C"}`
+                  : `${w.currentTemperature}°${window._isImperial ? "F" : "C"}`;
+                document.getElementById("weather-condition").textContent =
+                  w.descriptionShort || "";
+                document.getElementById("weather-city").textContent = w.city
+                  ? `${w.city} -`
+                  : "";
+                document.getElementById("weather-icon").textContent =
+                  OWM_ICONS[w.icon] || "";
+              }
+            })
+            .catch(() => {});
+        }, 1000);
       }
 
       // --- Clock-only-during-dimming setter (no reboot) ---
@@ -3564,87 +3807,86 @@ const char index_html[] PROGMEM = R"rawliteral(
         return timePart;
       }
 
-function sendCustomMessage() {
-  const input = document.getElementById("customMessage");
-  let rawValue = input.value.toUpperCase();
+      function sendCustomMessage() {
+        const input = document.getElementById("customMessage");
+        let rawValue = input.value.toUpperCase();
 
-  // Detect digits in brackets and set flag
-  let useBigNumbers = "0";
-  if (/\[\d+\]/.test(rawValue)) {
-    useBigNumbers = "1";
-  }
+        // Detect digits in brackets and set flag
+        let useBigNumbers = "0";
+        if (/\[\d+\]/.test(rawValue)) {
+          useBigNumbers = "1";
+        }
 
-  // Clean message
-  let message = rawValue
-    .replace(safeRegex, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .substring(0, 120);
+        // Clean message
+        let message = rawValue
+          .replace(safeRegex, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .substring(0, 120);
 
-  if (message.length === 0 && input.value.trim().length > 0) return;
+        if (message.length === 0 && input.value.trim().length > 0) return;
 
-  // All data goes into the URL for a GET request
-  const url = `/action?message=${encodeURIComponent(message)}&bignumbers=${useBigNumbers}&scrolls=0&seconds=0`;
+        // All data goes into the URL for a GET request
+        const url = `/action?message=${encodeURIComponent(message)}&bignumbers=${useBigNumbers}&scrolls=0&seconds=0`;
 
-  fetch(url, {
-    method: "GET",
-    headers: {
-      "X-Source": "UI",
-    },
-  })
-    .then((res) => {
-      if (res.status === 409) {
-        throw new Error(
-          "Display temporarily locked. " +
-          "A protected message is active or the clock is in dimming mode."
-        );
+        fetch(url, {
+          method: "GET",
+          headers: {
+            "X-Source": "UI",
+          },
+        })
+          .then((res) => {
+            if (res.status === 409) {
+              throw new Error(
+                "Display temporarily locked. " +
+                  "A protected message is active or the clock is in dimming mode.",
+              );
+            }
+
+            if (!res.ok) throw new Error("Failed to send message.");
+
+            return res.text();
+          })
+          .then((res) => {
+            showToast("✓ Message sent", 3000);
+          })
+          .catch((err) => {
+            console.error("Error sending custom message:", err);
+
+            if (err.message.includes("protected")) {
+              showToast("⚠️ \u00A0\u00A0Display temporarily locked", 5000);
+            } else {
+              showToast("⚠️ \u00A0\u00A0Failed to send message", 3000);
+            }
+          });
       }
 
-      if (!res.ok) throw new Error("Failed to send message.");
+      function clearCustomMessage() {
+        // Use /action?message= to clear the message
+        const url = "/action?message=&scrolls=0&seconds=0";
 
-      return res.text();
-    })
-    .then((res) => {
-      showToast("✓ Message sent", 3000);
-    })
-    .catch((err) => {
-      console.error("Error sending custom message:", err);
+        fetch(url, {
+          method: "GET",
+          headers: {
+            "X-Source": "UI",
+          },
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to clear message.");
 
-      if (err.message.includes("protected")) {
-        showToast("⚠️ \u00A0\u00A0Display temporarily locked", 5000);
-      } else {
-        showToast("⚠️ \u00A0\u00A0Failed to send message", 3000);
+            return res.text();
+          })
+          .then((res) => {
+            document.getElementById("customMessage").value = "";
+
+            showToast("✓ Custom message cleared", 3000);
+          })
+          .catch((err) => {
+            console.error("Error clearing custom message:", err);
+
+            showToast("⚠️ \u00A0\u00A0Failed to clear message", 3000);
+          });
       }
-    });
-}
-
-
-function clearCustomMessage() {
-  // Use /action?message= to clear the message
-  const url = "/action?message=&scrolls=0&seconds=0";
-
-  fetch(url, {
-    method: "GET",
-    headers: {
-      "X-Source": "UI",
-    },
-  })
-    .then((res) => {
-      if (!res.ok) throw new Error("Failed to clear message.");
-
-      return res.text();
-    })
-    .then((res) => {
-      document.getElementById("customMessage").value = "";
-
-      showToast("✓ Custom message cleared", 3000);
-    })
-    .catch((err) => {
-      console.error("Error clearing custom message:", err);
-
-      showToast("⚠️ \u00A0\u00A0Failed to clear message", 3000);
-    });
-}
 
       // --- Dimming Controls Logic (The correct version) ---
       function setDimmingFieldsEnabled() {
@@ -3916,7 +4158,7 @@ function clearCustomMessage() {
             checkBtn.style.display = "none";
             updateDiv.style.display = "block";
           } else {
-            showToast(`Up to date (v${currentVersion})`, 3000); 
+            showToast(`Up to date (v${currentVersion})`, 3000);
             setTimeout(() => {
               checkBtn.disabled = false;
               statusText.innerText = "";
@@ -4293,7 +4535,10 @@ function clearCustomMessage() {
           });
 
           if (showStatus) {
-            showToast(res.ok ? "✓ Settings applied!" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
+            showToast(
+              res.ok ? "✓ Settings applied!" : "⚠️ \u00A0\u00A0Save failed.",
+              res.ok ? 3000 : 5000,
+            );
           }
 
           if (res.ok) {
@@ -4462,7 +4707,10 @@ function clearCustomMessage() {
             body: params,
           });
           if (showStatus)
-            showToast(res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
+            showToast(
+              res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.",
+              res.ok ? 3000 : 5000,
+            );
           if (res.ok) {
             try {
               const btnRes = await fetch("/get_buttons");
@@ -4473,7 +4721,7 @@ function clearCustomMessage() {
         } catch {
           if (showStatus) {
             showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
-          }        
+          }
         }
       }
       let _alarmData = null;
@@ -4704,9 +4952,17 @@ function clearCustomMessage() {
           _alarmTestRinging[i] = false;
           btn.textContent = "Test Alarm";
         } else {
+          for (let j = 0; j < 4; j++) {
+            if (j !== i && _alarmTestRinging[j]) {
+              _alarmTestRinging[j] = false;
+              const otherBtn = document.getElementById(`alarm${j}_testBtn`);
+              if (otherBtn) otherBtn.textContent = "Test Alarm";
+            }
+          }
           const brightness = document.getElementById(
             `alarm${i}_brightness`,
           ).value;
+
           const sound = document.getElementById(`alarm${i}_sound`).value;
           fetch(`/action?${actionPrefix}_test=${brightness}:${sound}`).catch(
             () => {},
@@ -4734,6 +4990,27 @@ function clearCustomMessage() {
 
       async function saveAlarmConfig(showStatus = true) {
         if (!_alarmData) return;
+
+        // Stop any active alarm test before saving.
+        let alarmTestWasActive = false;
+
+        for (let i = 0; i < 4; i++) {
+          if (_alarmTestRinging[i]) {
+            alarmTestWasActive = true;
+            const actionPrefix = i === 0 ? "alarm" : `alarm${i + 1}`;
+            fetch(`/action?${actionPrefix}_stop`).catch(() => {});
+            _alarmTestRinging[i] = false;
+
+            const btn = document.getElementById(`alarm${i}_testBtn`);
+            if (btn) btn.textContent = "Test Alarm";
+          }
+        }
+
+        // Give the ESP8266 time to process the stop before saving.
+        if (alarmTestWasActive) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
         _syncAlarmData();
         const statusEl = document.getElementById("alarm-save-status");
         const params = new URLSearchParams();
@@ -4758,235 +5035,314 @@ function clearCustomMessage() {
             body: params,
           });
           if (showStatus)
-            showToast(res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
+            showToast(
+              res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.",
+              res.ok ? 3000 : 5000,
+            );
         } catch {
           if (showStatus) showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
         }
       }
 
       // ---------- Weather ----------
-let weatherSaveStatusTimer = null;
-function showWeatherStatus(msg) {
-  const el = document.getElementById("weather-save-status");
-  el.textContent = msg;
-  clearTimeout(weatherSaveStatusTimer);
-  weatherSaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
-}
+      let weatherSaveStatusTimer = null;
+      function showWeatherStatus(msg) {
+        const el = document.getElementById("weather-save-status");
+        el.textContent = msg;
+        clearTimeout(weatherSaveStatusTimer);
+        weatherSaveStatusTimer = setTimeout(() => {
+          el.textContent = "";
+        }, 3000);
+      }
 
-async function saveWeatherConfig(showStatus = true) {
-  const statusEl = document.getElementById("weather-save-status");
-  const params = new URLSearchParams();
+      async function saveWeatherConfig(showStatus = true) {
+        const statusEl = document.getElementById("weather-save-status");
+        const params = new URLSearchParams();
 
-  params.set(
-    "weatherDuration",
-    parseInt(document.getElementById("weatherDuration").value, 10) * 1000,
-  );
+        params.set(
+          "weatherDuration",
+          parseInt(document.getElementById("weatherDuration").value, 10) * 1000,
+        );
 
-  // Reuse the same masked-key skip logic as submitConfig() so Apply
-  // never overwrites a saved key with the "****" placeholder.
-  const apiKeyToSend = apiInput.value;
-  if (!(apiKeyToSend === MASK && hasSavedKey)) {
-    params.set("openWeatherApiKey", apiKeyToSend);
-  }
+        // Reuse the same masked-key skip logic as submitConfig() so Apply
+        // never overwrites a saved key with the "****" placeholder.
+        const apiKeyToSend = apiInput.value;
+        if (!(apiKeyToSend === MASK && hasSavedKey)) {
+          params.set("openWeatherApiKey", apiKeyToSend);
+        }
 
-  params.set("openWeatherCity", document.getElementById("openWeatherCity").value);
-  params.set("openWeatherCountry", document.getElementById("openWeatherCountry").value);
-  params.set(
-    "weatherUnits",
-    document.getElementById("weatherUnits").checked ? "imperial" : "metric",
-  );
-  params.set("showHumidity", document.getElementById("showHumidity").checked ? "on" : "");
-  params.set(
-    "showWeatherDescription",
-    document.getElementById("showWeatherDescription").checked ? "on" : "",
-  );
+        params.set(
+          "openWeatherCity",
+          document.getElementById("openWeatherCity").value,
+        );
+        params.set(
+          "openWeatherCountry",
+          document.getElementById("openWeatherCountry").value,
+        );
+        params.set(
+          "weatherUnits",
+          document.getElementById("weatherUnits").checked
+            ? "imperial"
+            : "metric",
+        );
+        params.set(
+          "showHumidity",
+          document.getElementById("showHumidity").checked ? "on" : "",
+        );
+        params.set(
+          "showWeatherDescription",
+          document.getElementById("showWeatherDescription").checked ? "on" : "",
+        );
 
-  try {
-    const res = await fetch("/save_weather", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params,
-    });
-    showToast(res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.", res.ok ? 3000 : 5000);
-  } catch {
-    showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
-  }
-}
+        try {
+          const res = await fetch("/save_weather", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params,
+          });
+          showToast(
+            res.ok ? "✓ Settings applied" : "⚠️ \u00A0\u00A0Save failed.",
+            res.ok ? 3000 : 5000,
+          );
+        } catch {
+          showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
+        }
+      }
 
-// ---------- Time & Date ----------
-let timeDateSaveStatusTimer = null;
-function showTimeDateStatus(msg) {
-  const el = document.getElementById("timedate-save-status");
-  el.textContent = msg;
-  clearTimeout(timeDateSaveStatusTimer);
-  timeDateSaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
-}
+      // ---------- Time & Date ----------
+      let timeDateSaveStatusTimer = null;
+      function showTimeDateStatus(msg) {
+        const el = document.getElementById("timedate-save-status");
+        el.textContent = msg;
+        clearTimeout(timeDateSaveStatusTimer);
+        timeDateSaveStatusTimer = setTimeout(() => {
+          el.textContent = "";
+        }, 3000);
+      }
 
-async function saveTimeDateConfig(showStatus = true) {
-  const statusEl = document.getElementById("timedate-save-status");
-  const params = new URLSearchParams();
+      async function saveTimeDateConfig(showStatus = true) {
+        const statusEl = document.getElementById("timedate-save-status");
+        const params = new URLSearchParams();
 
-  params.set("timeZone", document.getElementById("timeZone").value);
-  params.set(
-    "clockDuration",
-    parseInt(document.getElementById("clockDuration").value, 10) * 1000,
-  );
-  params.set("ntpServer1", document.getElementById("ntpServer1").value);
-  params.set("ntpServer2", document.getElementById("ntpServer2").value);
-  params.set("showDayOfWeek", document.getElementById("showDayOfWeek").checked ? "on" : "");
-  params.set("colonBlinkEnabled", document.getElementById("colonBlinkEnabled").checked ? "on" : "");
-  params.set("showDate", document.getElementById("showDate").checked ? "on" : "");
-  params.set("twelveHourToggle", document.getElementById("twelveHourToggle").checked ? "on" : "");
+        params.set("timeZone", document.getElementById("timeZone").value);
+        params.set(
+          "clockDuration",
+          parseInt(document.getElementById("clockDuration").value, 10) * 1000,
+        );
+        params.set("ntpServer1", document.getElementById("ntpServer1").value);
+        params.set("ntpServer2", document.getElementById("ntpServer2").value);
+        params.set(
+          "showDayOfWeek",
+          document.getElementById("showDayOfWeek").checked ? "on" : "",
+        );
+        params.set(
+          "colonBlinkEnabled",
+          document.getElementById("colonBlinkEnabled").checked ? "on" : "",
+        );
+        params.set(
+          "showDate",
+          document.getElementById("showDate").checked ? "on" : "",
+        );
+        params.set(
+          "twelveHourToggle",
+          document.getElementById("twelveHourToggle").checked ? "on" : "",
+        );
 
-  try {
-    const res = await fetch("/save_timedate", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params,
-    });
-    showToast(res.ok ? "✓ Settings applied" : "⚠️  Save failed.", res.ok ? 3000 : 5000);
-  } catch {
-    showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
-  }
-}
+        try {
+          const res = await fetch("/save_timedate", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params,
+          });
+          showToast(
+            res.ok ? "✓ Settings applied" : "⚠️  Save failed.",
+            res.ok ? 3000 : 5000,
+          );
+        } catch {
+          showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
+        }
+      }
 
-// ---------- Display ----------
-let displaySaveStatusTimer = null;
-function showDisplayStatus(msg) {
-  const el = document.getElementById("display-save-status");
-  el.textContent = msg;
-  clearTimeout(displaySaveStatusTimer);
-  displaySaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
-}
+      // ---------- Display ----------
+      let displaySaveStatusTimer = null;
+      function showDisplayStatus(msg) {
+        const el = document.getElementById("display-save-status");
+        el.textContent = msg;
+        clearTimeout(displaySaveStatusTimer);
+        displaySaveStatusTimer = setTimeout(() => {
+          el.textContent = "";
+        }, 3000);
+      }
 
-async function saveDisplayConfig(showStatus = true) {
-  const statusEl = document.getElementById("display-save-status");
-  const params = new URLSearchParams();
+      async function saveDisplayConfig(showStatus = true) {
+        const statusEl = document.getElementById("display-save-status");
+        const params = new URLSearchParams();
 
-  params.set("brightness", document.getElementById("brightnessSlider").value);
-  params.set("flipDisplay", document.getElementById("flipDisplay").checked ? "on" : "");
+        params.set(
+          "brightness",
+          document.getElementById("brightnessSlider").value,
+        );
+        params.set(
+          "flipDisplay",
+          document.getElementById("flipDisplay").checked ? "on" : "",
+        );
 
-  // Same mutual-exclusivity rule as submitConfig()
-  const autoDimmingChecked = document.getElementById("autoDimmingEnabled").checked;
-  const customDimmingChecked = document.getElementById("dimmingEnabled").checked;
-  if (autoDimmingChecked && customDimmingChecked) {
-    params.set("autoDimmingEnabled", "true");
-    params.set("dimmingEnabled", "false");
-  } else {
-    params.set("autoDimmingEnabled", autoDimmingChecked ? "true" : "false");
-    params.set("dimmingEnabled", customDimmingChecked ? "true" : "false");
-  }
+        // Same mutual-exclusivity rule as submitConfig()
+        const autoDimmingChecked =
+          document.getElementById("autoDimmingEnabled").checked;
+        const customDimmingChecked =
+          document.getElementById("dimmingEnabled").checked;
+        if (autoDimmingChecked && customDimmingChecked) {
+          params.set("autoDimmingEnabled", "true");
+          params.set("dimmingEnabled", "false");
+        } else {
+          params.set(
+            "autoDimmingEnabled",
+            autoDimmingChecked ? "true" : "false",
+          );
+          params.set("dimmingEnabled", customDimmingChecked ? "true" : "false");
+        }
 
-  const dimStart = document.getElementById("dimStartTime").value; // "18:45"
-  const dimEnd = document.getElementById("dimEndTime").value; // "08:30"
-  if (dimStart) {
-    const [startHour, startMin] = dimStart.split(":").map((x) => parseInt(x, 10));
-    params.set("dimStartHour", startHour);
-    params.set("dimStartMinute", startMin);
-  }
-  if (dimEnd) {
-    const [endHour, endMin] = dimEnd.split(":").map((x) => parseInt(x, 10));
-    params.set("dimEndHour", endHour);
-    params.set("dimEndMinute", endMin);
-  }
+        const dimStart = document.getElementById("dimStartTime").value; // "18:45"
+        const dimEnd = document.getElementById("dimEndTime").value; // "08:30"
+        if (dimStart) {
+          const [startHour, startMin] = dimStart
+            .split(":")
+            .map((x) => parseInt(x, 10));
+          params.set("dimStartHour", startHour);
+          params.set("dimStartMinute", startMin);
+        }
+        if (dimEnd) {
+          const [endHour, endMin] = dimEnd
+            .split(":")
+            .map((x) => parseInt(x, 10));
+          params.set("dimEndHour", endHour);
+          params.set("dimEndMinute", endMin);
+        }
 
-  params.set("dimBrightness", document.getElementById("dimBrightness").value);
-  params.set(
-    "clockOnlyDuringDimming",
-    document.getElementById("clockOnlyDuringDimming").checked ? "on" : "",
-  );
+        params.set(
+          "dimBrightness",
+          document.getElementById("dimBrightness").value,
+        );
+        params.set(
+          "clockOnlyDuringDimming",
+          document.getElementById("clockOnlyDuringDimming").checked ? "on" : "",
+        );
 
-  try {
-    const res = await fetch("/save_display", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params,
-    });
-    showToast(res.ok ? "✓ Settings applied" : "⚠️ Save failed.", res.ok ? 3000 : 5000);
-  } catch {
-    showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
-  }
-}
+        try {
+          const res = await fetch("/save_display", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params,
+          });
+          showToast(
+            res.ok ? "✓ Settings applied" : "⚠️ Save failed.",
+            res.ok ? 3000 : 5000,
+          );
+        } catch {
+          showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
+        }
+      }
 
-// ---------- Countdown ----------
-let countdownSaveStatusTimer = null;
-function showCountdownStatus(msg) {
-  const el = document.getElementById("countdown-save-status");
-  el.textContent = msg;
-  clearTimeout(countdownSaveStatusTimer);
-  countdownSaveStatusTimer = setTimeout(() => { el.textContent = ""; }, 3000);
-}
+      // ---------- Countdown ----------
+      let countdownSaveStatusTimer = null;
+      function showCountdownStatus(msg) {
+        const el = document.getElementById("countdown-save-status");
+        el.textContent = msg;
+        clearTimeout(countdownSaveStatusTimer);
+        countdownSaveStatusTimer = setTimeout(() => {
+          el.textContent = "";
+        }, 3000);
+      }
 
-async function saveCountdownConfig(showStatus = true) {
-  const statusEl = document.getElementById("countdown-save-status");
-  const params = new URLSearchParams();
+      async function saveCountdownConfig(showStatus = true) {
+        const statusEl = document.getElementById("countdown-save-status");
+        const params = new URLSearchParams();
 
-  params.set("countdownEnabled", document.getElementById("countdownEnabled").checked ? "on" : "");
-  params.set("isDramaticCountdown", document.getElementById("isDramaticCountdown").checked ? "on" : "");
-  params.set("countdownDate", document.getElementById("countdownDate").value);
-  params.set("countdownTime", document.getElementById("countdownTime").value);
-  params.set("countdownLabel", document.getElementById("countdownLabel").value);
+        params.set(
+          "countdownEnabled",
+          document.getElementById("countdownEnabled").checked ? "on" : "",
+        );
+        params.set(
+          "isDramaticCountdown",
+          document.getElementById("isDramaticCountdown").checked ? "on" : "",
+        );
+        params.set(
+          "countdownDate",
+          document.getElementById("countdownDate").value,
+        );
+        params.set(
+          "countdownTime",
+          document.getElementById("countdownTime").value,
+        );
+        params.set(
+          "countdownLabel",
+          document.getElementById("countdownLabel").value,
+        );
 
-  try {
-    const res = await fetch("/save_countdown", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params,
-    });
+        try {
+          const res = await fetch("/save_countdown", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params,
+          });
 
-    if (showStatus) {
-      showToast(res.ok ? "✓ Countdown applied" : "⚠️ Save failed.", res.ok ? 3000 : 5000);
-    }
-  } catch {
-    if (showStatus) {
-      showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
-    }
-  }
-}
+          if (showStatus) {
+            showToast(
+              res.ok ? "✓ Countdown applied" : "⚠️ Save failed.",
+              res.ok ? 3000 : 5000,
+            );
+          }
+        } catch {
+          if (showStatus) {
+            showToast("⚠️ \u00A0\u00A0Save failed.", 5000);
+          }
+        }
+      }
 
-function quickAction(action, value = "") {
-  fetch(`http://${deviceIP}/action`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-Source": "UI",
-    },
-    body: new URLSearchParams({
-      [action]: value,
-    }),
-  }).catch((e) => {
-    console.error("Quick action failed:", e);
-  });
-}
+      function quickAction(action, value = "") {
+        fetch(`http://${deviceIP}/action`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Source": "UI",
+          },
+          body: new URLSearchParams({
+            [action]: value,
+          }),
+        }).catch((e) => {
+          console.error("Quick action failed:", e);
+        });
+      }
 
-function startQuickTimer() {
-  const input = document.getElementById("quickTimer");
-  const value = input.value.trim();
+      function startQuickTimer() {
+        const input = document.getElementById("quickTimer");
+        const value = input.value.trim();
 
-  if (!value) {
-    input.focus();
-    return;
-  }
+        if (!value) {
+          input.focus();
+          return;
+        }
 
-  quickAction("timer", value);
-}
+        quickAction("timer", value);
+      }
 
-let toastTimeout;
+      let toastTimeout;
 
-function showToast(message, duration = 2000) {
-  const toast = document.getElementById("toast");
+      function showToast(message, duration = 2000) {
+        const toast = document.getElementById("toast");
 
-  if (!toast) return;
+        if (!toast) return;
 
-  clearTimeout(toastTimeout);
+        clearTimeout(toastTimeout);
 
-  toast.textContent = message;
-  toast.classList.add("show");
+        toast.textContent = message;
+        toast.classList.add("show");
 
-  toastTimeout = setTimeout(() => {
-    toast.classList.remove("show");
-  }, duration);
-}
+        toastTimeout = setTimeout(() => {
+          toast.classList.remove("show");
+        }, duration);
+      }
     </script>
     <!--
     Third-party component: Lucide Icons

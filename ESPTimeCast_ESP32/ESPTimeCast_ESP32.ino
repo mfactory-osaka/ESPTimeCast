@@ -315,7 +315,9 @@ inline uint32_t getLargestFreeBlock() {
 #endif
 }
 
-String currentTemp = "";
+float currentTempFull = NAN;
+String weatherIconCode = "";  // raw OpenWeatherMap code, e.g. "04d"
+bool showFullTemp = false;
 String weatherDescription = "";
 String weatherIcon = "";
 bool showWeatherDescription = false;
@@ -325,6 +327,7 @@ bool weatherFetchInitiated = false;
 bool isAPMode = false;
 char tempSymbol = '\006';
 bool shouldFetchWeatherNow = false;
+String currentCityName = "";
 
 unsigned long lastSwitch = 0;
 unsigned long lastColonBlink = 0;
@@ -588,6 +591,7 @@ void loadConfig() {
   showHumidity = doc["showHumidity"] | false;
   colonBlinkEnabled = doc.containsKey("colonBlinkEnabled") ? doc["colonBlinkEnabled"].as<bool>() : true;
   showWeatherDescription = doc["showWeatherDescription"] | false;
+  showFullTemp = doc["showFullTemp"] | false;
 
   // --- Dimming settings ---
   if (doc["dimmingEnabled"].is<bool>()) {
@@ -1065,8 +1069,7 @@ void setupTime() {
   configTime(
     posixTZ.c_str(),
     ntpServer1,
-    ntpServer2
-  );
+    ntpServer2);
 #else
   configTime(0, 0, ntpServer1, ntpServer2);
 
@@ -1705,15 +1708,20 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
     case 4:
       {
         JsonDocument doc;
-        if (weatherAvailable && weatherDescription.length() > 0) {
-          doc["currentTemperature"] = String(currentTemp).toInt();
+        if (weatherAvailable) {
+          doc["currentTemperature"] = round(currentTempFull);
+          doc["currentTemperatureFull"] = round(currentTempFull * 10) / 10.0;
           doc["weatherDescription"] = weatherDescription;
-          doc["icon"] = weatherIcon;
+          doc["descriptionShort"] = mainDesc;
+          doc["icon"] = weatherIconCode;
+          doc["city"] = currentCityName;
           doc["currentHumidity"] = currentHumidity;
         } else {
           doc["currentTemperature"] = JsonVariant();
+          doc["currentTemperatureFull"] = JsonVariant();
           doc["weatherDescription"] = JsonVariant();
           doc["icon"] = JsonVariant();
+          doc["city"] = JsonVariant();
           doc["currentHumidity"] = JsonVariant();
         }
         doc["sunriseHour"] = weatherAvailable ? sunriseHour : JsonVariant();
@@ -2864,9 +2872,19 @@ void setupWebServer() {
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    SnsType snsType = detectSnsType(String(ntpServer2));
+    time_t nowTime = time(nullptr);
+
+    if (request->hasParam("section") && request->getParam("section")->value() == "weather") {
+      String json = statusSectionJson(4, snsType, nowTime);
+      json.remove(0, 1);  // drop the leading comma from ",\"weather\":{...}"
+      request->send(200, "application/json", "{" + json + "}");
+      return;
+    }
+
     auto state = std::make_shared<StatusStreamState>();
-    state->snsType = detectSnsType(String(ntpServer2));
-    state->nowTime = time(nullptr);
+    state->snsType = snsType;
+    state->nowTime = nowTime;
     state->buf = statusSectionJson(0, state->snsType, state->nowTime);
     state->bufPos = 0;
     state->section = 1;
@@ -2893,6 +2911,13 @@ void setupWebServer() {
     response->addHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
     response->addHeader("Connection", "close");
     request->send(response);
+  });
+
+  server.on("/full_temp", HTTP_GET, [](AsyncWebServerRequest *request) {
+    showFullTemp = !showFullTemp;
+    saveConfigRuntime();
+    Serial.printf(PSTR("[WEATHER] Full temp display: %s\n"), showFullTemp ? "ON" : "OFF");
+    request->redirect("/");
   });
 
   server.on("/export", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -3624,9 +3649,11 @@ void fetchWeather() {
     }
 
     if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("temp"))) {
-      float temp = doc[F("main")][F("temp")];
-      currentTemp = String((int)round(temp)) + char(176);
-      Serial.printf(PSTR("[WEATHER] Temp: %d°\n"), (int)round(temp));
+      currentTempFull = doc[F("main")][F("temp")];
+      if (doc.containsKey(F("name"))) {
+        currentCityName = doc[F("name")].as<String>();
+      }
+      Serial.printf(PSTR("[WEATHER] Temp: %.2f°\n"), currentTempFull);
       weatherAvailable = true;
     } else {
       Serial.println(F("[WEATHER] Temperature not found in JSON payload"));
@@ -3650,7 +3677,8 @@ void fetchWeather() {
         detailedDesc = weatherObj[F("description")].as<String>();
       }
       if (weatherObj.containsKey(F("icon"))) {
-        weatherIcon = getWeatherIconChar(weatherObj[F("icon")].as<String>());
+        weatherIconCode = weatherObj[F("icon")].as<String>();
+        weatherIcon = getWeatherIconChar(weatherIconCode);
       }
     } else {
       Serial.println(F("[WEATHER] Weather description not found in JSON payload"));
@@ -4582,11 +4610,12 @@ void executeAction(const String &action, const String &value) {
       Serial.println(F("[ACTION] next_mode ignored: Alarm is active."));
       return;
     }
-    if (displayMode == 0 && prevDisplayMode == 0) {
-      Serial.println(F("[ACTION] next_mode ignored: already in CLOCK."));
+    int modeBeforeAdvance = displayMode;
+    advanceDisplayMode(true);
+    if (displayMode == modeBeforeAdvance) {
+      Serial.println(F("[ACTION] next_mode: no visible change (not due yet)."));
       return;
     }
-    advanceDisplayMode(true);
     if (displayMode == 0 && prevDisplayMode != 1 && prevDisplayMode != 5 && (prevDisplayMode != 6 || totalPixelWidth >= 27)) {
       pendingModeShiftOut = true;
     }
@@ -5296,6 +5325,10 @@ void fireAlarm(int index, int brightnessOverride, int soundOverride) {
     return;
   }
 
+  if (alarmRinging && alarmRingingIndex != index) {
+    buzzerStop();  // cleanly restore/reset before switching to a different alarm
+  }
+
   alarmRinging = true;
   alarmRingingIndex = index;
   alarmPreviousDisplayMode = displayMode;
@@ -5788,6 +5821,7 @@ bool saveConfigRuntime() {
   doc["showDayOfWeek"] = showDayOfWeek;
   doc["showDate"] = showDate;
   doc["showHumidity"] = showHumidity;
+  doc["showFullTemp"] = showFullTemp;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
   doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
   doc["showWeatherDescription"] = showWeatherDescription;
@@ -6768,9 +6802,9 @@ void loop() {
       String weatherDisplay;
       if (showHumidity && currentHumidity != -1) {
         int cappedHumidity = (currentHumidity > 99) ? 99 : currentHumidity;
-        weatherDisplay = currentTemp + " " + String(cappedHumidity) + "%";
+        weatherDisplay = String((int)round(currentTempFull)) + char(176) + " " + String(cappedHumidity) + "%";
       } else {
-        weatherDisplay = currentTemp + tempSymbol;
+        weatherDisplay = (showFullTemp ? String(currentTempFull, 1) : String((int)round(currentTempFull))) + char(176) + tempSymbol;
       }
       P.print(weatherDisplay.c_str());
       weatherWasAvailable = true;
