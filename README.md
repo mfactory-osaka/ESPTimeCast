@@ -1368,32 +1368,45 @@ The ESP8266 connects to Nightscout via an intermediate PHP bridge due to TLS mem
 
 ESPTimeCast™ includes a few optional "power-user" features that aren't visible in the main interface but can be accessed directly from your browser. These are intended for advanced users who want more control or integration.
 
+#### 🌡️ /full_temp
+Displays the current temperature with **decimal precision** instead of the rounded temperature normally shown on the display.
+
+**Example:**
+`http://192.168.4.1/full_temp.`  
+
+&nbsp;
+
 #### ⚙️ /factory_reset
 Erases all saved configuration data, Wi-Fi credentials, and uptime history.
 Used to restore the device to its original state. Only available in **AP mode**.
 
 **Example:**
-http://192.168.4.1/factory_reset
+`http://192.168.4.1/factory_reset.`  
+
+&nbsp;
 
 #### 💾 /export
 Downloads your current configuration (`config.json`) directly from the device.
 This is useful for creating backups or migrating settings between devices.
 
 **Example:**
-http://your-device-ip/export
-The file will download automatically with your saved WiFi credentials (safely masked for security) and all other settings.
+`http://your-device-ip/export`.   
+The file will download automatically with your saved WiFi credentials (safely masked for security) and all other settings.  
+
+&nbsp;
 
 #### 📂 /upload
 Lets you manually upload a configuration file (`config.json`) to the device.
 Perfect for restoring a backup or quickly switching between setups.
 
 **Usage:**
-1. Go to
-http://your-device-ip/upload
+1. Go to `http://your-device-ip/upload`
 2. Select your edited or backup `config.json` file.
 3. The device will confirm the upload and automatically reboot with the new configuration.
 
-> *Tip:* You can export → edit the file on your computer → re-upload to test new settings without using the web interface.
+> *Tip:* You can export → edit the file on your computer → re-upload to test new settings without using the web interface.  
+
+&nbsp;
 
 #### ⚠️ Notes
 - These features are optional and hidden from the main interface to avoid clutter.
