@@ -2586,17 +2586,11 @@ const char index_html[] PROGMEM = R"rawliteral(
             document.getElementById("language").value = data.language || "";
 
             // --- Advanced: brightness ---
-            const brightnessSlider =
-              document.getElementById("brightnessSlider");
+            const brightnessSlider = document.getElementById("brightnessSlider");
             const brightnessValue = document.getElementById("brightnessValue");
 
-            const isDisplayOff = data.displayOff === true;
-
-            brightnessSlider.value = isDisplayOff
-              ? -1
-              : typeof data.brightness !== "undefined"
-                ? data.brightness
-                : 10;
+            brightnessSlider.value =
+              typeof data.regularBrightness !== "undefined" ? data.regularBrightness : 10;
 
             brightnessValue.textContent =
               brightnessSlider.value == -1 ? "Off" : brightnessSlider.value;
@@ -2868,22 +2862,19 @@ const char index_html[] PROGMEM = R"rawliteral(
                         document.getElementById("weather-temp").textContent = window._showFullTemp
                           ? `${w.currentTemperatureFull.toFixed(1)}°${window._isImperial ? "F" : "C"}`
                           : `${w.currentTemperature}°${window._isImperial ? "F" : "C"}`;
-                        document.getElementById(
-                          "weather-condition",
-                        ).textContent = w.descriptionShort || "";
-                        document.getElementById("weather-city").textContent =
-                          w.city ? `${w.city} -` : "";
-                        document.getElementById("weather-icon").textContent =
-                          OWM_ICONS[w.icon] || "";
+                        document.getElementById("weather-condition").textContent = w.descriptionShort || "";
+                        document.getElementById("weather-city").textContent = w.city ? `${w.city} -` : "";
+                        document.getElementById("weather-icon").textContent = OWM_ICONS[w.icon] || "";
+
                         document.getElementById("device-status").classList.add("loaded");
                       } else if (attempt < 15) {
                         setTimeout(() => pollWeather(attempt + 1), 2000);
                       }
                     })
-                    .catch(() => {
-                      if (attempt < 15)
-                        setTimeout(() => pollWeather(attempt + 1), 2000);
-                    });
+.catch((e) => {
+  console.error("[pollWeather] failed:", e);
+  if (attempt < 15) setTimeout(() => pollWeather(attempt + 1), 2000);
+});
                 }
                 pollWeather();
               }
@@ -3561,16 +3552,9 @@ const char index_html[] PROGMEM = R"rawliteral(
           cfg.dimmingEnabled === "true" ||
           cfg.dimmingEnabled === 1;
 
-        // Normalize dimBrightness from config (handle "Off" or "-1" string)
-        let db = cfg.dimBrightness;
-        if (typeof db === "string") {
-          if (db.toLowerCase() === "off") db = -1;
-          else db = parseInt(db, 10);
-        }
-        const dimBrightnessOk = typeof db === "number" ? db !== -1 : true;
-
-        // Enable only when some dimming mode is active and dimming does not fully turn display off
-        el.disabled = !(autoDim || manualDim) || !dimBrightnessOk;
+        // Enable whenever some dimming mode is active — regardless of dimBrightness,
+        // since interrupts (alarms/timers) can still light the display even at dimBrightness -1
+        el.disabled = !(autoDim || manualDim);
 
         // On change, persist immediately (no reboot)
         el.addEventListener("change", function () {
@@ -3930,19 +3914,9 @@ const char index_html[] PROGMEM = R"rawliteral(
         // --- Update Clock-only-during-dimming checkbox state (if present) ---
         const clockOnlyEl = document.getElementById("clockOnlyDuringDimming");
         if (clockOnlyEl) {
-          // Read current brightness control value (string)
-          const dbEl = document.getElementById("dimBrightness");
-          const dbVal = dbEl ? dbEl.value : null;
-          const dbOk =
-            dbVal !== null
-              ? !(
-                  String(dbVal).toLowerCase() === "off" ||
-                  String(dbVal) === "-1"
-                )
-              : true;
           const currentlyDimEnabled =
             isAutoDimmingActive || isCustomDimmingActive;
-          clockOnlyEl.disabled = !currentlyDimEnabled || !dbOk;
+          clockOnlyEl.disabled = !currentlyDimEnabled;
         }
 
         // BRIGHTNESS SLIDER: Enabled if EITHER mode is active.
@@ -4000,6 +3974,11 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         if (autoEl) autoEl.addEventListener("change", setDimmingFieldsEnabled);
         if (dimEl) dimEl.addEventListener("change", setDimmingFieldsEnabled);
+
+        const dimBrightnessEl = document.getElementById("dimBrightness");
+        if (dimBrightnessEl) {
+          dimBrightnessEl.addEventListener("input", setDimmingFieldsEnabled);
+        }
       });
 
       const ssidInput = document.getElementById("ssid");

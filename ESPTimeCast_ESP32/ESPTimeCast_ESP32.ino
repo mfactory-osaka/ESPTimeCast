@@ -240,7 +240,8 @@ unsigned long clockDuration = 10000;
 unsigned long weatherDuration = 5000;
 bool displayOff = false;
 int brightness = 7;
-int lastBrightnessBeforeOff = 7;  // remembers brightness to restore on display_on
+int regularBrightness = 7;
+int lastBrightnessBeforeOff = 7;
 bool flipDisplay = false;
 bool twelveHourToggle = false;
 bool showDayOfWeek = true;
@@ -490,6 +491,7 @@ void loadConfig() {
     doc[F("timeZone")] = "";
     doc[F("language")] = "en";
     doc[F("brightness")] = brightness;
+    doc[F("regularBrightness")] = brightness;
     doc[F("lastBrightnessBeforeOff")] = brightness;
     doc[F("flipDisplay")] = flipDisplay;
     doc[F("twelveHourToggle")] = twelveHourToggle;
@@ -582,6 +584,7 @@ void loadConfig() {
   }
 
   brightness = doc["brightness"] | 7;
+  regularBrightness = doc["regularBrightness"] | brightness;
   displayOff = doc["displayOff"] | false;
   lastBrightnessBeforeOff = doc["lastBrightnessBeforeOff"] | 7;
   flipDisplay = doc["flipDisplay"] | false;
@@ -1711,7 +1714,7 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
         if (weatherAvailable) {
           doc["currentTemperature"] = round(currentTempFull);
           doc["currentTemperatureFull"] = round(currentTempFull * 10) / 10.0;
-          doc["weatherDescription"] = weatherDescription;
+          doc["weatherDescription"] = detailedDesc;
           doc["descriptionShort"] = mainDesc;
           doc["icon"] = weatherIconCode;
           doc["city"] = currentCityName;
@@ -2639,7 +2642,7 @@ void setupWebServer() {
       return;
     }
     if (request->hasParam("brightness", true)) {
-      handleBrightnessChange(request->getParam("brightness", true)->value().toInt(), false);
+      handleBrightnessChange(request->getParam("brightness", true)->value().toInt(), false, true);
     }
     if (request->hasParam("flipDisplay", true)) {
       String v = request->getParam("flipDisplay", true)->value();
@@ -4623,19 +4626,19 @@ void executeAction(const String &action, const String &value) {
     previousDisplayMode(true);
 
   } else if (action == "brightness") {
-    handleBrightnessChange(value.toInt(), false);
+    handleBrightnessChange(value.toInt(), false, true);
 
   } else if (action == "brightness_up") {
-    handleBrightnessChange(displayOff ? lastBrightnessBeforeOff : constrain(brightness + 1, 0, 15), false);
+    handleBrightnessChange(displayOff ? lastBrightnessBeforeOff : constrain(brightness + 1, 0, 15), false, true);
 
   } else if (action == "brightness_down") {
-    if (!displayOff) { handleBrightnessChange(constrain(brightness - 1, 0, 15), false); }
+    if (!displayOff) { handleBrightnessChange(constrain(brightness - 1, 0, 15), false, true); }
 
   } else if (action == "display_off") {
-    handleBrightnessChange(-1, false);
+    handleBrightnessChange(-1, false, true);
 
   } else if (action == "display_on") {
-    handleBrightnessChange(lastBrightnessBeforeOff, false);
+    handleBrightnessChange(lastBrightnessBeforeOff, false, true);
 
   } else if (action == "flip" || action == "flip_display") {
     flipDisplay = hasValue ? boolVal : !flipDisplay;
@@ -4997,7 +5000,7 @@ void executeAction(const String &action, const String &value) {
   }
 }
 
-void handleBrightnessChange(int newBrightness, bool isFromUI) {
+void handleBrightnessChange(int newBrightness, bool isFromUI, bool isUserSet) {
   // --- CASE 1: Turn Display OFF ---
   if (newBrightness == -1) {
     if (!displayOff) {
@@ -5006,6 +5009,7 @@ void handleBrightnessChange(int newBrightness, bool isFromUI) {
       P.displayClear();
       displayOff = true;
       brightness = -1;
+      if (isUserSet) regularBrightness = -1;
       configDirty = true;
       lastBrightnessChange = millis();
       Serial.printf(PSTR("[BRIGHTNESS] Display turned OFF via %s\n"), isFromUI ? "UI" : "API");
@@ -5019,6 +5023,7 @@ void handleBrightnessChange(int newBrightness, bool isFromUI) {
   if (newBrightness != brightness || displayOff) {
     bool wakingUp = displayOff;
     brightness = newBrightness;
+    if (isUserSet) regularBrightness = newBrightness;
     configDirty = true;
     lastBrightnessChange = millis();
     P.setIntensity(brightness);
@@ -5249,9 +5254,12 @@ void buzzerStop() {
     lastSwitch = millis();
     rotationEnabled = alarmSavedRotationEnabled;
     if (alarmSavedDisplayOff) {
-      handleBrightnessChange(-1, false);
+      P.displayShutdown(true);
+      P.displayClear();
+      displayOff = true;
+      brightness = alarmSavedBrightness;  // direct write, bypasses regularBrightness entirely
     } else {
-      handleBrightnessChange(alarmSavedBrightness, false);
+      handleBrightnessChange(alarmSavedBrightness, false, false);  // restore — not a user setting
     }
   }
   P.setInvert(0);
@@ -5339,7 +5347,7 @@ void fireAlarm(int index, int brightnessOverride, int soundOverride) {
 
   rotationEnabled = false;
   int targetBrightness = (brightnessOverride >= 0 && brightnessOverride <= 15) ? brightnessOverride : alarmConfigs[index].brightness;
-  handleBrightnessChange(targetBrightness, false);
+  handleBrightnessChange(targetBrightness, false, false);
 
   displayMode = 8;
   forceMessageRestart = true;
@@ -5814,6 +5822,7 @@ bool saveConfigRuntime() {
 
   // Update only runtime-changing fields
   doc["brightness"] = brightness;
+  doc["regularBrightness"] = regularBrightness;
   doc["displayOff"] = displayOff;
   doc["lastBrightnessBeforeOff"] = lastBrightnessBeforeOff;
   doc["flipDisplay"] = flipDisplay;
@@ -6164,7 +6173,7 @@ void loop() {
   // Apply brightness / display on-off
   // -----------------------------
   static bool lastDimActive = false;  // remembers last state
-  int targetBrightness = dimActive ? dimBrightness : brightness;
+  int targetBrightness = (dimActive && !alarmRinging) ? dimBrightness : brightness;
 
   // Log only when transitioning
   if (dimActive != lastDimActive) {
