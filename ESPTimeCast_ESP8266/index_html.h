@@ -2583,10 +2583,11 @@ const char index_html[] PROGMEM = R"rawliteral(
               hasSavedKey = false;
             }
 
-            document.getElementById("openWeatherCity").value =
-              data.openWeatherCity || "";
-            document.getElementById("openWeatherCountry").value =
-              data.openWeatherCountry || "";
+            if (!window._geoApplied) {
+              document.getElementById("openWeatherCity").value = data.openWeatherCity || "";
+              document.getElementById("openWeatherCountry").value = data.openWeatherCountry || "";
+            }
+            
             document.getElementById("weatherUnits").checked =
               data.weatherUnits === "imperial";
             window._showFullTemp = !!data.showFullTemp;
@@ -3626,6 +3627,7 @@ function handleGeoRedirectResult() {
 
     document.getElementById("openWeatherCity").value = lat;
     document.getElementById("openWeatherCountry").value = lon;
+    window._geoApplied = true; 
 
     btn.textContent = "Location: " + (city || country || "Found");
     btn.disabled = true;
