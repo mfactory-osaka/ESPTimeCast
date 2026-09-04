@@ -21,7 +21,8 @@ https://lucide.dev/license
 
 const char index_html[] PROGMEM = R"rawliteral(
 <!doctype html>
-<html lang="en">
+<html lang="en" style="background: linear-gradient(135deg, rgb(8, 31, 86) 0%, rgb(17, 15, 46) 50%, rgb(68, 26, 101) 100%);
+    height: 100%; background-attachment: fixed;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -169,9 +170,6 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       html {
-        background: var(--bg-gradient);
-        height: 100%;
-        background-attachment: fixed;
       }
 
       body {
@@ -811,10 +809,15 @@ const char index_html[] PROGMEM = R"rawliteral(
       #geo-button,
       .primary-button.cmsg1,
       .primary-button.cmsg2 {
-        background-color: white;
-        color: #1f1f1f;
+        background-color: hsl(0deg 0% 100% / 25%);
         font-weight: normal;
         font-size: 0.75rem;
+      }
+
+      #geo-button{
+        display: inline-flex;
+        gap: 0.3rem;
+        align-items: end;
       }
 
       @media (hover: hover) {
@@ -1193,7 +1196,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       .quick-buttons-section > button {
-        background: var(--glass-border);
+        background-color: hsl(0deg 0% 100% / 20%);
         border: none;
         color: white;
         font-size: 0.75rem;
@@ -1205,10 +1208,10 @@ const char index_html[] PROGMEM = R"rawliteral(
 
       @media (hover: hover) {
         .quick-buttons-section > button:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 3px 10px rgb(249 249 249 / 35%);
-          background: #ffffff;
-          color: black;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(0, 122, 255, 0.35);
+        filter: brightness(1.2);
+        background: var(--accent-color);
         }
       }
 
@@ -1322,6 +1325,14 @@ const char index_html[] PROGMEM = R"rawliteral(
       .toast.show {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
+      }
+
+      #weather-city{
+        text-transform: capitalize;
+      }
+
+      #weather-settings{
+        scroll-margin-top: 3.5vh;
       }
 
       @media (max-width: 500px) {
@@ -1674,6 +1685,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         </span>
       </div>
       <button
+        id="weather-settings"
         type="button"
         class="sub-collapsible no-ap active"
         aria-expanded="false"
@@ -1741,7 +1753,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               id="geo-button"
               onclick="getLocation()"
             >
-              Get My Location
+              Get My Location<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link-icon lucide-external-link"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
             </button>
           </div>
 
@@ -3594,67 +3606,81 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
       // --- END Countdown Controls Logic ---
 
-      async function getLocation() {
-        const normalize = (v) => {
-          if (v === null || v === undefined) return "";
-          const s = String(v).trim();
-          if (
-            !s ||
-            s.toLowerCase() === "null" ||
-            s.toLowerCase() === "none" ||
-            s === "-"
-          )
-            return "";
-          return s;
-        };
+function getLocation() {
+  const returnUrl = window.location.href.split("?")[0]; // strip any existing geo params
+  window.location.href =
+    "https://esptimecast.com/geo.html?return=" + encodeURIComponent(returnUrl);
+}
 
-        const setFields = (lat, lon, label) => {
-          if (lat) document.getElementById("openWeatherCity").value = lat;
-          if (lon) document.getElementById("openWeatherCountry").value = lon;
-          const btn = document.getElementById("geo-button");
-          btn.textContent = "Location: " + (label || "Location Found");
-          btn.disabled = true;
-          btn.classList.add("geo-disabled");
-        };
+// Run this once on page load to pick up results after the redirect back.
+function handleGeoRedirectResult() {
+  const params = new URLSearchParams(window.location.search);
+  const btn = document.getElementById("geo-button");
+  let hadGeoParams = true;
 
-        try {
-          // 1) get your public IP
-          const ipResp = await fetch("https://api.ipify.org?format=json");
-          if (!ipResp.ok) throw new Error("ipify failed: " + ipResp.status);
-          const { ip } = await ipResp.json();
-          if (!ip) throw new Error("no IP returned by ipify");
+  if (params.has("geoLat") && params.has("geoLon")) {
+    const lat = params.get("geoLat");
+    const lon = params.get("geoLon");
+    const city = params.get("geoCity") || "";
+    const country = params.get("geoCountry") || "";
 
-          // 2) call HackerTarget GeoIP with JSON output
-          const geoResp = await fetch(
-            `https://api.hackertarget.com/geoip/?q=${encodeURIComponent(ip)}&output=json`,
-          );
-          if (!geoResp.ok)
-            throw new Error("HackerTarget returned " + geoResp.status);
-          const data = await geoResp.json();
+    document.getElementById("openWeatherCity").value = lat;
+    document.getElementById("openWeatherCountry").value = lon;
 
-          // 3) extract and normalize fields
-          const lat = data.latitude;
-          const lon = data.longitude;
-          const city = normalize(data.city);
-          const state = normalize(data.state);
-          const country = normalize(data.country);
-          const label = city || state || country || "Location Found";
+    btn.textContent = "Location: " + (city || country || "Found");
+    btn.disabled = true;
+    btn.classList.add("geo-disabled");
 
-          if (!lat || !lon) throw new Error("missing latitude/longitude");
+    setTimeout(saveWeatherConfig, 1000);
+  } else if (params.has("geoError")) {
+    const errorMessages = {
+      denied: "Location permission denied.",
+      timeout: "Location request timed out.",
+      unsupported: "Location is not supported by this browser.",
+      unknown: "Unable to detect location.",
+    };
+    // Scroll first so the alert appears with the right section already in view.
+    document.getElementById("weather-settings")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    alert(
+      (errorMessages[params.get("geoError")] || "Unable to detect location.") +
+        "\n\nYou can manually enter your coordinates instead."
+    );
+  } else {
+    hadGeoParams = false;
+  }
 
-          setFields(lat, lon, label);
-          //console.log('Location fetched via HackerTarget. Label:', label);
-        } catch (err) {
-          console.error("HackerTarget geolocation failed:", err);
-          alert(
-            "Failed to guess your location using HackerTarget.\n\n" +
-              "Possible causes:\n" +
-              "- CORS blocking in browser (try server-side)\n" +
-              "- Network issue or rate limit\n\n" +
-              "You can manually search for coordinates on https://openweathermap.org/find",
-          );
-        }
+function scrollToWeatherSettings() {
+  document.getElementById("weather-settings")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+  if (hadGeoParams) {
+  if (document.body.classList.contains("loaded")) {
+    // Already loaded (e.g. fade-in was instant or finished before this ran)
+    scrollToWeatherSettings();
+  } else {
+    // Wait for the fade-in's opacity transition to actually finish before
+    // scrolling, so nothing in the load sequence overwrites our scroll.
+    const onTransitionEnd = (e) => {
+      if (e.propertyName === "opacity") {
+        document.body.removeEventListener("transitionend", onTransitionEnd);
+        scrollToWeatherSettings();
       }
+    };
+    document.body.addEventListener("transitionend", onTransitionEnd);
+
+    // Fallback in case transitionend never fires (e.g. duration is 0,
+    // or the .loaded class add happens on a different element).
+    setTimeout(scrollToWeatherSettings, 1000);
+  }
+    const url = new URL(window.location.href);
+    ["geoLat", "geoLon", "geoAccuracy", "geoCity", "geoCountry", "geoCountryCode", "geoError"].forEach(
+      (key) => url.searchParams.delete(key)
+    );
+    window.history.replaceState({}, "", url.toString());
+  }
+}
+
+window.addEventListener("load", handleGeoRedirectResult);
 
       // --- OpenWeather API Key field UX ---
       const MASK_LENGTH = 32;

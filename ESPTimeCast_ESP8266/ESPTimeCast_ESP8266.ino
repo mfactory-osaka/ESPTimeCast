@@ -6077,6 +6077,8 @@ void loop() {
     } else {
       dimActive = (curTotal >= startTotal || curTotal < endTotal);  // overnight
     }
+  } else {
+    dimActive = false;  // neither dimming mode enabled — nothing should be dimmed
   }
 
   // -----------------------------
