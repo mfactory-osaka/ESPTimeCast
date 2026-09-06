@@ -117,6 +117,8 @@ const int GENERAL_SCROLL_SPEED = 85;  // Default: Adjust this for Weather Descri
 const int RSS_SCROLL_SPEED = 65;      // Faster than general scroll for RSS headlines
 int IP_SCROLL_SPEED = 115;            // Default: Adjust this for the IP Address display (slower for readability)
 int messageScrollSpeed = 85;          // default fallback
+int scrollSecondsCompensation = 3;
+const int SCROLL_COLUMNS_CLOCK = 30;
 
 // Order for safe advance display mode
 const uint8_t modeOrder[] = {
@@ -5286,6 +5288,53 @@ void buzzerTrigger(const BuzzerPattern *pattern) {
   buzzerTrigger(pattern, false, false);
 }
 
+String rewindTimeString(String hms, int secs) {
+  // The caller pre-spaces every character for the matrix (e.g. "1 9 : 4 8 : 2 9"
+  // instead of "19:48:29") — strip that first so we can actually parse it.
+  String compact = hms;
+  compact.replace(" ", "");
+
+  if (compact.length() != 8 || compact.charAt(2) != ':' || compact.charAt(5) != ':') {
+    return hms;  // not HH:MM:SS — bail out safely, no compensation
+  }
+
+  int h = compact.substring(0, 2).toInt();
+  int m = compact.substring(3, 5).toInt();
+  int s = compact.substring(6, 8).toInt();
+
+  s -= secs;
+  while (s < 0) {
+    s += 60;
+    m--;
+  }
+  while (s >= 60) {
+    s -= 60;
+    m++;
+  }
+  while (m < 0) {
+    m += 60;
+    h--;
+  }
+  while (m >= 60) {
+    m -= 60;
+    h++;
+  }
+  while (h < 0) h += 24;
+  while (h >= 24) h -= 24;
+
+  char buf[9];
+  snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
+
+  // Re-apply the same "space after every character" spacing so this drops in
+  // as a like-for-like replacement for the rest of the display code.
+  String spaced;
+  for (int i = 0; i < 8; i++) {
+    spaced += buf[i];
+    if (i < 7) spaced += ' ';
+  }
+  return spaced;
+}
+
 void buzzerLoop() {
   if (buzzerState != BUZZER_PLAYING || !buzzerActivePattern) return;
 
@@ -6766,8 +6815,17 @@ void loop() {
       if (shouldScrollIn && !clockScrollDone) {
         textEffect_t inDir = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
 
+        float estimatedScrollMs = SCROLL_COLUMNS_CLOCK * (float)GENERAL_SCROLL_SPEED;
+        int scrollSecondsCompensation = (int)ceil(estimatedScrollMs / 1000.0);
+
+        String scrollInString = timeString;
+        if (!showDayOfWeek) {
+          scrollInString = rewindTimeString(timeString, -scrollSecondsCompensation);
+        }
+        unsigned long scrollStartMs = millis();
+
         P.displayText(
-          timeString.c_str(),
+          scrollInString.c_str(),
           PA_CENTER,
           GENERAL_SCROLL_SPEED,
           0,
@@ -6786,8 +6844,22 @@ void loop() {
           buzzerLoop();
           yield();
         }
-        // Only if we finish the while loop naturally do we mark it done
         clockScrollDone = true;
+
+        // Hold to the full rounded-up second (not the raw estimate) — the estimate
+        // undershoots the true scroll time slightly (2550 vs measured ~2551ms), and
+        // that tiny gap is enough to skip the hold and cause an occasional
+        // back-in-time flicker on landing.
+        long holdMs = (long)scrollSecondsCompensation * 1000 - (long)(millis() - scrollStartMs);
+        if (holdMs > 0) {
+          unsigned long holdStart = millis();
+          while (millis() - holdStart < (unsigned long)holdMs) {
+            if (displayMode != 0 || forceMessageRestart) break;
+            handleButtons();
+            buzzerLoop();
+            yield();
+          }
+        }
       } else {
         P.setTextAlignment(PA_CENTER);
         P.print(timeString);
