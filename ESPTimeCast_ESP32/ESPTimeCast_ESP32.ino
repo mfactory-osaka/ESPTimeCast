@@ -883,6 +883,10 @@ void connectWiFi() {
   if (!credentialsExist()) {
     Serial.println(F("[WIFI] No saved credentials. Starting AP mode directly."));
     WiFi.mode(WIFI_AP);
+#if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
+    WiFi.setTxPower(WIFI_POWER_17dBm);
+    Serial.printf("[WIFI] TX power: %d (0.25dBm units)\n", WiFi.getTxPower());
+#endif
     WiFi.disconnect(true);
     delay(100);
 
@@ -917,6 +921,10 @@ void connectWiFi() {
   // If credentials exist, attempt STA connection
   WiFi.persistent(true);
   WiFi.mode(WIFI_STA);
+#if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
+  WiFi.setTxPower(WIFI_POWER_17dBm);
+  Serial.printf("[WIFI] TX power: %d (0.25dBm units)\n", WiFi.getTxPower());
+#endif
   WiFi.setAutoReconnect(false);
 #ifdef ESP8266
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
@@ -992,6 +1000,10 @@ void connectWiFi() {
         Serial.println(F("[WIFI] All attempts failed. Starting AP mode..."));
 
         WiFi.mode(WIFI_AP);
+#if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
+        WiFi.setTxPower(WIFI_POWER_17dBm);
+        Serial.printf("[WIFI] TX power: %d (0.25dBm units)\n", WiFi.getTxPower());
+#endif
         WiFi.softAP(DEFAULT_AP_SSID, DEFAULT_AP_PASSWORD);
         Serial.print(F("[WIFI] AP IP address: "));
         Serial.println(WiFi.softAPIP());
@@ -1638,13 +1650,7 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
         doc["id"] = deviceHostname;
         doc["version"] = FIRMWARE_VERSION;
         doc["hardware"] = "MAX7219_FC16";
-#if defined(ESP32)
-        doc["board"] = "ESP32";
-#elif defined(ESP8266)
-        doc["board"] = "ESP8266";
-#else
-        doc["board"] = "unknown";
-#endif
+        doc["board"] = BOARD_TYPE;
         String json;
         serializeJson(doc, json);
         return "{\"identity\":" + json;

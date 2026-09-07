@@ -10,10 +10,12 @@ See LICENSE.txt for full terms.
 */
 
 #pragma once
-#define FIRMWARE_VERSION "2.1.9"
+#define FIRMWARE_VERSION "2.1.10"
 
 // Auto-detect the specific chip family
-#if defined(ESP8266)
+#if defined(WIFI_TX_POWER_CAP)
+  #define BOARD_TYPE "esp32c3alt"
+#elif defined(ESP8266)
   #define BOARD_TYPE "esp8266"
 #elif defined(CONFIG_IDF_TARGET_ESP32S2)
   #define BOARD_TYPE "esp32s2"
@@ -22,7 +24,7 @@ See LICENSE.txt for full terms.
 #elif defined(CONFIG_IDF_TARGET_ESP32C3)
   #define BOARD_TYPE "esp32c3"
 #elif defined(ESP32)
-  #define BOARD_TYPE "esp32" // Standard ESP32 (Original)
+  #define BOARD_TYPE "esp32"
 #else
   #define BOARD_TYPE "unknown"
 #endif

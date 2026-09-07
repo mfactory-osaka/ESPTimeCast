@@ -1623,13 +1623,7 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
         doc["id"] = deviceHostname;
         doc["version"] = FIRMWARE_VERSION;
         doc["hardware"] = "MAX7219_FC16";
-#if defined(ESP32)
-        doc["board"] = "ESP32";
-#elif defined(ESP8266)
-        doc["board"] = "ESP8266";
-#else
-        doc["board"] = "unknown";
-#endif
+        doc["board"] = BOARD_TYPE;
         String json;
         serializeJson(doc, json);
         return "{\"identity\":" + json;
