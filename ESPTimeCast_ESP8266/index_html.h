@@ -1344,6 +1344,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
       }
 
+      #display > div.toggle-padding > div.form-row.two-col{
+        margin-top: 0.5rem;
+      }
+      
+      #display > div.toggle-padding > label:nth-child(7){
+        margin-top: 1.5rem;
+      }
+
       @media (max-width: 430px) {
         .quick {
           min-height: 78px;
@@ -2031,31 +2039,17 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="sub-collapsible-content no-ap" aria-hidden="true">
         <div class="content-wrapper" id="display">
           <div class="toggle-padding">
-            <label> Brightness: <span id="brightnessValue">10</span> </label>
-            <input
-              class="range-full"
-              type="range"
-              min="-1"
-              max="15"
-              name="brightness"
-              id="brightnessSlider"
-              value="10"
-              oninput="
+            <label> Brightness: <span id="brightnessValue">12</span> </label>
+            <input class="range-full" type="range" min="-1" max="15" name="brightness" id="brightnessSlider" value="10" oninput="
                 brightnessValue.textContent =
                   this.value == -1 ? 'Off' : this.value;
                 setBrightnessLive(this.value);
-              "
-            />
+              ">
 
             <label class="toggle-row-lg">
               <span class="label-text">Flip Display (180°):</span>
               <span class="toggle-switch">
-                <input
-                  type="checkbox"
-                  id="flipDisplay"
-                  name="flipDisplay"
-                  onchange="setFlipDisplay(this.checked)"
-                />
+                <input type="checkbox" id="flipDisplay" name="flipDisplay" onchange="setFlipDisplay(this.checked)">
                 <span class="toggle-slider"></span>
               </span>
             </label>
@@ -2063,11 +2057,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <label class="toggle-row-lg">
               <span class="label-text">Automatic Dimming:</span>
               <span class="toggle-switch">
-                <input
-                  type="checkbox"
-                  id="autoDimmingEnabled"
-                  name="autoDimmingEnabled"
-                />
+                <input type="checkbox" id="autoDimmingEnabled" name="autoDimmingEnabled">
                 <span class="toggle-slider"></span>
               </span>
             </label>
@@ -2075,34 +2065,33 @@ const char index_html[] PROGMEM = R"rawliteral(
             <label class="toggle-row-lg">
               <span class="label-text">Custom Dimming:</span>
               <span class="toggle-switch">
-                <input
-                  type="checkbox"
-                  id="dimmingEnabled"
-                  name="dimmingEnabled"
-                />
+                <input type="checkbox" id="dimmingEnabled" name="dimmingEnabled">
                 <span class="toggle-slider"></span>
               </span>
             </label>
+
+            <div class="form-row two-col">
+              <div>
+                <label for="dimStartTime">Start Time:</label>
+                <input type="time" id="dimStartTime" value="18:00" disabled="">
+              </div>
+
+              <div>
+                <label for="dimEndTime">End Time:</label>
+                <input type="time" id="dimEndTime" value="08:00" disabled="">
+              </div>
+            </div>
 
             <label class="toggle-row-lg">
-              <span class="label-text">Clock-Only Mode When Dimmed:</span>
-              <span class="toggle-switch">
-                <input type="checkbox" id="clockOnlyDuringDimming" />
-                <span class="toggle-slider"></span>
-              </span>
+                <span class="label-text">Quiet Mode During Dimming:</span>
+                <span class="toggle-switch">
+                  <input type="checkbox" id="clockOnlyDuringDimming" disabled="">
+                  <span class="toggle-slider"></span>
+                </span>
             </label>
-          </div>
 
-          <div class="form-row two-col">
-            <div>
-              <label for="dimStartTime">Start Time:</label>
-              <input type="time" id="dimStartTime" value="18:00" />
-            </div>
-
-            <div>
-              <label for="dimEndTime">End Time:</label>
-              <input type="time" id="dimEndTime" value="08:00" />
-            </div>
+            <div class="small">Shows only the clock and suppresses alarms, timers, and messages while dimmed.</div>
+            
           </div>
 
           <label class="mt-lg" for="dimBrightness">

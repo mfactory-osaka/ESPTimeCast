@@ -33,6 +33,9 @@ See LICENSE.txt for full terms.
 #include "index_html.h"     // Web UI
 #include <EEPROM.h>
 #include "alarm.h"
+#if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
+#include "esp_wifi.h"
+#endif
 
 #define EEPROM_SIZE 16
 #define EEPROM_ADDR 0

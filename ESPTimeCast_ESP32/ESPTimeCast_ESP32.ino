@@ -36,6 +36,9 @@ See LICENSE.txt for full terms.
 #include "esp_partition.h"
 #include "nvs_flash.h"
 #include "alarm.h"
+#if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
+#include "esp_wifi.h"
+#endif
 
 // ============================
 // LEGACY fallback pins (used ONLY for migration)
@@ -884,7 +887,8 @@ void connectWiFi() {
     Serial.println(F("[WIFI] No saved credentials. Starting AP mode directly."));
     WiFi.mode(WIFI_AP);
 #if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
-    WiFi.setTxPower(WIFI_POWER_17dBm);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    WiFi.setTxPower(WIFI_POWER_13dBm);
     Serial.printf("[WIFI] TX power: %d (0.25dBm units)\n", WiFi.getTxPower());
 #endif
     WiFi.disconnect(true);
@@ -922,7 +926,8 @@ void connectWiFi() {
   WiFi.persistent(true);
   WiFi.mode(WIFI_STA);
 #if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
-  WiFi.setTxPower(WIFI_POWER_17dBm);
+  esp_wifi_set_ps(WIFI_PS_NONE);
+  WiFi.setTxPower(WIFI_POWER_13dBm);
   Serial.printf("[WIFI] TX power: %d (0.25dBm units)\n", WiFi.getTxPower());
 #endif
   WiFi.setAutoReconnect(false);
@@ -1001,7 +1006,8 @@ void connectWiFi() {
 
         WiFi.mode(WIFI_AP);
 #if defined(ESP32) && defined(WIFI_TX_POWER_CAP)
-        WiFi.setTxPower(WIFI_POWER_17dBm);
+        esp_wifi_set_ps(WIFI_PS_NONE);
+        WiFi.setTxPower(WIFI_POWER_13dBm);
         Serial.printf("[WIFI] TX power: %d (0.25dBm units)\n", WiFi.getTxPower());
 #endif
         WiFi.softAP(DEFAULT_AP_SSID, DEFAULT_AP_PASSWORD);
