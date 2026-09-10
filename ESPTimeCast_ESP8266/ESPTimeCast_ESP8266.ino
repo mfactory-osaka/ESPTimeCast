@@ -1436,8 +1436,6 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
     if (handleAlarmCommand(msg)) {
       if (!allowInterrupt) {
         request->send(409, "text/plain", "Protected message active");
-      } else if (clockOnlyDuringDimming && dimActive) {
-        request->send(409, "text/plain", "Clock-only dimming active");
       } else {
         Serial.println(F("[MESSAGE] Alarm command executed."));
         request->send(200, "text/plain", "Alarm Command Executed");
@@ -4242,10 +4240,6 @@ bool handleAlarmCommand(String cmd) {
     return true;
   }
 
-  if (clockOnlyDuringDimming && dimActive) {
-    Serial.println(F("[ALARM] Ignored: Clock-only Dimming is active."));
-    return true;
-  }
   if (!allowInterrupt) {
     Serial.println(F("[ALARM] Ignored: Protected message is active."));
     return true;
@@ -5315,10 +5309,6 @@ void buzzerFireEvent(BuzzerEventIndex evt) {
 void fireAlarm(int index, int brightnessOverride, int soundOverride) {
   if (index < 0 || index >= MAX_ALARMS) return;
   if (!ntpSyncSuccessful) return;
-  if (clockOnlyDuringDimming && dimActive) {
-    Serial.println(F("[ALARM] Skipped: Clock-only Dimming is active."));
-    return;
-  }
 
   if (alarmRinging && alarmRingingIndex != index) {
     buzzerStop();  // cleanly restore/reset before switching to a different alarm
@@ -6167,7 +6157,7 @@ void loop() {
   }
 
   // Enforce "Clock only during dimming" if enabled
-  if (clockOnlyDuringDimming && dimActive) {
+  if (clockOnlyDuringDimming && dimActive && !alarmRinging) {
     if (displayMode != 0) {
       prevDisplayMode = displayMode;
       displayMode = 0;
@@ -6232,6 +6222,10 @@ void loop() {
           Serial.println(F("[TIME] NTP sync successful."));
           ntpSyncSuccessful = true;
           ntpState = NTP_SUCCESS;
+          if (displayMode == 0) {
+            prevDisplayMode = -1;  // reuse the "first boot" scroll-in condition
+            clockScrollDone = false;
+          }
         } else if (millis() - ntpStartTime > ntpTimeout || ntpRetryCount >= maxNtpRetries) {
           Serial.println(F("[TIME] NTP sync failed."));
           ntpSyncSuccessful = false;
@@ -7690,6 +7684,8 @@ void loop() {
 
   if (displayMode == 7) {
     showTimerMode7();
+  } else {
+    timerHeartbeat();
   }
 
   if (displayMode == 8) {
@@ -7907,5 +7903,66 @@ void showAlarmMode() {
     P.setCharSpacing(1);
     P.setInvert(alarmInvert);
     P.print(timeString.c_str());
+  }
+}
+
+// Advances timer/Pomodoro state (finish detection, buzzer, session
+// transitions) even while hidden — e.g. during Quiet Mode or a protected
+// message. Same state machine as showTimerMode7(), minus all rendering.
+void timerHeartbeat() {
+  if (!timerActive) return;
+  unsigned long now = millis();
+  bool quiet = clockOnlyDuringDimming && dimActive;
+
+  if (isStopwatch) {
+    if (isPomodoroActive) {
+      unsigned long elapsed = timerPaused ? timerRemainingAtPause : (now - timerEndTime);
+      unsigned long currentBreakMs = (pomodoroSession == 4) ? pomodoroLongBreakMs : pomodoroBreakMs;
+      if (!timerPaused && elapsed >= currentBreakMs) {
+        pomodoroSession++;
+        if (pomodoroSession > 4) pomodoroSession = 1;
+        pomodoroInBreak = false;
+        isStopwatch = false;
+        timerOriginalDuration = pomodoroWorkMs;
+        timerEndTime = now + pomodoroWorkMs;
+        timerFinished = false;
+        timerPaused = false;
+        Serial.printf(PSTR("[POMODORO] Break over. Starting session %d.\n"), pomodoroSession);
+        if (!quiet) buzzerFireEvent(BUZZER_EVT_POMODORO_BREAK);
+      }
+    }
+    return;
+  }
+
+  if (!timerFinished) {
+    if (!timerPaused && now >= timerEndTime) {
+      if (quiet && !isPomodoroActive) {
+        // Plain timer finishing quietly during Quiet Mode — no sound, no later animation.
+        Serial.println(F("[TIMER] Finished silently during Quiet Mode."));
+        timerActive = false;
+        timerFinished = false;
+        return;
+      }
+      timerFinished = true;
+      timerFinishStartTime = now;
+      if (!isPomodoroActive) {
+        buzzerFireEvent(BUZZER_EVT_TIMER);
+      }
+    }
+    return;
+  }
+
+  // Finished
+  if (isPomodoroActive) {
+    pomodoroInBreak = true;
+    isStopwatch = true;
+    timerEndTime = now;
+    timerActive = true;
+    timerPaused = false;
+    timerFinished = false;
+    Serial.printf(PSTR("[POMODORO] Session %d done. Starting %s break.\n"),
+                  pomodoroSession, pomodoroSession == 4 ? "long" : "short");
+    if (!quiet) buzzerFireEvent(BUZZER_EVT_POMODORO_WORK);
+    return;
   }
 }

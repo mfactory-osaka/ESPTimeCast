@@ -2090,7 +2090,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 </span>
             </label>
 
-            <div class="small">Shows only the clock and suppresses alarms, timers, and messages while dimmed.</div>
+            <div class="small">Shows only the clock while dimmed and suppresses timers and messages. Alarms remain active.</div>
             
           </div>
 

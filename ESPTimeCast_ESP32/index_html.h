@@ -1352,6 +1352,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin-top: 1.5rem;
       }
 
+      #display > div.toggle-padding > label:nth-child(4){
+        position: relative;
+      }
+
       @media (max-width: 430px) {
         .quick {
           min-height: 78px;
@@ -2060,6 +2064,9 @@ const char index_html[] PROGMEM = R"rawliteral(
                 <input type="checkbox" id="autoDimmingEnabled" name="autoDimmingEnabled">
                 <span class="toggle-slider"></span>
               </span>
+              <div id="autoDimmingNote" class="small" style="display: block;">
+                  Requires a valid OpenWeather API key.
+              </div>
             </label>
 
             <label class="toggle-row-lg">
@@ -2090,7 +2097,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 </span>
             </label>
 
-            <div class="small">Shows only the clock and suppresses alarms, timers, and messages while dimmed.</div>
+            <div class="small">Shows only the clock while dimmed and suppresses timers and messages. Alarms remain active.</div>
             
           </div>
 
