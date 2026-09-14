@@ -395,7 +395,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         transform: scale(0.97);
       }
 
-      #customMessage {
+      #customMessage, #countdownLabel {
         text-transform: uppercase;
       }
 
@@ -2219,12 +2219,11 @@ const char index_html[] PROGMEM = R"rawliteral(
               class="form-control"
               placeholder="e.g., BIRTHDAY, VACATION"
               maxlength="24"
-              pattern="[A-Z0-9 :!'\-.,_\+%\/?]*"
-              title="Only uppercase letters, numbers, space, and : ! ' - . , _ + % / ? allowed"
+              title="Allowed: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > ( ) { } \ - & $ ¥ |"
             />
-            <div class="small">
-              Allowed characters: A–Z, 0–9, space, and : ! ' - . ? , _ + % /
-            </div>
+          <div class="small">
+            Allowed characters: A–Z, 0–9, space, and : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = &lt; &gt; ( ) { } \ - &amp; $ ¥ |
+          </div>
           </div>
           <div class="btn-apply-wrap">
             <button
@@ -2452,7 +2451,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       let pendingBinUrl = null;
       let pendingFromVersion = null;
       let deviceIP = "";
-      const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<h3>(){}!.:?,'_+%\/\[\]\\-]/g;
+      const safeRegex = /[^A-Z0-9 #&¥$|°@^~*=<>(){}!.:?,'_+%\/\[\]\\-]/g;
       let originalHostname = "";
 
       // Show/Hide Password toggle
@@ -2713,15 +2712,15 @@ const char index_html[] PROGMEM = R"rawliteral(
 
             const countdownLabelInput =
               document.getElementById("countdownLabel");
-            countdownLabelInput.addEventListener("input", function () {
+            countdownLabelInput.addEventListener("blur", function () {
               this.value = this.value
                 .toUpperCase()
-                .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, "");
+                .replace(safeRegex, "");
             });
             if (data.countdown && data.countdown.label) {
               countdownLabelInput.value = data.countdown.label
                 .toUpperCase()
-                .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, "");
+                .replace(safeRegex, "");
             } else {
               countdownLabelInput.value = "";
             }
@@ -3049,7 +3048,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         const finalCountdownLabel = document
           .getElementById("countdownLabel")
           .value.toUpperCase()
-          .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, "");
+          .replace(safeRegex, "");
         formData.set("countdownLabel", finalCountdownLabel);
         // --- END NEW ---
 
@@ -3061,14 +3060,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         // Sanitize and set customMessage before sending
         const customMsgInput = document.getElementById("customMessage");
         if (customMsgInput) {
-          customMsgInput.value = customMsgInput.value
-            .toUpperCase()
-            .replace(safeRegex, "")
-            .replace(/\s+/g, " ")
-            .trim()
-            .substring(0, 120);
+        customMsgInput.value = customMsgInput.value
+          .toUpperCase()
+          .replace(safeRegex, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .substring(0, 120);
         }
-
         // Check AP mode status
         let isAPMode = false;
         try {

@@ -562,7 +562,9 @@ void loadConfig() {
   strlcpy(openWeatherCity, doc["openWeatherCity"] | "", sizeof(openWeatherCity));
   strlcpy(openWeatherCountry, doc["openWeatherCountry"] | "", sizeof(openWeatherCountry));
   strlcpy(weatherUnits, doc["weatherUnits"] | "metric", sizeof(weatherUnits));
-  strlcpy(customMessage, doc["customMessage"] | "", sizeof(customMessage));
+  String customMessageUtf8 = doc["customMessage"] | "";
+  utf8ToLatin1(customMessageUtf8);
+  strlcpy(customMessage, customMessageUtf8.c_str(), sizeof(customMessage));
   strlcpy(lastPersistentMessage, customMessage, sizeof(lastPersistentMessage));
   clockDuration = doc["clockDuration"] | 10000;
   weatherDuration = doc["weatherDuration"] | 5000;
@@ -648,12 +650,12 @@ void loadConfig() {
     if (labelVariant.isNull() || !labelVariant.is<const char *>()) {
       strcpy(countdownLabel, "");
     } else {
-      const char *labelTemp = labelVariant.as<const char *>();
-      size_t labelLen = strlen(labelTemp);
-      if (labelLen >= sizeof(countdownLabel)) {
+      String labelTemp = labelVariant.as<const char *>();
+      utf8ToLatin1(labelTemp);
+      if (labelTemp.length() >= sizeof(countdownLabel)) {
         Serial.println(F("[CONFIG] label from JSON too long, truncating."));
       }
-      strlcpy(countdownLabel, labelTemp, sizeof(countdownLabel));
+      strlcpy(countdownLabel, labelTemp.c_str(), sizeof(countdownLabel));
     }
     countdownFinished = false;
   } else {
@@ -1215,6 +1217,55 @@ void printConfigToSerial() {
   Serial.println();
 }
 
+// Downgrades 2-byte UTF-8 sequences in the Latin-1 Supplement range (U+0080–U+00FF)
+// to the single raw byte our custom font actually expects — e.g. "°" arrives as
+// bytes 0xC2 0xB0, this collapses it to just 0xB0. Needed because this only helps
+// callers that go through the web UI's JS token substitution ([DEG]/[YEN]); curl,
+// Home Assistant, and any other direct API caller send raw UTF-8, so this has to
+// run firmware-side to protect every input path.
+void utf8ToLatin1(String &s) {
+  String out;
+  out.reserve(s.length());
+  for (int i = 0; i < (int)s.length(); i++) {
+    uint8_t b1 = (uint8_t)s[i];
+    if (b1 == 0xC2 && i + 1 < (int)s.length()) {
+      uint8_t b2 = (uint8_t)s[i + 1];
+      if (b2 >= 0x80 && b2 <= 0xBF) {
+        out += (char)b2;  // U+0080–U+00BF -> same byte value
+        i++;
+        continue;
+      }
+    } else if (b1 == 0xC3 && i + 1 < (int)s.length()) {
+      uint8_t b2 = (uint8_t)s[i + 1];
+      if (b2 >= 0x80 && b2 <= 0xBF) {
+        out += (char)(b2 + 0x40);  // U+00C0–U+00FF -> byte value + 0x40
+        i++;
+        continue;
+      }
+    }
+    out += s[i];
+  }
+  s = out;
+}
+
+String latin1ToUtf8(const String &s) {
+  String out;
+  out.reserve(s.length());
+  for (int i = 0; i < (int)s.length(); i++) {
+    uint8_t b = (uint8_t)s[i];
+    if (b < 0x80) {
+      out += (char)b;
+    } else if (b < 0xC0) {
+      out += (char)0xC2;
+      out += (char)b;
+    } else {
+      out += (char)0xC3;
+      out += (char)(b - 0x40);
+    }
+  }
+  return out;
+}
+
 void replaceIconTokens(String &msg, int &totalPixelWidth) {
   struct IconMap {
     const char *token;
@@ -1254,6 +1305,7 @@ void replaceIconTokens(String &msg, int &totalPixelWidth) {
     { "[SPACE]", "\x20", 1 },
     { "[PAUSE]", "\x7F", 5 },
     { "[EURO]", "\x80", 5 },
+    { "[YEN]", "\xA5", 5 },
     { "[SPEAKER]", "\x81", 8 },
     { "[SPEAKEROFF]", "\x82", 8 },
     { "[RED]", "\x83", 6 },
@@ -1397,6 +1449,7 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
   if (request->hasArg("message")) {
     String msg = request->arg("message");
     msg.trim();
+    utf8ToLatin1(msg);
 
     bool isClearRequest = (msg.length() == 0);
     bool incomingAllowInterrupt = true;
@@ -1651,7 +1704,7 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
           case 8: doc["mode"] = "alarm"; break;
           default: doc["mode"] = "cycling"; break;
         }
-        doc["message"] = (strlen(customMessage) > 0) ? customMessage : "";
+        doc["message"] = (strlen(customMessage) > 0) ? latin1ToUtf8(String(customMessage)) : "";
         doc["displayOff"] = displayOff;
         doc["brightness"] = brightness;
         doc["lastBrightnessBeforeOff"] = lastBrightnessBeforeOff;
@@ -1682,7 +1735,7 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
         JsonDocument doc;
         doc["enabled"] = countdownEnabled;
         doc["targetTimestamp"] = countdownTargetTimestamp;
-        doc["label"] = String(countdownLabel);
+        doc["label"] = latin1ToUtf8(String(countdownLabel));
         doc["isDramatic"] = isDramaticCountdown;
         long long remaining = static_cast<long long>(countdownTargetTimestamp) - static_cast<long long>(nowTime);
         doc["remaining"] = countdownEnabled ? (remaining > 0 ? remaining : 0) : 0;
@@ -2114,6 +2167,7 @@ void setupWebServer() {
     String countdownDateStr = request->hasParam("countdownDate", true) ? request->getParam("countdownDate", true)->value() : "";
     String countdownTimeStr = request->hasParam("countdownTime", true) ? request->getParam("countdownTime", true)->value() : "";
     String countdownLabelStr = request->hasParam("countdownLabel", true) ? request->getParam("countdownLabel", true)->value() : "";
+    utf8ToLatin1(countdownLabelStr);
     bool newIsDramaticCountdown = (request->hasParam("isDramaticCountdown", true) && (request->getParam("isDramaticCountdown", true)->value() == "true" || request->getParam("isDramaticCountdown", true)->value() == "on" || request->getParam("isDramaticCountdown", true)->value() == "1"));
 
     time_t newTargetTimestamp = 0;
@@ -2145,7 +2199,7 @@ void setupWebServer() {
     JsonObject countdownObj = doc.createNestedObject("countdown");
     countdownObj["enabled"] = newCountdownEnabled;
     countdownObj["targetTimestamp"] = newTargetTimestamp;
-    countdownObj["label"] = countdownLabelStr;
+    countdownObj["label"] = latin1ToUtf8(countdownLabelStr);
     countdownObj["isDramaticCountdown"] = newIsDramaticCountdown;
 
 #if defined(ESP8266)
@@ -2194,7 +2248,9 @@ void setupWebServer() {
     if (doc.containsKey("hostname")) {
       deviceHostname = doc["hostname"].as<String>();
     }
-    strlcpy(customMessage, doc["customMessage"] | "", sizeof(customMessage));
+    String customMessageUtf8 = doc["customMessage"] | "";
+    utf8ToLatin1(customMessageUtf8);
+    strlcpy(customMessage, customMessageUtf8.c_str(), sizeof(customMessage));
     okDoc[F("message")] = "Saved successfully. Rebooting...";
     String response;
     serializeJson(okDoc, response);
@@ -2679,6 +2735,7 @@ void setupWebServer() {
     String countdownDateStr = request->hasParam("countdownDate", true) ? request->getParam("countdownDate", true)->value() : "";
     String countdownTimeStr = request->hasParam("countdownTime", true) ? request->getParam("countdownTime", true)->value() : "";
     String countdownLabelStr = request->hasParam("countdownLabel", true) ? request->getParam("countdownLabel", true)->value() : "";
+    utf8ToLatin1(countdownLabelStr);
     bool newIsDramaticCountdown = request->hasParam("isDramaticCountdown", true) && (request->getParam("isDramaticCountdown", true)->value() == "true" || request->getParam("isDramaticCountdown", true)->value() == "on" || request->getParam("isDramaticCountdown", true)->value() == "1");
 
     // Same date/time -> epoch conversion as /save, kept identical on purpose
@@ -3983,7 +4040,7 @@ void saveCustomMessageToConfig(const char *msg) {
   }
 
   // Update only customMessage
-  doc["customMessage"] = msg;
+  doc["customMessage"] = latin1ToUtf8(String(msg));
 
   // Safely write back to config.json
   if (LittleFS.exists("/config.json")) {
@@ -5701,7 +5758,7 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
   JsonObject countdownObj = doc["countdown"].is<JsonObject>() ? doc["countdown"].as<JsonObject>() : doc.createNestedObject("countdown");
   countdownObj["enabled"] = enabled;
   countdownObj["targetTimestamp"] = targetTimestamp;
-  countdownObj["label"] = label;
+  countdownObj["label"] = latin1ToUtf8(label);
   countdownObj["isDramaticCountdown"] = isDramaticCountdown;
   doc.remove("countdownEnabled");
   doc.remove("countdownDate");
@@ -7044,35 +7101,41 @@ void loop() {
                 P.print(secondsText.c_str());
                 delay(400);
 
+                bool useEnglishPrefix = (strcmp(language, "en") == 0);
+
                 String label;
-                if (strlen(countdownLabel) > 0) {
+                bool hasLabel = strlen(countdownLabel) > 0;
+                if (hasLabel) {
                   label = String(countdownLabel);
                   label.trim();
-                  if (!label.startsWith("TO:") && !label.startsWith("to:")) {
+                  if (useEnglishPrefix && !label.startsWith("TO:") && !label.startsWith("to:")) {
                     label = "TO: " + label;
                   }
                   label.replace('.', ',');
-                } else {
+                } else if (useEnglishPrefix) {
                   static const char *fallbackLabels[] = {
-                    "TO: PARTY TIME!", "TO: SHOWTIME!", "TO: CLOCKOUT!", "TO: BLASTOFF!",
-                    "TO: GO TIME!", "TO: LIFTOFF!", "TO: THE BIG REVEAL!",
-                    "TO: ZERO HOUR!", "TO: THE FINAL COUNT!", "TO: MISSION COMPLETE"
+                    "PARTY TIME!", "SHOWTIME!", "CLOCKOUT!", "BLASTOFF!",
+                    "GO TIME!", "LIFTOFF!", "THE BIG REVEAL!",
+                    "ZERO HOUR!", "THE FINAL COUNT!", "MISSION COMPLETE"
                   };
                   int randomIndex = random(0, 10);
-                  label = fallbackLabels[randomIndex];
+                  label = "TO: " + String(fallbackLabels[randomIndex]);
                 }
+                // non-English + no custom label: label stays empty, nothing scrolls
 
-                P.setTextAlignment(PA_LEFT);
-                P.setCharSpacing(1);
-                textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
-                P.displayScroll(label.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
+                if (label.length() > 0) {
+                  P.setTextAlignment(PA_LEFT);
+                  P.setCharSpacing(1);
+                  textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
+                  P.displayScroll(label.c_str(), PA_LEFT, actualScrollDirection, GENERAL_SCROLL_SPEED);
 
-                while (!P.displayAnimate()) {
-                  if (displayMode != 3) return;
-                  if (forceMessageRestart) return;
-                  handleButtons();
-                  buzzerLoop();
-                  yield();
+                  while (!P.displayAnimate()) {
+                    if (displayMode != 3) return;
+                    if (forceMessageRestart) return;
+                    handleButtons();
+                    buzzerLoop();
+                    yield();
+                  }
                 }
                 countdownSegment++;
                 segmentStartTime = millis();
@@ -7111,21 +7174,21 @@ void loop() {
         long minutes = (timeRemaining % 3600) / 60;
         long seconds = timeRemaining % 60;
 
+        bool useEnglishPrefix = (strcmp(language, "en") == 0);
+
         String label;
-        // Check if countdownLabel is empty and grab a random one if needed
-        if (strlen(countdownLabel) > 0) {
+        bool hasLabel = strlen(countdownLabel) > 0;
+        if (hasLabel) {
           label = String(countdownLabel);
           label.trim();
 
-          // Replace standard digits 0–9 with your custom font character codes
           for (int i = 0; i < label.length(); i++) {
             if (isDigit(label[i])) {
-              int num = label[i] - '0';           // 0–9
-              label[i] = 145 + ((num + 9) % 10);  // Maps 0→154, 1→145, ... 9→153
+              int num = label[i] - '0';
+              label[i] = 145 + ((num + 9) % 10);
             }
           }
-
-        } else {
+        } else if (useEnglishPrefix) {
           static const char *fallbackLabels[] = {
             "PARTY TIME", "SHOWTIME", "CLOCKOUT", "BLASTOFF",
             "GO TIME", "LIFTOFF", "THE BIG REVEAL",
@@ -7134,14 +7197,24 @@ void loop() {
           int randomIndex = random(0, 10);
           label = fallbackLabels[randomIndex];
         }
+        // non-English + no custom label: label stays empty
 
-        // Format the full string
+        const char *inText = useEnglishPrefix ? " IN:" : "";
+
         char buf[50];
-        // Only show days if there are any, otherwise start with hours
-        if (days > 0) {
-          sprintf(buf, "%s IN: %ldD %02ldH %02ldM %02ldS", label.c_str(), days, hours, minutes, seconds);
+        if (label.length() > 0) {
+          if (days > 0) {
+            sprintf(buf, "%s%s %ldD %02ldH %02ldM %02ldS", label.c_str(), inText, days, hours, minutes, seconds);
+          } else {
+            sprintf(buf, "%s%s %02ldH %02ldM %02ldS", label.c_str(), inText, hours, minutes, seconds);
+          }
         } else {
-          sprintf(buf, "%s IN: %02ldH %02ldM %02ldS", label.c_str(), hours, minutes, seconds);
+          // No label to show at all — just the raw countdown
+          if (days > 0) {
+            sprintf(buf, "%ldD %02ldH %02ldM %02ldS", days, hours, minutes, seconds);
+          } else {
+            sprintf(buf, "%02ldH %02ldM %02ldS", hours, minutes, seconds);
+          }
         }
 
         String fullString = String(buf);
