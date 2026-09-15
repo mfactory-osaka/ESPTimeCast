@@ -395,6 +395,7 @@ Follow these steps to prepare your Arduino IDE for ESP32 development:
     > **Note:** OTA works out of the box with the official Web Installer build.  
     > Manual builds are fully supported as well - just make sure you're using the recommended pinout for your specific board as documented in this repository.  
     > **Important:** If the `Minimal SPIFFS` option does not appear, make sure you have selected **Dev Module** for your specific ESP32 chip family (e.g., ESP32 Dev Module, ESP32-S2 Dev Module, ESP32-C3 Dev Module).  
+    > **If your C3 SuperMini** cannot maintain a stable Wi-Fi or AP connection and you are compiling the firmware manually, add #define WIFI_TX_POWER_CAP at the top of the .ino file before uploading.
 
 5.  **Install Libraries:**
     * Go to `Sketch > Include Library > Manage Libraries...` and install the following:
