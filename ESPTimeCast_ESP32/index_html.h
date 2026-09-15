@@ -2218,7 +2218,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               name="countdownLabel"
               class="form-control"
               placeholder="e.g., BIRTHDAY, VACATION"
-              maxlength="24"
+              maxlength="60"
               title="Allowed: A-Z, 0-9, space, and symbols : ! ' . , _ + % / ? [ ] ° # @ ^ ~ * = < > ( ) { } \ - & $ ¥ |"
             />
           <div class="small">
@@ -2715,11 +2715,13 @@ const char index_html[] PROGMEM = R"rawliteral(
             countdownLabelInput.addEventListener("blur", function () {
               this.value = this.value
                 .toUpperCase()
+                .replace(/[\u2018\u2019\u02BC]/g, "'")
                 .replace(safeRegex, "");
             });
             if (data.countdown && data.countdown.label) {
               countdownLabelInput.value = data.countdown.label
                 .toUpperCase()
+                .replace(/[\u2018\u2019\u02BC]/g, "'")
                 .replace(safeRegex, "");
             } else {
               countdownLabelInput.value = "";
@@ -3048,6 +3050,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         const finalCountdownLabel = document
           .getElementById("countdownLabel")
           .value.toUpperCase()
+          .replace(/[\u2018\u2019\u02BC]/g, "'")
           .replace(safeRegex, "");
         formData.set("countdownLabel", finalCountdownLabel);
         // --- END NEW ---
@@ -3062,6 +3065,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         if (customMsgInput) {
         customMsgInput.value = customMsgInput.value
           .toUpperCase()
+          .replace(/[\u2018\u2019\u02BC]/g, "'")
           .replace(safeRegex, "")
           .replace(/\s+/g, " ")
           .trim()
@@ -3818,6 +3822,7 @@ window.addEventListener("load", handleGeoRedirectResult);
 
         // Clean message
         let message = rawValue
+          .replace(/[\u2018\u2019\u02BC]/g, "'")
           .replace(safeRegex, "")
           .replace(/\s+/g, " ")
           .trim()

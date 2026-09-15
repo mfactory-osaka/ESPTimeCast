@@ -1228,17 +1228,33 @@ void utf8ToLatin1(String &s) {
   out.reserve(s.length());
   for (int i = 0; i < (int)s.length(); i++) {
     uint8_t b1 = (uint8_t)s[i];
+
+    // Typographic apostrophe variants -> plain ASCII apostrophe, since the
+    // font only has one apostrophe glyph: ' U+2019 (E2 80 99),
+    // ' U+2018 (E2 80 98), ʼ U+02BC (CA BC)
+    if (b1 == 0xE2 && i + 2 < (int)s.length() && (uint8_t)s[i + 1] == 0x80 &&
+        ((uint8_t)s[i + 2] == 0x99 || (uint8_t)s[i + 2] == 0x98)) {
+      out += '\'';
+      i += 2;
+      continue;
+    }
+    if (b1 == 0xCA && i + 1 < (int)s.length() && (uint8_t)s[i + 1] == 0xBC) {
+      out += '\'';
+      i++;
+      continue;
+    }
+
     if (b1 == 0xC2 && i + 1 < (int)s.length()) {
       uint8_t b2 = (uint8_t)s[i + 1];
       if (b2 >= 0x80 && b2 <= 0xBF) {
-        out += (char)b2;  // U+0080–U+00BF -> same byte value
+        out += (char)b2;
         i++;
         continue;
       }
     } else if (b1 == 0xC3 && i + 1 < (int)s.length()) {
       uint8_t b2 = (uint8_t)s[i + 1];
       if (b2 >= 0x80 && b2 <= 0xBF) {
-        out += (char)(b2 + 0x40);  // U+00C0–U+00FF -> byte value + 0x40
+        out += (char)(b2 + 0x40);
         i++;
         continue;
       }
