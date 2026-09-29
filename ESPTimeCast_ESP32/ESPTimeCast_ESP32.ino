@@ -300,8 +300,9 @@ const unsigned long uptimeLogInterval = 600000UL;  // 10 minutes in ms
 unsigned long totalUptimeSeconds = 0;              // Persistent accumulated uptime in seconds
 
 // Unified OTA Control Variables
-bool isUpdating = false;         // When true, all background tasks (Weather, NTP, Scroll) stop
-bool pendingRestart = false;     // Flag to trigger a safe reboot in the loop
+bool isUpdating = false;      // When true, all background tasks (Weather, NTP, Scroll) stop
+bool pendingRestart = false;  // Flag to trigger a safe reboot in the loop
+bool pendingConfigSave = false;
 unsigned long restartTimer = 0;  // Timer to give the WebServer time to send the final "OK"
 
 // State management
@@ -324,6 +325,8 @@ inline uint32_t getLargestFreeBlock() {
 float currentTempFull = NAN;
 String weatherIconCode = "";  // raw OpenWeatherMap code, e.g. "04d"
 bool showFullTemp = false;
+bool showFullDescription = false;  // append pressure/sunrise/sunset to weather description
+int currentPressure = -1;
 String weatherDescription = "";
 String weatherIcon = "";
 bool showWeatherDescription = false;
@@ -602,6 +605,7 @@ void loadConfig() {
   colonBlinkEnabled = doc.containsKey("colonBlinkEnabled") ? doc["colonBlinkEnabled"].as<bool>() : true;
   showWeatherDescription = doc["showWeatherDescription"] | false;
   showFullTemp = doc["showFullTemp"] | false;
+  showFullDescription = doc["showFullDescription"] | false;
 
   // --- Dimming settings ---
   if (doc["dimmingEnabled"].is<bool>()) {
@@ -1262,8 +1266,7 @@ void utf8ToLatin1(String &s) {
     // Typographic apostrophe variants -> plain ASCII apostrophe, since the
     // font only has one apostrophe glyph: ' U+2019 (E2 80 99),
     // ' U+2018 (E2 80 98), ʼ U+02BC (CA BC)
-    if (b1 == 0xE2 && i + 2 < (int)s.length() && (uint8_t)s[i + 1] == 0x80 &&
-        ((uint8_t)s[i + 2] == 0x99 || (uint8_t)s[i + 2] == 0x98)) {
+    if (b1 == 0xE2 && i + 2 < (int)s.length() && (uint8_t)s[i + 1] == 0x80 && ((uint8_t)s[i + 2] == 0x99 || (uint8_t)s[i + 2] == 0x98)) {
       out += '\'';
       i += 2;
       continue;
@@ -2049,6 +2052,7 @@ static String statusSectionJson(int section, SnsType snsType, time_t nowTime) {
 }
 
 void setupWebServer() {
+  const bool apSetupOnly = !credentialsExist();
   Serial.println(F("[WEBSERVER] Setting up web server..."));
 
   // 1. Global CORS headers (Required for Chrome Extension)
@@ -2199,8 +2203,7 @@ void setupWebServer() {
       } else if (n == "openWeatherApiKey") {
         if (v != "********************************") {  // ignore mask only
           doc[n] = v;                                   // save new key (even if empty)
-          Serial.print(F("[SAVE] API key updated: "));
-          Serial.println(v.length() == 0 ? "(empty)" : v);
+          Serial.printf(PSTR("[SAVE] API key updated (%u chars)\n"), v.length());
         } else {
           Serial.println(F("[SAVE] API key unchanged (mask ignored)."));
         }
@@ -2386,438 +2389,467 @@ void setupWebServer() {
     request->send(200, "application/json", "{\"ok\":true}");
   };
 
-  server.on("/set_brightness", HTTP_POST, setHandler);
-  server.on("/set_flip", HTTP_POST, setHandler);
-  server.on("/set_twelvehour", HTTP_POST, setHandler);
-  server.on("/set_dayofweek", HTTP_POST, setHandler);
-  server.on("/set_showdate", HTTP_POST, setHandler);
-  server.on("/set_humidity", HTTP_POST, setHandler);
-  server.on("/set_colon_blink", HTTP_POST, setHandler);
-  server.on("/set_language", HTTP_POST, setHandler);
-  server.on("/set_weatherdesc", HTTP_POST, setHandler);
-  server.on("/set_units", HTTP_POST, setHandler);
-  server.on("/set_countdown_enabled", HTTP_POST, setHandler);
-  server.on("/set_dramatic_countdown", HTTP_POST, setHandler);
-  server.on("/set_clock_only_dimming", HTTP_POST, setHandler);
+  if (!apSetupOnly) {
+    server.on("/set_brightness", HTTP_POST, setHandler);
+    server.on("/set_flip", HTTP_POST, setHandler);
+    server.on("/set_twelvehour", HTTP_POST, setHandler);
+    server.on("/set_dayofweek", HTTP_POST, setHandler);
+    server.on("/set_showdate", HTTP_POST, setHandler);
+    server.on("/set_humidity", HTTP_POST, setHandler);
+    server.on("/set_colon_blink", HTTP_POST, setHandler);
+    server.on("/set_language", HTTP_POST, setHandler);
+    server.on("/set_weatherdesc", HTTP_POST, setHandler);
+    server.on("/set_units", HTTP_POST, setHandler);
+    server.on("/set_countdown_enabled", HTTP_POST, setHandler);
+    server.on("/set_dramatic_countdown", HTTP_POST, setHandler);
+    server.on("/set_clock_only_dimming", HTTP_POST, setHandler);
 
-  // --- Custom Message Endpoint ---
-  server.on("/set_custom_message", HTTP_ANY, [](AsyncWebServerRequest *request) {
-    if (request->method() == HTTP_OPTIONS) {
-      AsyncWebServerResponse *response = request->beginResponse(200);
-      response->addHeader("Access-Control-Allow-Origin", "*");
-      response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      response->addHeader("Access-Control-Allow-Headers", "Content-Type, X-Source");
-      request->send(response);
-      return;
-    }
-    handleCustomMessageLogic(request);
-  });
+    // --- Custom Message Endpoint ---
+    server.on("/set_custom_message", HTTP_ANY, [](AsyncWebServerRequest *request) {
+      if (request->method() == HTTP_OPTIONS) {
+        AsyncWebServerResponse *response = request->beginResponse(200);
+        response->addHeader("Access-Control-Allow-Origin", "*");
+        response->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        response->addHeader("Access-Control-Allow-Headers", "Content-Type, X-Source");
+        request->send(response);
+        return;
+      }
+      handleCustomMessageLogic(request);
+    });
 
-  server.on("/set_hide_donation", HTTP_POST, [](AsyncWebServerRequest *request) {
-    String value = "";
-    if (request->hasParam("value", true)) {
-      value = request->getParam("value", true)->value();
-    } else if (request->params() > 0) {
-      value = request->getParam(0)->value();
-    }
-    hideDonationMsg = (value == "1" || value == "true" || value == "on");
-    saveConfigRuntime();
-    Serial.printf(PSTR("[DONATION] hideDonationMsg set to %s\n"), hideDonationMsg ? "true" : "false");
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
+    server.on("/set_hide_donation", HTTP_POST, [](AsyncWebServerRequest *request) {
+      String value = "";
+      if (request->hasParam("value", true)) {
+        value = request->getParam("value", true)->value();
+      } else if (request->params() > 0) {
+        value = request->getParam(0)->value();
+      }
+      hideDonationMsg = (value == "1" || value == "true" || value == "on");
+      saveConfigRuntime();
+      Serial.printf(PSTR("[DONATION] hideDonationMsg set to %s\n"), hideDonationMsg ? "true" : "false");
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
 
-  // --- Physical Buttons: get config ---
-  server.on("/get_buttons", HTTP_GET, [](AsyncWebServerRequest *request) {
-    JsonDocument doc;
-    JsonArray used = doc.createNestedArray("usedPins");
-    used.add(CLK_PIN);
-    used.add(CS_PIN);
-    used.add(DATA_PIN);
-    if (buzzerConfig.pin != 255) used.add(buzzerConfig.pin);
-    JsonArray btns = doc.createNestedArray("buttons");
-    for (int i = 0; i < 4; i++) {
-      JsonObject b = btns.createNestedObject();
-      b["pin"] = btnCfg[i].pin;
-      b["shortAction"] = btnCfg[i].shortAct;
-      b["longAction"] = btnCfg[i].longAct;
-    }
-    String response;
-    serializeJson(doc, response);
-    AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
-    res->addHeader("Connection", "close");
-    request->send(res);
-  });
+    // --- Physical Buttons: get config ---
+    server.on("/get_buttons", HTTP_GET, [](AsyncWebServerRequest *request) {
+      JsonDocument doc;
+      JsonArray used = doc.createNestedArray("usedPins");
+      used.add(CLK_PIN);
+      used.add(CS_PIN);
+      used.add(DATA_PIN);
+      if (buzzerConfig.pin != 255) used.add(buzzerConfig.pin);
+      JsonArray btns = doc.createNestedArray("buttons");
+      for (int i = 0; i < 4; i++) {
+        JsonObject b = btns.createNestedObject();
+        b["pin"] = btnCfg[i].pin;
+        b["shortAction"] = btnCfg[i].shortAct;
+        b["longAction"] = btnCfg[i].longAct;
+      }
+      String response;
+      serializeJson(doc, response);
+      AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
+      res->addHeader("Connection", "close");
+      request->send(res);
+    });
 
-  // --- Physical Buttons: save config (config.json, no reboot) ---
-  server.on("/save_buttons", HTTP_POST, [](AsyncWebServerRequest *request) {
-    int forbidden[] = { CLK_PIN, CS_PIN, DATA_PIN };
-    int newPins[4];
-    String newShort[4], newLong[4];
+    // --- Physical Buttons: save config (config.json, no reboot) ---
+    server.on("/save_buttons", HTTP_POST, [](AsyncWebServerRequest *request) {
+      int forbidden[] = { CLK_PIN, CS_PIN, DATA_PIN };
+      int newPins[4];
+      String newShort[4], newLong[4];
 
-    for (int i = 0; i < 4; i++) {
-      String idx = String(i + 1);
-      int pin = request->hasParam("btn" + idx + "_pin", true)
-                  ? request->getParam("btn" + idx + "_pin", true)->value().toInt()
-                  : -1;
-      for (int f : forbidden) {
-        if (pin == f) {
-          pin = -1;
+      for (int i = 0; i < 4; i++) {
+        String idx = String(i + 1);
+        int pin = request->hasParam("btn" + idx + "_pin", true)
+                    ? request->getParam("btn" + idx + "_pin", true)->value().toInt()
+                    : -1;
+        for (int f : forbidden) {
+          if (pin == f) {
+            pin = -1;
+            break;
+          }
+        }
+        newPins[i] = pin;
+        newShort[i] = request->hasParam("btn" + idx + "_short", true)
+                        ? request->getParam("btn" + idx + "_short", true)->value()
+                        : "";
+        newLong[i] = request->hasParam("btn" + idx + "_long", true)
+                       ? request->getParam("btn" + idx + "_long", true)->value()
+                       : "";
+      }
+      // Reject duplicate pins between buttons
+      for (int i = 0; i < 4; i++)
+        for (int j = i + 1; j < 4; j++)
+          if (newPins[i] >= 0 && newPins[i] == newPins[j]) newPins[j] = -1;
+
+      // Load existing config.json and patch the buttons key
+      JsonDocument doc;
+      File configFile = LittleFS.open("/config.json", "r");
+      if (configFile) {
+        deserializeJson(doc, configFile);
+        configFile.close();
+      }
+
+      doc.remove("buttons");
+      JsonArray arr = doc.createNestedArray("buttons");
+      for (int i = 0; i < 4; i++) {
+        JsonObject b = arr.createNestedObject();
+        b["pin"] = newPins[i];
+        b["shortAction"] = newShort[i];
+        b["longAction"] = newLong[i];
+        // Update in-memory state immediately
+        btnCfg[i].pin = newPins[i];
+        btnCfg[i].shortAct = newShort[i];
+        btnCfg[i].longAct = newLong[i];
+      }
+
+      if (LittleFS.exists("/config.json")) LittleFS.rename("/config.json", "/config.bak");
+      File f = LittleFS.open("/config.json", "w");
+      if (f) {
+        serializeJson(doc, f);
+        f.close();
+      }
+
+      setupButtons();  // apply new pinMode() without reboot
+      buzzerHwSetup();
+      Serial.println(F("[BUTTON] Config saved to config.json."));
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/get_buzzer", HTTP_GET, [](AsyncWebServerRequest *request) {
+      JsonDocument doc;
+      JsonArray used = doc.createNestedArray("usedPins");
+      used.add(CLK_PIN);
+      used.add(CS_PIN);
+      used.add(DATA_PIN);
+      for (int i = 0; i < 4; i++) {
+        if (btnCfg[i].pin >= 0) used.add(btnCfg[i].pin);
+      }
+      doc["enabled"] = buzzerConfig.enabled;
+      doc["pin"] = buzzerConfig.pin;
+      doc["volume"] = buzzerConfig.volume;
+      JsonArray events = doc.createNestedArray("events");
+      for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+        JsonObject e = events.createNestedObject();
+        e["name"] = buzzerEventNames[i];
+        e["enabled"] = buzzerConfig.eventEnabled[i];
+        e["sound"] = buzzerConfig.eventSound[i];
+        e["repeat"] = buzzerConfig.eventRepeat[i];
+      }
+      String response;
+      serializeJson(doc, response);
+      AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
+      res->addHeader("Connection", "close");
+      request->send(res);
+    });
+
+    server.on("/save_buzzer", HTTP_POST, [](AsyncWebServerRequest *request) {
+      int forbidden[8];
+      int fCount = 0;
+      forbidden[fCount++] = CLK_PIN;
+      forbidden[fCount++] = CS_PIN;
+      forbidden[fCount++] = DATA_PIN;
+      for (int i = 0; i < 4; i++) {
+        if (btnCfg[i].pin >= 0) forbidden[fCount++] = btnCfg[i].pin;
+      }
+
+      int pin = request->hasParam("pin", true) ? request->getParam("pin", true)->value().toInt() : 255;
+      for (int i = 0; i < fCount; i++) {
+        if (pin == forbidden[i]) {
+          pin = 255;
           break;
         }
       }
-      newPins[i] = pin;
-      newShort[i] = request->hasParam("btn" + idx + "_short", true)
-                      ? request->getParam("btn" + idx + "_short", true)->value()
-                      : "";
-      newLong[i] = request->hasParam("btn" + idx + "_long", true)
-                     ? request->getParam("btn" + idx + "_long", true)->value()
-                     : "";
-    }
-    // Reject duplicate pins between buttons
-    for (int i = 0; i < 4; i++)
-      for (int j = i + 1; j < 4; j++)
-        if (newPins[i] >= 0 && newPins[i] == newPins[j]) newPins[j] = -1;
+      buzzerConfig.pin = (uint8_t)pin;
 
-    // Load existing config.json and patch the buttons key
-    JsonDocument doc;
-    File configFile = LittleFS.open("/config.json", "r");
-    if (configFile) {
-      deserializeJson(doc, configFile);
-      configFile.close();
-    }
-
-    doc.remove("buttons");
-    JsonArray arr = doc.createNestedArray("buttons");
-    for (int i = 0; i < 4; i++) {
-      JsonObject b = arr.createNestedObject();
-      b["pin"] = newPins[i];
-      b["shortAction"] = newShort[i];
-      b["longAction"] = newLong[i];
-      // Update in-memory state immediately
-      btnCfg[i].pin = newPins[i];
-      btnCfg[i].shortAct = newShort[i];
-      btnCfg[i].longAct = newLong[i];
-    }
-
-    if (LittleFS.exists("/config.json")) LittleFS.rename("/config.json", "/config.bak");
-    File f = LittleFS.open("/config.json", "w");
-    if (f) {
-      serializeJson(doc, f);
-      f.close();
-    }
-
-    setupButtons();  // apply new pinMode() without reboot
-    buzzerHwSetup();
-    Serial.println(F("[BUTTON] Config saved to config.json."));
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/get_buzzer", HTTP_GET, [](AsyncWebServerRequest *request) {
-    JsonDocument doc;
-    JsonArray used = doc.createNestedArray("usedPins");
-    used.add(CLK_PIN);
-    used.add(CS_PIN);
-    used.add(DATA_PIN);
-    for (int i = 0; i < 4; i++) {
-      if (btnCfg[i].pin >= 0) used.add(btnCfg[i].pin);
-    }
-    doc["enabled"] = buzzerConfig.enabled;
-    doc["pin"] = buzzerConfig.pin;
-    doc["volume"] = buzzerConfig.volume;
-    JsonArray events = doc.createNestedArray("events");
-    for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
-      JsonObject e = events.createNestedObject();
-      e["name"] = buzzerEventNames[i];
-      e["enabled"] = buzzerConfig.eventEnabled[i];
-      e["sound"] = buzzerConfig.eventSound[i];
-      e["repeat"] = buzzerConfig.eventRepeat[i];
-    }
-    String response;
-    serializeJson(doc, response);
-    AsyncWebServerResponse *res = request->beginResponse(200, "application/json", response);
-    res->addHeader("Connection", "close");
-    request->send(res);
-  });
-
-  server.on("/save_buzzer", HTTP_POST, [](AsyncWebServerRequest *request) {
-    int forbidden[8];
-    int fCount = 0;
-    forbidden[fCount++] = CLK_PIN;
-    forbidden[fCount++] = CS_PIN;
-    forbidden[fCount++] = DATA_PIN;
-    for (int i = 0; i < 4; i++) {
-      if (btnCfg[i].pin >= 0) forbidden[fCount++] = btnCfg[i].pin;
-    }
-
-    int pin = request->hasParam("pin", true) ? request->getParam("pin", true)->value().toInt() : 255;
-    for (int i = 0; i < fCount; i++) {
-      if (pin == forbidden[i]) {
-        pin = 255;
-        break;
+      if (request->hasParam("enabled", true)) {
+        buzzerConfig.enabled = request->getParam("enabled", true)->value() == "1";
       }
-    }
-    buzzerConfig.pin = (uint8_t)pin;
-
-    if (request->hasParam("enabled", true)) {
-      buzzerConfig.enabled = request->getParam("enabled", true)->value() == "1";
-    }
-    if (request->hasParam("volume", true)) {
-      buzzerConfig.volume = constrain(request->getParam("volume", true)->value().toInt(), 1, 10);
-    }
-    for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
-      String base = "evt" + String(i) + "_";
-      if (request->hasParam(base + "enabled", true)) {
-        buzzerConfig.eventEnabled[i] = request->getParam(base + "enabled", true)->value() == "1";
+      if (request->hasParam("volume", true)) {
+        buzzerConfig.volume = constrain(request->getParam("volume", true)->value().toInt(), 1, 10);
       }
-      if (request->hasParam(base + "sound", true)) {
-        buzzerConfig.eventSound[i] = request->getParam(base + "sound", true)->value().toInt();
-      }
-      if (request->hasParam(base + "repeat", true)) {
-        buzzerConfig.eventRepeat[i] = request->getParam(base + "repeat", true)->value() == "1";
-      }
-    }
-
-    saveConfigRuntime();
-    buzzerHwSetup();  // re-init pin without reboot
-    Serial.println(F("[BUZZER] Config saved to config.json."));
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/get_alarm", HTTP_GET, [](AsyncWebServerRequest *request) {
-    DynamicJsonDocument doc(1024);
-    JsonArray alarms = doc.createNestedArray("alarms");
-    for (int i = 0; i < MAX_ALARMS; i++) {
-      JsonObject al = alarms.createNestedObject();
-      al["enabled"] = alarmConfigs[i].enabled;
-      al["hour"] = alarmConfigs[i].hour;
-      al["minute"] = alarmConfigs[i].minute;
-      JsonArray days = al.createNestedArray("days");
-      for (int d = 0; d < 7; d++) days.add(alarmConfigs[i].days[d]);
-      al["snoozeMinutes"] = alarmConfigs[i].snoozeMinutes;
-      al["brightness"] = alarmConfigs[i].brightness;
-      al["sound"] = alarmConfigs[i].sound;
-    }
-    doc["ringing"] = alarmRinging;
-    doc["ringingIndex"] = alarmRingingIndex;
-
-    AsyncResponseStream *response = request->beginResponseStream("application/json");
-    response->addHeader("Connection", "close");
-    serializeJson(doc, *response);
-    request->send(response);
-  });
-
-  server.on("/save_alarm", HTTP_POST, [](AsyncWebServerRequest *request) {
-    for (int i = 0; i < MAX_ALARMS; i++) {
-      String p = "alarm" + String(i) + "_";
-      if (request->hasParam(p + "enabled", true)) {
-        alarmConfigs[i].enabled = request->getParam(p + "enabled", true)->value() == "1";
-      }
-      if (request->hasParam(p + "hour", true)) {
-        alarmConfigs[i].hour = constrain(request->getParam(p + "hour", true)->value().toInt(), 0, 23);
-      }
-      if (request->hasParam(p + "minute", true)) {
-        alarmConfigs[i].minute = constrain(request->getParam(p + "minute", true)->value().toInt(), 0, 59);
-      }
-      for (int d = 0; d < 7; d++) {
-        String dayKey = p + "day" + String(d);
-        if (request->hasParam(dayKey, true)) {
-          alarmConfigs[i].days[d] = request->getParam(dayKey, true)->value() == "1";
+      for (int i = 0; i < BUZZER_EVENT_COUNT; i++) {
+        String base = "evt" + String(i) + "_";
+        if (request->hasParam(base + "enabled", true)) {
+          buzzerConfig.eventEnabled[i] = request->getParam(base + "enabled", true)->value() == "1";
+        }
+        if (request->hasParam(base + "sound", true)) {
+          buzzerConfig.eventSound[i] = request->getParam(base + "sound", true)->value().toInt();
+        }
+        if (request->hasParam(base + "repeat", true)) {
+          buzzerConfig.eventRepeat[i] = request->getParam(base + "repeat", true)->value() == "1";
         }
       }
-      if (request->hasParam(p + "snoozeMinutes", true)) {
-        alarmConfigs[i].snoozeMinutes = constrain(request->getParam(p + "snoozeMinutes", true)->value().toInt(), 1, 60);
+
+      saveConfigRuntime();
+      buzzerHwSetup();  // re-init pin without reboot
+      Serial.println(F("[BUZZER] Config saved to config.json."));
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/get_alarm", HTTP_GET, [](AsyncWebServerRequest *request) {
+      DynamicJsonDocument doc(1024);
+      JsonArray alarms = doc.createNestedArray("alarms");
+      for (int i = 0; i < MAX_ALARMS; i++) {
+        JsonObject al = alarms.createNestedObject();
+        al["enabled"] = alarmConfigs[i].enabled;
+        al["hour"] = alarmConfigs[i].hour;
+        al["minute"] = alarmConfigs[i].minute;
+        JsonArray days = al.createNestedArray("days");
+        for (int d = 0; d < 7; d++) days.add(alarmConfigs[i].days[d]);
+        al["snoozeMinutes"] = alarmConfigs[i].snoozeMinutes;
+        al["brightness"] = alarmConfigs[i].brightness;
+        al["sound"] = alarmConfigs[i].sound;
       }
-      if (request->hasParam(p + "brightness", true)) {
-        alarmConfigs[i].brightness = constrain(request->getParam(p + "brightness", true)->value().toInt(), 0, 15);
+      doc["ringing"] = alarmRinging;
+      doc["ringingIndex"] = alarmRingingIndex;
+
+      AsyncResponseStream *response = request->beginResponseStream("application/json");
+      response->addHeader("Connection", "close");
+      serializeJson(doc, *response);
+      request->send(response);
+    });
+
+    server.on("/save_alarm", HTTP_POST, [](AsyncWebServerRequest *request) {
+      for (int i = 0; i < MAX_ALARMS; i++) {
+        String p = "alarm" + String(i) + "_";
+        if (request->hasParam(p + "enabled", true)) {
+          alarmConfigs[i].enabled = request->getParam(p + "enabled", true)->value() == "1";
+        }
+        if (request->hasParam(p + "hour", true)) {
+          alarmConfigs[i].hour = constrain(request->getParam(p + "hour", true)->value().toInt(), 0, 23);
+        }
+        if (request->hasParam(p + "minute", true)) {
+          alarmConfigs[i].minute = constrain(request->getParam(p + "minute", true)->value().toInt(), 0, 59);
+        }
+        for (int d = 0; d < 7; d++) {
+          String dayKey = p + "day" + String(d);
+          if (request->hasParam(dayKey, true)) {
+            alarmConfigs[i].days[d] = request->getParam(dayKey, true)->value() == "1";
+          }
+        }
+        if (request->hasParam(p + "snoozeMinutes", true)) {
+          alarmConfigs[i].snoozeMinutes = constrain(request->getParam(p + "snoozeMinutes", true)->value().toInt(), 1, 60);
+        }
+        if (request->hasParam(p + "brightness", true)) {
+          alarmConfigs[i].brightness = constrain(request->getParam(p + "brightness", true)->value().toInt(), 0, 15);
+        }
+        if (request->hasParam(p + "sound", true)) {
+          int s = request->getParam(p + "sound", true)->value().toInt();
+          if (s >= 1 && s <= 3) alarmConfigs[i].sound = (uint8_t)s;
+        }
       }
-      if (request->hasParam(p + "sound", true)) {
-        int s = request->getParam(p + "sound", true)->value().toInt();
-        if (s >= 1 && s <= 3) alarmConfigs[i].sound = (uint8_t)s;
+
+      pendingConfigSave = true;  // saved from loop() once this request's heap is freed
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/save_weather", HTTP_POST, [](AsyncWebServerRequest *request) {
+      if (getLargestFreeBlock() < 4000) {
+        request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+        return;
       }
-    }
-
-    saveConfigRuntime();
-    Serial.println(F("[ALARM] Config saved."));
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/save_weather", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (getLargestFreeBlock() < 4000) {
-      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
-      return;
-    }
-    if (request->hasParam("weatherDuration", true)) {
-      weatherDuration = (unsigned long)request->getParam("weatherDuration", true)->value().toInt();
-    }
-    if (request->hasParam("openWeatherApiKey", true)) {
-      String v = request->getParam("openWeatherApiKey", true)->value();
-      if (v != "********************************") {  // ignore mask, same convention as /save
-        strlcpy(openWeatherApiKey, v.c_str(), sizeof(openWeatherApiKey));
+      if (request->hasParam("weatherDuration", true)) {
+        weatherDuration = (unsigned long)request->getParam("weatherDuration", true)->value().toInt();
       }
-    }
-    if (request->hasParam("openWeatherCity", true)) {
-      strlcpy(openWeatherCity, request->getParam("openWeatherCity", true)->value().c_str(), sizeof(openWeatherCity));
-    }
-    if (request->hasParam("openWeatherCountry", true)) {
-      strlcpy(openWeatherCountry, request->getParam("openWeatherCountry", true)->value().c_str(), sizeof(openWeatherCountry));
-    }
-    if (request->hasParam("weatherUnits", true)) {
-      strlcpy(weatherUnits, request->getParam("weatherUnits", true)->value().c_str(), sizeof(weatherUnits));
-      tempSymbol = (strcmp(weatherUnits, "imperial") == 0) ? '\007' : '\006';
-    }
-    if (request->hasParam("showHumidity", true)) {
-      String v = request->getParam("showHumidity", true)->value();
-      showHumidity = (v == "true" || v == "on" || v == "1");
-    }
-    if (request->hasParam("showWeatherDescription", true)) {
-      String v = request->getParam("showWeatherDescription", true)->value();
-      showWeatherDescription = (v == "true" || v == "on" || v == "1");
-    }
-
-    shouldFetchWeatherNow = true;
-    saveConfigRuntime();
-    Serial.println(F("[WEATHER] Config saved."));
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/save_timedate", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (getLargestFreeBlock() < 4000) {
-      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
-      return;
-    }
-    if (request->hasParam("timeZone", true)) {
-      strlcpy(timeZone, request->getParam("timeZone", true)->value().c_str(), sizeof(timeZone));
-    }
-    if (request->hasParam("clockDuration", true)) {
-      clockDuration = (unsigned long)request->getParam("clockDuration", true)->value().toInt();
-    }
-    if (request->hasParam("ntpServer1", true)) {
-      strlcpy(ntpServer1, request->getParam("ntpServer1", true)->value().c_str(), sizeof(ntpServer1));
-    }
-    if (request->hasParam("ntpServer2", true)) {
-      strlcpy(ntpServer2, request->getParam("ntpServer2", true)->value().c_str(), sizeof(ntpServer2));
-    }
-    if (request->hasParam("showDayOfWeek", true)) {
-      String v = request->getParam("showDayOfWeek", true)->value();
-      showDayOfWeek = (v == "true" || v == "on" || v == "1");
-    }
-    if (request->hasParam("colonBlinkEnabled", true)) {
-      String v = request->getParam("colonBlinkEnabled", true)->value();
-      colonBlinkEnabled = (v == "true" || v == "on" || v == "1");
-    }
-    if (request->hasParam("showDate", true)) {
-      String v = request->getParam("showDate", true)->value();
-      showDate = (v == "true" || v == "on" || v == "1");
-    }
-    if (request->hasParam("twelveHourToggle", true)) {
-      String v = request->getParam("twelveHourToggle", true)->value();
-      twelveHourToggle = (v == "true" || v == "on" || v == "1");
-    }
-
-    saveConfigRuntime();
-    setupTime();  // re-applies TZ and re-kicks NTP sync against (possibly new) servers — no reboot needed
-    Serial.println(F("[TIMEDATE] Config saved."));
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/save_display", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (getLargestFreeBlock() < 4000) {
-      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
-      return;
-    }
-    if (request->hasParam("brightness", true)) {
-      handleBrightnessChange(request->getParam("brightness", true)->value().toInt(), false, true);
-    }
-    if (request->hasParam("flipDisplay", true)) {
-      String v = request->getParam("flipDisplay", true)->value();
-      flipDisplay = (v == "true" || v == "on" || v == "1");
-      P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
-      P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
-    }
-
-    bool autoDimmingChecked = request->hasParam("autoDimmingEnabled", true) && request->getParam("autoDimmingEnabled", true)->value() == "true";
-    bool customDimmingChecked = request->hasParam("dimmingEnabled", true) && request->getParam("dimmingEnabled", true)->value() == "true";
-    if (autoDimmingChecked && customDimmingChecked) {
-      autoDimmingEnabled = true;
-      dimmingEnabled = false;
-    } else {
-      autoDimmingEnabled = autoDimmingChecked;
-      dimmingEnabled = customDimmingChecked;
-    }
-
-    if (request->hasParam("dimStartHour", true)) {
-      dimStartHour = constrain(request->getParam("dimStartHour", true)->value().toInt(), 0, 23);
-    }
-    if (request->hasParam("dimStartMinute", true)) {
-      dimStartMinute = constrain(request->getParam("dimStartMinute", true)->value().toInt(), 0, 59);
-    }
-    if (request->hasParam("dimEndHour", true)) {
-      dimEndHour = constrain(request->getParam("dimEndHour", true)->value().toInt(), 0, 23);
-    }
-    if (request->hasParam("dimEndMinute", true)) {
-      dimEndMinute = constrain(request->getParam("dimEndMinute", true)->value().toInt(), 0, 59);
-    }
-    if (request->hasParam("dimBrightness", true)) {
-      String v = request->getParam("dimBrightness", true)->value();
-      dimBrightness = (v == "Off" || v == "off") ? -1 : v.toInt();
-    }
-    if (request->hasParam("clockOnlyDuringDimming", true)) {
-      String v = request->getParam("clockOnlyDuringDimming", true)->value();
-      clockOnlyDuringDimming = (v == "true" || v == "on" || v == "1");
-    }
-
-    saveConfigRuntime();
-    Serial.println(F("[DISPLAY] Config saved."));
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  server.on("/save_countdown", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (getLargestFreeBlock() < 4000) {
-      request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
-      return;
-    }
-    bool newCountdownEnabled = request->hasParam("countdownEnabled", true) && (request->getParam("countdownEnabled", true)->value() == "true" || request->getParam("countdownEnabled", true)->value() == "on" || request->getParam("countdownEnabled", true)->value() == "1");
-    String countdownDateStr = request->hasParam("countdownDate", true) ? request->getParam("countdownDate", true)->value() : "";
-    String countdownTimeStr = request->hasParam("countdownTime", true) ? request->getParam("countdownTime", true)->value() : "";
-    String countdownLabelStr = request->hasParam("countdownLabel", true) ? request->getParam("countdownLabel", true)->value() : "";
-    utf8ToLatin1(countdownLabelStr);
-    bool newIsDramaticCountdown = request->hasParam("isDramaticCountdown", true) && (request->getParam("isDramaticCountdown", true)->value() == "true" || request->getParam("isDramaticCountdown", true)->value() == "on" || request->getParam("isDramaticCountdown", true)->value() == "1");
-
-    // Same date/time -> epoch conversion as /save, kept identical on purpose
-    time_t newTargetTimestamp = 0;
-    if (newCountdownEnabled && countdownDateStr.length() > 0 && countdownTimeStr.length() > 0) {
-      int year = countdownDateStr.substring(0, 4).toInt();
-      int month = countdownDateStr.substring(5, 7).toInt();
-      int day = countdownDateStr.substring(8, 10).toInt();
-      int hour = countdownTimeStr.substring(0, 2).toInt();
-      int minute = countdownTimeStr.substring(3, 5).toInt();
-
-      struct tm tm;
-      tm.tm_year = year - 1900;
-      tm.tm_mon = month - 1;
-      tm.tm_mday = day;
-      tm.tm_hour = hour;
-      tm.tm_min = minute;
-      tm.tm_sec = 0;
-      tm.tm_isdst = -1;
-
-      newTargetTimestamp = mktime(&tm);
-      if (newTargetTimestamp == (time_t)-1) {
-        Serial.println(F("[COUNTDOWN] Error converting date/time to timestamp."));
-        newTargetTimestamp = 0;
+      if (request->hasParam("openWeatherApiKey", true)) {
+        String v = request->getParam("openWeatherApiKey", true)->value();
+        if (v != "********************************") {  // ignore mask, same convention as /save
+          strlcpy(openWeatherApiKey, v.c_str(), sizeof(openWeatherApiKey));
+        }
       }
-    }
+      if (request->hasParam("openWeatherCity", true)) {
+        strlcpy(openWeatherCity, request->getParam("openWeatherCity", true)->value().c_str(), sizeof(openWeatherCity));
+      }
+      if (request->hasParam("openWeatherCountry", true)) {
+        strlcpy(openWeatherCountry, request->getParam("openWeatherCountry", true)->value().c_str(), sizeof(openWeatherCountry));
+      }
+      if (request->hasParam("weatherUnits", true)) {
+        strlcpy(weatherUnits, request->getParam("weatherUnits", true)->value().c_str(), sizeof(weatherUnits));
+        tempSymbol = (strcmp(weatherUnits, "imperial") == 0) ? '\007' : '\006';
+      }
+      if (request->hasParam("showHumidity", true)) {
+        String v = request->getParam("showHumidity", true)->value();
+        showHumidity = (v == "true" || v == "on" || v == "1");
+      }
+      if (request->hasParam("showWeatherDescription", true)) {
+        String v = request->getParam("showWeatherDescription", true)->value();
+        showWeatherDescription = (v == "true" || v == "on" || v == "1");
+      }
 
-    countdownEnabled = newCountdownEnabled;
-    countdownTargetTimestamp = newTargetTimestamp;
-    strlcpy(countdownLabel, countdownLabelStr.c_str(), sizeof(countdownLabel));
-    isDramaticCountdown = newIsDramaticCountdown;
-    countdownFinished = false;  // clear any stale "finished" state on a fresh target
+      shouldFetchWeatherNow = true;
+      saveConfigRuntime();
+      Serial.println(F("[WEATHER] Config saved."));
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
 
-    saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
-    Serial.println(F("[COUNTDOWN] Config saved."));
-    request->send(200, "application/json", "{\"ok\":true}");
-  });
+    server.on("/save_timedate", HTTP_POST, [](AsyncWebServerRequest *request) {
+      if (getLargestFreeBlock() < 4000) {
+        request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+        return;
+      }
+      if (request->hasParam("timeZone", true)) {
+        strlcpy(timeZone, request->getParam("timeZone", true)->value().c_str(), sizeof(timeZone));
+      }
+      if (request->hasParam("clockDuration", true)) {
+        clockDuration = (unsigned long)request->getParam("clockDuration", true)->value().toInt();
+      }
+      if (request->hasParam("ntpServer1", true)) {
+        strlcpy(ntpServer1, request->getParam("ntpServer1", true)->value().c_str(), sizeof(ntpServer1));
+      }
+      if (request->hasParam("ntpServer2", true)) {
+        strlcpy(ntpServer2, request->getParam("ntpServer2", true)->value().c_str(), sizeof(ntpServer2));
+      }
+      if (request->hasParam("showDayOfWeek", true)) {
+        String v = request->getParam("showDayOfWeek", true)->value();
+        showDayOfWeek = (v == "true" || v == "on" || v == "1");
+      }
+      if (request->hasParam("colonBlinkEnabled", true)) {
+        String v = request->getParam("colonBlinkEnabled", true)->value();
+        colonBlinkEnabled = (v == "true" || v == "on" || v == "1");
+      }
+      if (request->hasParam("showDate", true)) {
+        String v = request->getParam("showDate", true)->value();
+        showDate = (v == "true" || v == "on" || v == "1");
+      }
+      if (request->hasParam("twelveHourToggle", true)) {
+        String v = request->getParam("twelveHourToggle", true)->value();
+        twelveHourToggle = (v == "true" || v == "on" || v == "1");
+      }
+
+      saveConfigRuntime();
+      setupTime();  // re-applies TZ and re-kicks NTP sync against (possibly new) servers — no reboot needed
+      Serial.println(F("[TIMEDATE] Config saved."));
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/save_display", HTTP_POST, [](AsyncWebServerRequest *request) {
+      if (getLargestFreeBlock() < 4000) {
+        request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+        return;
+      }
+      if (request->hasParam("brightness", true)) {
+        handleBrightnessChange(request->getParam("brightness", true)->value().toInt(), false, true);
+      }
+      if (request->hasParam("flipDisplay", true)) {
+        String v = request->getParam("flipDisplay", true)->value();
+        flipDisplay = (v == "true" || v == "on" || v == "1");
+        P.setZoneEffect(0, flipDisplay, PA_FLIP_UD);
+        P.setZoneEffect(0, flipDisplay, PA_FLIP_LR);
+      }
+
+      bool autoDimmingChecked = request->hasParam("autoDimmingEnabled", true) && request->getParam("autoDimmingEnabled", true)->value() == "true";
+      bool customDimmingChecked = request->hasParam("dimmingEnabled", true) && request->getParam("dimmingEnabled", true)->value() == "true";
+      if (autoDimmingChecked && customDimmingChecked) {
+        autoDimmingEnabled = true;
+        dimmingEnabled = false;
+      } else {
+        autoDimmingEnabled = autoDimmingChecked;
+        dimmingEnabled = customDimmingChecked;
+      }
+
+      if (request->hasParam("dimStartHour", true)) {
+        dimStartHour = constrain(request->getParam("dimStartHour", true)->value().toInt(), 0, 23);
+      }
+      if (request->hasParam("dimStartMinute", true)) {
+        dimStartMinute = constrain(request->getParam("dimStartMinute", true)->value().toInt(), 0, 59);
+      }
+      if (request->hasParam("dimEndHour", true)) {
+        dimEndHour = constrain(request->getParam("dimEndHour", true)->value().toInt(), 0, 23);
+      }
+      if (request->hasParam("dimEndMinute", true)) {
+        dimEndMinute = constrain(request->getParam("dimEndMinute", true)->value().toInt(), 0, 59);
+      }
+      if (request->hasParam("dimBrightness", true)) {
+        String v = request->getParam("dimBrightness", true)->value();
+        dimBrightness = (v == "Off" || v == "off") ? -1 : v.toInt();
+      }
+      if (request->hasParam("clockOnlyDuringDimming", true)) {
+        String v = request->getParam("clockOnlyDuringDimming", true)->value();
+        clockOnlyDuringDimming = (v == "true" || v == "on" || v == "1");
+      }
+
+      saveConfigRuntime();
+      Serial.println(F("[DISPLAY] Config saved."));
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/save_countdown", HTTP_POST, [](AsyncWebServerRequest *request) {
+      if (getLargestFreeBlock() < 4000) {
+        request->send(503, "application/json", "{\"error\":\"Device busy, please try again in a moment.\"}");
+        return;
+      }
+      bool newCountdownEnabled = request->hasParam("countdownEnabled", true) && (request->getParam("countdownEnabled", true)->value() == "true" || request->getParam("countdownEnabled", true)->value() == "on" || request->getParam("countdownEnabled", true)->value() == "1");
+      String countdownDateStr = request->hasParam("countdownDate", true) ? request->getParam("countdownDate", true)->value() : "";
+      String countdownTimeStr = request->hasParam("countdownTime", true) ? request->getParam("countdownTime", true)->value() : "";
+      String countdownLabelStr = request->hasParam("countdownLabel", true) ? request->getParam("countdownLabel", true)->value() : "";
+      utf8ToLatin1(countdownLabelStr);
+      bool newIsDramaticCountdown = request->hasParam("isDramaticCountdown", true) && (request->getParam("isDramaticCountdown", true)->value() == "true" || request->getParam("isDramaticCountdown", true)->value() == "on" || request->getParam("isDramaticCountdown", true)->value() == "1");
+
+      // Same date/time -> epoch conversion as /save, kept identical on purpose
+      time_t newTargetTimestamp = 0;
+      if (newCountdownEnabled && countdownDateStr.length() > 0 && countdownTimeStr.length() > 0) {
+        int year = countdownDateStr.substring(0, 4).toInt();
+        int month = countdownDateStr.substring(5, 7).toInt();
+        int day = countdownDateStr.substring(8, 10).toInt();
+        int hour = countdownTimeStr.substring(0, 2).toInt();
+        int minute = countdownTimeStr.substring(3, 5).toInt();
+
+        struct tm tm;
+        tm.tm_year = year - 1900;
+        tm.tm_mon = month - 1;
+        tm.tm_mday = day;
+        tm.tm_hour = hour;
+        tm.tm_min = minute;
+        tm.tm_sec = 0;
+        tm.tm_isdst = -1;
+
+        newTargetTimestamp = mktime(&tm);
+        if (newTargetTimestamp == (time_t)-1) {
+          Serial.println(F("[COUNTDOWN] Error converting date/time to timestamp."));
+          newTargetTimestamp = 0;
+        }
+      }
+
+      countdownEnabled = newCountdownEnabled;
+      countdownTargetTimestamp = newTargetTimestamp;
+      strlcpy(countdownLabel, countdownLabelStr.c_str(), sizeof(countdownLabel));
+      isDramaticCountdown = newIsDramaticCountdown;
+      countdownFinished = false;  // clear any stale "finished" state on a fresh target
+
+      saveCountdownConfig(countdownEnabled, countdownTargetTimestamp, countdownLabel);
+      Serial.println(F("[COUNTDOWN] Config saved."));
+      request->send(200, "application/json", "{\"ok\":true}");
+    });
+  }
+
+  if (!isAPMode) {
+    server.on("/get_tunes", HTTP_GET, [](AsyncWebServerRequest *request) {
+      JsonDocument doc;
+      JsonArray arr = doc.createNestedArray("tunes");
+      File f = LittleFS.open("/tunes.txt", "r");
+      if (f) {
+        char buf[BUZZER_RTTTL_MAX_LEN];
+        uint8_t count = 0;
+        while (f.available() && count < TUNES_MAX_COUNT) {
+          size_t n = f.readBytesUntil('\n', buf, sizeof(buf) - 1);
+          if (n == sizeof(buf) - 1) {
+            int c;
+            while ((c = f.read()) >= 0 && c != '\n') {}
+          }
+          buf[n] = '\0';
+          if (n > 0 && buf[n - 1] == '\r') buf[n - 1] = '\0';
+          if (n == 0) continue;
+          arr.add(String(buf));
+          count++;
+        }
+        f.close();
+      }
+      String response;
+      serializeJson(doc, response);
+      request->send(200, "application/json", response);
+    });
+  }
 
   server.onNotFound([](AsyncWebServerRequest *request) {
     if (request->method() == HTTP_OPTIONS) {
@@ -3008,6 +3040,13 @@ void setupWebServer() {
     request->redirect("/");
   });
 
+  server.on("/full_description", HTTP_GET, [](AsyncWebServerRequest *request) {
+    showFullDescription = !showFullDescription;
+    saveConfigRuntime();
+    Serial.printf(PSTR("[WEATHER] Full description display: %s\n"), showFullDescription ? "ON" : "OFF");
+    request->redirect("/");
+  });
+
   server.on("/export", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /export"));
 
@@ -3109,6 +3148,32 @@ void setupWebServer() {
     response->addHeader("Connection", "close");
     request->send(response);
   });
+
+  if (!isAPMode) {
+    server.on("/save_tunes", HTTP_POST, [](AsyncWebServerRequest *request) {
+      int count = request->hasParam("count", true) ? request->getParam("count", true)->value().toInt() : 0;
+      count = constrain(count, 0, TUNES_MAX_COUNT);
+
+      if (LittleFS.exists("/tunes.txt")) LittleFS.rename("/tunes.txt", "/tunes.bak");
+      File f = LittleFS.open("/tunes.txt", "w");
+      if (!f) {
+        request->send(503, "application/json", "{\"error\":\"Device busy, please try again.\"}");
+        return;
+      }
+      for (int i = 0; i < count; i++) {
+        String key = "t" + String(i);
+        if (request->hasParam(key, true)) {
+          String line = request->getParam(key, true)->value();
+          if (line.length() > BUZZER_RTTTL_MAX_LEN - 1) line = line.substring(0, BUZZER_RTTTL_MAX_LEN - 1);
+          f.print(line);
+          f.print('\n');
+        }
+      }
+      f.close();
+      tuneCount = countTuneLines();
+      request->send(200, "application/json", "{\"ok\":true,\"count\":" + String(tuneCount) + "}");
+    });
+  }
 
   server.on("/upload", HTTP_GET, [](AsyncWebServerRequest *request) {
     String html = R"rawliteral(
@@ -3625,6 +3690,14 @@ bool isFiveDigitZip(const char *str) {
 // -----------------------------------------------------------------------------
 // Weather Fetching and API settings
 // -----------------------------------------------------------------------------
+const char *getHumidityLabel() {
+  if (!strcmp(language, "es") || !strcmp(language, "fr")) return "HR";
+  if (!strcmp(language, "pt") || !strcmp(language, "it") || !strcmp(language, "ro")) return "UR";
+  if (!strcmp(language, "de") || !strcmp(language, "da") || !strcmp(language, "sv") || !strcmp(language, "no")) return "RF";
+  if (!strcmp(language, "nl") || !strcmp(language, "cs") || !strcmp(language, "sk") || !strcmp(language, "hr") || !strcmp(language, "sl") || !strcmp(language, "sr")) return "RV";
+  return "RH";
+}
+
 String buildWeatherURL() {
 #if defined(ESP8266) || defined(CONFIG_IDF_TARGET_ESP32S2)
   String base = "http://api.openweathermap.org/data/2.5/weather?";
@@ -3691,8 +3764,14 @@ void fetchWeather() {
 
   Serial.println(F("[WEATHER] Connecting to OpenWeatherMap..."));
   String url = buildWeatherURL();
-  Serial.print(F("[WEATHER] URL: "));  // Use F() with Serial.print
-  Serial.println(url);
+  String logUrl = url;
+  int k = logUrl.indexOf("appid=");
+  if (k >= 0) {
+    int e = logUrl.indexOf('&', k);
+    logUrl = logUrl.substring(0, k + 6) + "********" + (e >= 0 ? logUrl.substring(e) : "");
+  }
+  Serial.print(F("[WEATHER] URL: "));
+  Serial.println(logUrl);
 
   HTTPClient http;  // Create an HTTPClient object
 
@@ -3754,6 +3833,13 @@ void fetchWeather() {
       Serial.printf(PSTR("[WEATHER] Humidity: %d%%\n"), currentHumidity);
     } else {
       currentHumidity = -1;
+    }
+
+    if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("pressure"))) {
+      currentPressure = doc[F("main")][F("pressure")];
+      Serial.printf(PSTR("[WEATHER] Pressure: %d hPa\n"), currentPressure);
+    } else {
+      currentPressure = -1;
     }
 
     if (doc.containsKey(F("weather")) && doc[F("weather")].is<JsonArray>()) {
@@ -4453,7 +4539,7 @@ bool handleAlarmCommand(String cmd) {
 
     if (tokenCount >= 3) {
       int soundId = tokens[2].toInt();
-      if (soundId >= 1 && soundId <= 3) alarmConfigs[index].sound = (uint8_t)soundId;
+      if (soundId >= 1 && soundId <= 6 + tuneCount) alarmConfigs[index].sound = (uint8_t)soundId;
     }
     if (tokenCount >= 4) {
       int bri = tokens[3].toInt();
@@ -4839,6 +4925,15 @@ void executeAction(const String &action, const String &value) {
     buzzerRepeating = repeat;
     buzzerEventStopAt = 0;
 
+  } else if (action == "buzzer_rtttl") {
+    // Fire-and-forget direct play for HA/API — doesn't touch /tunes.txt or
+    // config at all, just plays whatever RTTTL text is sent, right now.
+    // e.g. GET /action?buzzer_rtttl=d=4,o=5,b=100:c,e,g  (URL-encode the value)
+    uint8_t n = buzzerParseRtttl(value.c_str(), buzzerCustomScratch, BUZZER_RTTTL_MAX_STEPS);
+    if (n > 0) {
+      buzzerCustomPattern.stepCount = n;
+      buzzerTrigger(&buzzerCustomPattern, true, true);
+    }
   } else if (action == "buzzer_stop") {
     buzzerStop();
 
@@ -4966,7 +5061,7 @@ void executeAction(const String &action, const String &value) {
 
       setAlarmSchedule(index, h, m, days);
 
-      if (soundId >= 1 && soundId <= 3) alarmConfigs[index].sound = (uint8_t)soundId;
+      if (soundId >= 1 && soundId <= 6 + tuneCount) alarmConfigs[index].sound = (uint8_t)soundId;
       if (bri >= 0 && bri <= 15) alarmConfigs[index].brightness = (uint8_t)bri;
       if (snooze >= 1 && snooze <= 60) alarmConfigs[index].snoozeMinutes = (uint8_t)snooze;
       if (vol >= 1 && vol <= 10) buzzerConfig.volume = (uint8_t)vol;
@@ -5367,6 +5462,51 @@ void buzzerTrigger(const BuzzerPattern *pattern) {
   buzzerTrigger(pattern, false, false);
 }
 
+uint8_t tuneCount = 0;
+
+uint8_t countTuneLines() {
+  File f = LittleFS.open("/tunes.txt", "r");
+  if (!f) return 0;
+  uint8_t count = 0;
+  char buf[BUZZER_RTTTL_MAX_LEN];
+  while (f.available() && count < TUNES_MAX_COUNT) {
+    size_t n = f.readBytesUntil('\n', buf, sizeof(buf) - 1);
+    if (n == sizeof(buf) - 1) {
+      int c;
+      while ((c = f.read()) >= 0 && c != '\n') {}
+    }
+    if (n > 0) count++;
+  }
+  f.close();
+  return count;
+}
+
+bool readTuneLine(uint8_t index, char *out, size_t maxLen) {
+  File f = LittleFS.open("/tunes.txt", "r");
+  if (!f) return false;
+  uint8_t line = 0;
+  bool found = false;
+  while (f.available()) {
+    size_t n = f.readBytesUntil('\n', out, maxLen - 1);
+    // If we filled the buffer without hitting '\n', this line was too long —
+    // discard whatever's left of it so the next read starts at the real
+    // next line, instead of resuming mid-line and shifting everything after.
+    if (n == maxLen - 1) {
+      int c;
+      while ((c = f.read()) >= 0 && c != '\n') {}
+    }
+    out[n] = '\0';
+    if (n > 0 && out[n - 1] == '\r') out[n - 1] = '\0';
+    if (line == index) {
+      found = true;
+      break;
+    }
+    line++;
+  }
+  f.close();
+  return found;
+}
+
 String rewindTimeString(String hms, int secs) {
   // The caller pre-spaces every character for the matrix (e.g. "1 9 : 4 8 : 2 9"
   // instead of "19:48:29") — strip that first so we can actually parse it.
@@ -5477,7 +5617,7 @@ void fireAlarm(int index, int brightnessOverride, int soundOverride) {
   forceMessageRestart = true;
 
   if (buzzerConfig.enabled && buzzerConfig.eventEnabled[BUZZER_EVT_ALARM]) {
-    int soundToUse = (soundOverride >= 1 && soundOverride <= 3) ? soundOverride : alarmConfigs[index].sound;
+    int soundToUse = (soundOverride >= 1 && soundOverride <= 6 + tuneCount) ? soundOverride : alarmConfigs[index].sound;
     buzzerTrigger(getSoundPattern(soundToUse), true, true);
     buzzerRepeating = true;
     buzzerEventStopAt = 0;
@@ -5628,6 +5768,7 @@ void setup() {
   loadConfig();
   setupButtons();
   buzzerHwSetup();
+  tuneCount = countTuneLines();
   P.setIntensity(brightness);
   if (displayOff) {
     P.displayShutdown(true);
@@ -5955,6 +6096,7 @@ bool saveConfigRuntime() {
   doc["showDate"] = showDate;
   doc["showHumidity"] = showHumidity;
   doc["showFullTemp"] = showFullTemp;
+  doc["showFullDescription"] = showFullDescription;
   doc["colonBlinkEnabled"] = colonBlinkEnabled;
   doc["clockOnlyDuringDimming"] = clockOnlyDuringDimming;
   doc["showWeatherDescription"] = showWeatherDescription;
@@ -6006,6 +6148,9 @@ bool saveConfigRuntime() {
     al["sound"] = alarmConfigs[i].sound;
   }
 
+  if (LittleFS.exists("/config.json")) {
+    LittleFS.rename("/config.json", "/config.bak");
+  }
   File configFileWrite = LittleFS.open("/config.json", "w");
   if (!configFileWrite) {
     Serial.println(F("[CONFIG] Failed to open config for writing"));
@@ -6142,6 +6287,17 @@ void loop() {
       if (flipDisplay) P.getGraphicObject()->transform(MD_MAX72XX::TSR);
       else P.getGraphicObject()->transform(MD_MAX72XX::TSL);
       delay(messageScrollSpeed);
+    }
+  }
+
+  if (pendingConfigSave) {
+    static unsigned long lastCfgTry = 0;
+    if (millis() - lastCfgTry > 1000) {
+      lastCfgTry = millis();
+      if (saveConfigRuntime()) {
+        pendingConfigSave = false;
+        Serial.println(F("[ALARM] Config saved."));
+      }
     }
   }
 
@@ -6997,6 +7153,19 @@ void loop() {
     P.setTextAlignment(PA_CENTER);
     if (forceMessageRestart) return;
     String desc = weatherDescription;
+    if (showFullDescription) {
+      char extra[48];
+      if (currentHumidity >= 0) {
+        snprintf(extra, sizeof(extra), "  -  %d%% %s", currentHumidity, getHumidityLabel());
+        desc += extra;
+      }
+      if (currentPressure > 0) {
+        snprintf(extra, sizeof(extra), "  -  %d HPA", currentPressure);
+        desc += extra;
+      }
+      snprintf(extra, sizeof(extra), "  -  \x0C\x86 %02d:%02d  -  \x0C\x88 %02d:%02d", sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+      desc += extra;
+    }
 
     // --- Check if humidity is actually visible ---
     bool humidityVisible = showHumidity && weatherAvailable && strlen(openWeatherApiKey) == 32 && strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0;

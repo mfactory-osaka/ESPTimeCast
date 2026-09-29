@@ -32,7 +32,8 @@ const MonthsMapping months_mappings[] = {
     { "hu", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sze", "okt", "nov", "dec" } }, // Hungarian
     { "it", { "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic" } }, // Italian
     { "ga", { "ean", "fea", "mar", "aib", "bea", "mei", "iui", "lun", "mea", "dei", "sam", "nol" } }, // Irish
-    { "ja", { "1 \xB2", "2 \xB2", "3 \xB2", "4 \xB2", "5 \xB2", "6 \xB2", "7 \xB2", "8 \xB2", "9 \xB2", "10 \xB2", "11 \xB2", "12 \xB2" } }, // Japanese    { "lt", { "sau", "vas", "kov", "bal", "geg", "bir", "lie", "rug", "swe", "spa", "lap", "gru" } }, // Lithuanian
+    { "ja", { "1 \xB2", "2 \xB2", "3 \xB2", "4 \xB2", "5 \xB2", "6 \xB2", "7 \xB2", "8 \xB2", "9 \xB2", "10 \xB2", "11 \xB2", "12 \xB2" } }, // Japanese
+    { "lt", { "sau", "vas", "kov", "bal", "geg", "bir", "lie", "rug", "swe", "spa", "lap", "gru" } }, // Lithuanian
     { "lv", { "jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Latvian
     { "nl", { "jan", "feb", "maa", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Dutch
     { "no", { "jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des" } }, // Norwegian

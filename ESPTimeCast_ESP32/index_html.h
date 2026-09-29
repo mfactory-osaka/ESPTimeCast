@@ -1401,6 +1401,20 @@ const char index_html[] PROGMEM = R"rawliteral(
           box-shadow: none;
         }
       }
+
+      #tunes-wrapper{
+        display: flex;
+        gap: 1rem;
+        justify-items: center;
+        justify-content: space-evenly;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+      }
+
+      #tunes-wrapper > button{
+        margin: 0;
+      }
+
     </style>
   </head>
   <body>
@@ -2294,7 +2308,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                 class="primary-button cmsg1 btn-apply-top sep"
                 onclick="testBuzzer()"
               >
-                Test
+                Test Volume
               </button>
             </div>
           </div>
@@ -2303,7 +2317,11 @@ const char index_html[] PROGMEM = R"rawliteral(
             <p class="small loading-hint">Loading...</p>
           </div>
 
-          <div class="btn-apply-wrap">
+          <div class="btn-apply-wrap" id="tunes-wrapper">
+            <input type="file" id="tunesFileInput" accept=".txt" style="display:none" onchange="handleTunesFile(event)">
+            <button type="button" class="primary-button cmsg1 btn-apply-top sep" onclick="document.getElementById('tunesFileInput').click()">
+              Upload Tunes
+            </button>
             <button
               id="buzzerApplyBtn"
               type="button"
@@ -2313,6 +2331,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               Apply
             </button>
           </div>
+
           <p id="buzzer-save-status"></p>
         </div>
       </div>
@@ -2773,6 +2792,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               await fetchUptimeAsync();
 
               if (!isAPMode) {
+                await loadCustomTunes();
                 try {
                   _btnData = await fetch("/get_buttons").then((r) => r.json());
                   _renderBtnConfig();
@@ -4589,18 +4609,37 @@ window.addEventListener("load", handleGeoRedirectResult);
       // Alarm (0) and Button Feedback (6) intentionally left out — Alarm gets its own section later,
       // Button Feedback has no UI yet since we decided to skip it.
 
-      const BUZZER_SOUND_OPTS = [
-        { id: 1, label: "Beep" },
-        { id: 2, label: "Chirp" },
-        { id: 3, label: "Alarm" },
-      ];
+const BUZZER_BUILTIN_COUNT = 5;  // must match BUZZER_BUILTIN_RTTTL_COUNT in buzzer.h
 
-      function _buzzerSoundOpts(selected) {
-        return BUZZER_SOUND_OPTS.map(
-          (s) =>
-            `<option value="${s.id}"${selected === s.id ? " selected" : ""}>${s.label}</option>`,
-        ).join("");
-      }
+const BUZZER_SOUND_BASE = [
+  { id: 1, label: "Beep" },
+  { id: 2, label: "Chirp" },
+  { id: 3, label: "Alarm" },
+  { id: 4, label: "Fur Elise" },
+  { id: 5, label: "Nokia Tune" },
+  { id: 6, label: "When The Saints..." },
+  { id: 7, label: "Ode to Joy" },
+  { id: 8, label: "Tetris" },
+];
+
+function _allSoundOpts() {
+  const extra = _customTunes.map((line, i) => {
+    const name = line.includes(":") ? line.split(":")[0] : `Tune ${i + 1}`;
+    return { id: 4 + BUZZER_BUILTIN_COUNT + i, label: name };
+  });
+  return [...BUZZER_SOUND_BASE, ...extra];
+}
+
+function _buzzerSoundOpts(selected) {
+  return _allSoundOpts()
+    .map((s) => `<option value="${s.id}"${selected === s.id ? " selected" : ""}>${s.label}</option>`)
+    .join("");
+}
+
+function _alarmSoundOpts(selected) {
+  return _buzzerSoundOpts(selected);  // same shared list now
+}
+
 
       function _renderBuzzerGlobal() {
         if (!_buzzerData) return;
@@ -4644,28 +4683,28 @@ window.addEventListener("load", handleGeoRedirectResult);
         }).join("");
       }
 
-      function previewBuzzerSound(idx) {
-        const sel = document.getElementById(`evt${idx}_sound`);
-        if (!sel) return;
-        const vol = document.getElementById("buzzerVolumeSlider").value;
-        const repeat = (_buzzerData.events[idx] || {}).repeat ? 1 : 0;
-        fetch(`/action?play_sound=${sel.value}:${vol}:${repeat}`).catch(
-          () => {},
-        );
-        if (repeat) {
-          setTimeout(() => {
-            fetch(`/action?buzzer_stop`).catch(() => {});
-          }, 3000);
+        function previewBuzzerSound(idx) {
+          const sel = document.getElementById(`evt${idx}_sound`);
+          if (!sel) return;
+          const vol = document.getElementById("buzzerVolumeSlider").value;
+          fetch(`/action?play_sound=${sel.value}:${vol}:0`).catch(() => {});
         }
-      }
 
-      function testBuzzer() {
-        const vol = document.getElementById("buzzerVolumeSlider").value;
-        fetch(`/action?play_sound=3:${vol}:1`).catch(() => {});
-        setTimeout(() => {
-          fetch(`/action?buzzer_stop`).catch(() => {});
-        }, 3000);
-      }
+        let _buzzerTestRinging = false;
+
+        function testBuzzer() {
+          const btn = document.getElementById("buzzerTestBtn");
+          if (_buzzerTestRinging) {
+            fetch(`/action?buzzer_stop`).catch(() => {});
+            _buzzerTestRinging = false;
+            btn.textContent = "Test Volume";
+          } else {
+            const vol = document.getElementById("buzzerVolumeSlider").value;
+            fetch(`/action?play_sound=3:${vol}:1`).catch(() => {});
+            _buzzerTestRinging = true;
+            btn.textContent = "Stop Test";
+          }
+        }
 
       let buzzerSaveStatusTimer = null;
       function showBuzzerStatus(msg) {
@@ -4725,19 +4764,6 @@ window.addEventListener("load", handleGeoRedirectResult);
       }
       let _alarmData = null;
       let _alarmExpanded = [true, false, false, false];
-
-      const ALARM_SOUND_OPTS = [
-        { id: 1, label: "Beep" },
-        { id: 2, label: "Chirp" },
-        { id: 3, label: "Alarm" },
-      ];
-
-      function _alarmSoundOpts(selected) {
-        return ALARM_SOUND_OPTS.map(
-          (s) =>
-            `<option value="${s.id}"${selected === s.id ? " selected" : ""}>${s.label}</option>`,
-        ).join("");
-      }
 
       function _alarmScheduleText(a) {
         if (!a.enabled) return "NO ALARM SET";
@@ -5342,6 +5368,60 @@ window.addEventListener("load", handleGeoRedirectResult);
           toast.classList.remove("show");
         }, duration);
       }
+
+      const TUNES_STORAGE_KEY = "esptimecast_tunes";
+let _customTunes = JSON.parse(localStorage.getItem(TUNES_STORAGE_KEY) || "[]");
+
+function handleTunesFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    _customTunes = reader.result
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+      .slice(0, 20)
+      .map((l) => l.slice(0, 150));
+    localStorage.setItem(TUNES_STORAGE_KEY, JSON.stringify(_customTunes));
+    syncTunesToDevice();
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+async function syncTunesToDevice() {
+  const params = new URLSearchParams();
+  _customTunes.forEach((line, i) => params.set(`t${i}`, line));
+  params.set("count", _customTunes.length);
+  try {
+    const res = await fetch("/save_tunes", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params,
+    });
+    showToast(res.ok ? `✓ ${_customTunes.length} tune(s) synced` : "⚠️ Sync failed.", res.ok ? 3000 : 5000);
+    if (res.ok) {
+      _renderBuzzerEvents();
+      _renderAlarmConfig();
+    }
+  } catch {
+    showToast("⚠️ Sync failed.", 5000);
+  }
+}
+
+async function loadCustomTunes() {
+  try {
+    const res = await fetch("/get_tunes");
+    const data = await res.json();
+    _customTunes = data.tunes || [];
+    localStorage.setItem(TUNES_STORAGE_KEY, JSON.stringify(_customTunes));
+  } catch (e) {
+    // device unreachable/erroring — fall back to whatever this browser last saw
+    _customTunes = JSON.parse(localStorage.getItem(TUNES_STORAGE_KEY) || "[]");
+  }
+}
+
     </script>
     <!--
     Third-party component: Lucide Icons
