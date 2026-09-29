@@ -874,7 +874,7 @@ This means:
 | --- | --- | --- |
 | **TIME** | 15:50 | Time the alarm fires |
 | **DAYS** | 0123456 | Days the alarm is active. `0` = Sunday through `6` = Saturday |
-| **SOUND** | 2 | Alarm sound (`1`–`3`) |
+| **SOUND** | 2 | Alarm sound (`1`–`3` built-in patterns, `4`–`8` built-in tunes, `9`+ your uploaded tunes) |
 | **BRIGHTNESS** | 15 | Display brightness while the alarm is active (`0`–`15`) |
 | **SNOOZE** | 5 | Snooze duration in minutes |
 | **VOLUME** | 10 | Global buzzer volume (`1`–`10`) |
@@ -933,7 +933,7 @@ The `/action` endpoint follows the same alarm numbering:
 | `alarm_stop` | Dismiss any currently ringing alarm |
 | `alarm_snooze` | Snooze any currently ringing alarm |
 | `alarm_enable` | Enable/disable Alarm 1. Toggles if no value is supplied |
-| `alarm_test` | alarm_test | Fire an alarm immediately. Optional brightness can be specified as `alarm_test=v`, where v is `0–15`, for a preview without changing the saved brightness. |
+| `alarm_test` | -- or brightness `0`–`15` | Fire an alarm immediately. Optional brightness can be specified as `alarm_test=v`, where v is `0–15`, for a preview without changing the saved brightness. |
 | `alarm_set` | Configure an alarm using the syntax described above |
 
 > For Alarm 2, 3, or 4, add the alarm number to the command name. For example, alarm2_set, alarm3_test, or alarm4_enable. The unnumbered alarm_stop and alarm_snooze commands apply to whichever alarm is currently ringing, so you don’t need to know the alarm number.  
@@ -1229,11 +1229,15 @@ Changes to the pin and enable toggle apply immediately. Per-event sound choices 
 
 ### Available Sounds
 
-| ID | Name | Description |
-|----|------|--------------|
+| ID | Name | Notes |
+|----|------|-------|
 | 1 | Beep | Single short beep |
 | 2 | Chirp | Short ascending chirp |
 | 3 | Alarm | Repeating alert pattern |
+| 4-8 | Built-in tunes | Fur Elise, Nokia Tune, The Entertainer, Ode to Joy, Tetris |
+| 9+ | Custom tunes | Your own uploaded tunes, in upload order (see below) |
+
+These IDs work anywhere a sound is selected — `buzzer_event`, `play_sound`, alarm sound settings, and the web UI dropdowns all use the same numbering.
 
 ### `/action` Endpoint
 
@@ -1243,6 +1247,7 @@ Changes to the pin and enable toggle apply immediately. Per-event sound choices 
 | `buzzer_volume` | `1`–`10` | Set and save volume |
 | `buzzer_stop` | -- | Immediately silence any currently playing sound |
 | `buzzer_event` | `name:sound` or `name:sound:repeat` | Configure an event's sound. `name` is `alarm`, `countdown`, `timer`, `pomodoro_work`, `pomodoro_break`, or `stopwatch`. `sound=0` disables that event. |
+| `buzzer_rtttl` | RTTTL string | Play a custom RTTTL tune immediately. Fire-and-forget — doesn't save anything. |
 | `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound once (or looped if `repeat=1`, until `buzzer_stop` is called) |
 
 ### curl Examples
@@ -1278,7 +1283,45 @@ action:
     data:
       payload: "play_sound=2:8"
 ```
+  
+### Custom Tunes (RTTTL)
 
+Beyond the built-in sounds, ESPTimeCast can play custom melodies in [RTTTL](https://en.wikipedia.org/wiki/Ring_Tone_Text_Transfer_Language) format — the same format used by classic ringtone sites.
+
+**Uploading a tune list**
+
+In the web UI, under Buzzer, upload a plain text file with one RTTTL tune per line (up to 20 tunes, 150 characters each). Each uploaded tune becomes selectable as sound ID `9`, `10`, `11`, and so on, in the order they appear in the file — available in both the Buzzer event dropdowns and the Alarm sound dropdown.
+
+**Playing a tune directly via API/HA**
+
+For one-off playback without saving anything, send raw RTTTL text directly:
+
+```bash
+curl -G "http://<device_ip>/action" --data-urlencode "buzzer_rtttl=d=4,o=5,b=100:c,e,g,c6"
+```
+
+This plays immediately and does not touch your saved tune list or any configuration — it's fire-and-forget. The RTTTL text must be URL-encoded, since it contains commas and colons.
+
+### Home Assistant Example
+
+```yaml
+rest_command:
+  esptimecast_play_tune:
+    url: "http://<device_ip>/action?buzzer_rtttl={{ rtttl | urlencode }}"
+    method: GET
+```
+
+```yaml
+alias: Play custom tune on doorbell
+trigger:
+  - platform: state
+    entity_id: binary_sensor.doorbell
+    to: "on"
+action:
+  - service: rest_command.esptimecast_play_tune
+    data:
+      rtttl: "d=4,o=5,b=100:c,e,g,c6"
+```
 &nbsp;
 </details>
 
@@ -1374,6 +1417,25 @@ Displays the current temperature with **decimal precision** instead of the round
 
 **Example:**
 `http://192.168.4.1/full_temp.`  
+
+&nbsp;
+
+#### 🌤️ /full_description
+
+When enabled, the display shows additional weather information including the weather description, relative humidity, atmospheric pressure, sunset, and sunrise times.
+
+Displayed information:
+
+* Weather description
+* Relative humidity (RH)
+* Atmospheric pressure (hPa)
+* Sunset
+* Sunrise
+
+**Example:**
+`http://192.168.4.1/full_temp`
+
+Calling the endpoint again toggles the feature off.
 
 &nbsp;
 
