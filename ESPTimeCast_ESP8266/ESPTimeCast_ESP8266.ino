@@ -379,6 +379,8 @@ const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
 bool forceMessageRestart = false;
 bool messageBigNumbers = false;
 bool allowInterrupt = true;
+bool messageInvertApplied = false; 
+bool messageInvertScroll = false;  
 
 // Custom font for days and months
 bool useCustomFont = true;
@@ -6857,6 +6859,12 @@ void loop() {
     advanceDisplayMode();
   }
 
+  if (displayMode != 6 && messageInvertApplied) {
+    P.setInvert(false);
+    if (messageInvertScroll) P.displayClear();  // invert must be off first, or the clear lights the display
+    messageInvertApplied = false;
+    messageInvertScroll = false;
+  }
 
   // --- CLOCK Display Mode ---
   if (displayMode == 0) {
@@ -7802,6 +7810,14 @@ void loop() {
 
     String msg = String(customMessage);
 
+    // --- Style tag: [I: text] = inverted ---
+    bool msgInvert = false;
+    if (msg.length() > 4 && msg[0] == '[' && msg[2] == ':' && msg.endsWith("]") && toupper(msg[1]) == 'I') {
+      msgInvert = true;
+      msg = msg.substring(3, msg.length() - 1);
+      msg.trim();
+    }
+
     // --- Strip brackets around numeric tokens ONLY ---
     if (messageBigNumbers) {
       while (true) {
@@ -7871,6 +7887,9 @@ void loop() {
       // 1. Initial Centered Display
       P.setTextAlignment(PA_CENTER);
       P.setCharSpacing(1);
+      P.setInvert(msgInvert);
+      messageInvertApplied = msgInvert;
+      messageInvertScroll = false;  
       P.print(msg.c_str());
 
       unsigned long displayUntil = millis() + durationMs;
@@ -7885,7 +7904,7 @@ void loop() {
       bool isLastCycle = (messageScrollTimes > 0 && (currentDisplayCycleCount + 1 >= messageScrollTimes))
                          || (messageScrollTimes == 0);
 
-      if (totalPixelWidth >= 27 && isLastCycle && rotationEnabled) {
+      if ((totalPixelWidth >= 27 || msgInvert) && isLastCycle && rotationEnabled) {
         // Shift the internal pixel buffer 5 times
         for (uint8_t i = 0; i < 5; i++) {
           if (displayMode != 6) return;
@@ -7922,7 +7941,16 @@ void loop() {
     P.setCharSpacing(1);
     textEffect_t actualScrollDirection = getEffectiveScrollDirection(PA_SCROLL_LEFT, flipDisplay);
 
-    P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
+    messageInvertApplied = msgInvert;
+    messageInvertScroll = msgInvert;  // safety net: revert block clears if we ever end lit
+    P.setInvert(msgInvert);
+
+    if (msgInvert) {
+      // scroll in only; we do the scroll-out ourselves below
+      P.displayText(msg.c_str(), PA_LEFT, messageScrollSpeed, 0, actualScrollDirection, PA_NO_EFFECT);
+    } else {
+      P.displayScroll(msg.c_str(), PA_LEFT, actualScrollDirection, messageScrollSpeed);
+    }
 
     while (!P.displayAnimate()) {
       if (displayMode != 6) return;
@@ -7930,6 +7958,35 @@ void loop() {
       handleButtons();
       buzzerLoop();
       yield();
+    }
+
+    if (msgInvert) {
+      MD_MAX72XX *mx = P.getGraphicObject();
+      uint16_t cols = mx->getColumnCount();
+      bool bLeft = (actualScrollDirection == PA_SCROLL_LEFT);
+
+      // Is this the last pass? (the exit itself takes about cols * speed ms)
+      bool finalPass = (messageScrollTimes > 0 && currentScrollCount + 1 >= messageScrollTimes)
+                       || (messageDisplaySeconds > 0 && (millis() - messageStartTime) + (unsigned long)cols * messageScrollSpeed >= messageDisplaySeconds * 1000UL)
+                       || (messageDisplaySeconds == 0 && messageScrollTimes == 0);
+
+      // Final pass: a few lit columns after the last character, then dark
+      const uint16_t LIT_TAIL = 8;  // lit columns kept after the last character
+      uint16_t steps = finalPass ? cols + LIT_TAIL : cols;  // extra shifts so the tail scrolls fully out
+
+      for (uint16_t i = 0; i < steps; i++) {
+        uint8_t filler = (finalPass && i >= LIT_TAIL) ? 0x00 : 0xFF;
+        mx->transform(bLeft ? MD_MAX72XX::TSL : MD_MAX72XX::TSR);
+        mx->setColumn(bLeft ? 0 : cols - 1, filler);
+        unsigned long t = millis();
+        while (millis() - t < (unsigned long)messageScrollSpeed) {
+          if (displayMode != 6) return;
+          if (forceMessageRestart) return;
+          handleButtons();
+          buzzerLoop();
+          yield();
+        }
+      }
     }
 
     currentScrollCount++;

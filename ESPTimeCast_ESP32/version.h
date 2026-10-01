@@ -10,7 +10,7 @@ See LICENSE.txt for full terms.
 */
 
 #pragma once
-#define FIRMWARE_VERSION "2.2.0"
+#define FIRMWARE_VERSION "2.2.1"
 
 // Auto-detect the specific chip family
 #if defined(WIFI_TX_POWER_CAP)
