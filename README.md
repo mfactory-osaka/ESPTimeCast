@@ -442,6 +442,23 @@ ESPTimeCast exposes a unified `/action` endpoint for all device control — mess
 - Can automatically expire using `seconds` or `scrolls`
 - If neither is sent: short messages use `Weather Duration`, long messages scroll `once` per display cycle
 
+#### Message Tokens
+
+Messages can include special bracket tokens to trigger features or change how the message is displayed.
+
+Examples:
+
+[TIMER 5M]  
+[STOPWATCH]  
+[I: IMPORTANT]  
+[I: [SUNNY] 25°C]  
+
+The `[I: ...]` token inverts the message display and cons and other supported message tokens can be nested inside it.
+
+Other tokens can start timers, stopwatches, display icons, or trigger other ESPTimeCast features.  
+&nbsp;
+
+
 | Source | Behavior | Notes |
 |--------|-----------|-------|
 | **Home Assistant** | Displays message temporarily | Returns to Clock/Weather rotation if no UI message exists |
@@ -828,8 +845,28 @@ ESPTimeCast™ v1.2.3 introduces **67 new icons** you can use in:
 **How to use icons:**  
 - Wrap the icon name in **brackets**: `[SUNNY] [YOUTUBE]`  
 - Short messages (≤8 chars) = static & centered; longer = scrolling  
-- Requires `mfactoryfont.h`; otherwise firmware falls back to Basic Font  
-> For context, see: [Weird_font_displaying?_Heres_why_how_to_fix_it](https://www.reddit.com/r/ESPTimeCast/comments/1re6wh4/weird_font_displaying_heres_why_how_to_fix_it/)
+
+### 🔄 Inverted Messages
+
+ESPTimeCast supports inverted (negative) messages using the `[I: ...]` message token.
+
+Wrap any message in `[I: ...]` to display it with the LED pixels inverted:
+
+[I: WARNING]
+
+This displays `WARNING` with the background and text reversed.
+
+Icons can also be nested inside the `[I: ...]` token:
+
+[I: [SUNNY]]  
+[I: [TEMP] 25°C]  
+[I: [WARNING] DOOR OPEN]  
+
+> The `[I: ...]` wrapper is removed before display, so only the message content appears.  
+
+> The inverted token can be used with Home Assistant / `/action` messages, Web UI custom messages, and other message sources that support Message Tokens.  
+
+> The same character and message-length rules apply as for regular messages.
 
 &nbsp;
 </details>
