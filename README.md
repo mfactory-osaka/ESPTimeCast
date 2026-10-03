@@ -505,6 +505,7 @@ POST http://<device_ip>/action
 | `seconds` | `0`–`3600` | Auto-clear after N seconds. `0` = use Weather Duration. |
 | `bignumbers` | `0` or `1` | Use large number font. |
 | `interrupt` | `0` or `1` | `0` = protect message from being overwritten. Returns `409` if busy. Default: `1` |
+| `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound together with the message in one request. Only plays if the message is accepted (nothing plays on a `409`). Sound IDs and looping are described in the Buzzer section. |
 
 #### 🧭 Navigation
 
@@ -569,6 +570,8 @@ POST http://<device_ip>/action
 | `timer_pause` | -- | Pause running timer |
 | `timer_resume` / `timer_start` | -- | Resume paused timer |
 | `timer_restart` | -- | Restart timer from original duration |
+| `timer_add` | minutes (optional, default `1`) | Add minutes to the running timer. If no timer is running, starts one of that length. |
+| `timer_sub` | minutes (optional, default `1`) | Subtract minutes. Going below zero parks the timer on `00:00` for 3 seconds, then cancels it silently. |
 
 | Parameter | Description |
 |-----------|-------------|
@@ -596,7 +599,7 @@ POST http://<device_ip>/action
 | `buzzer_volume` | `1`–`10` | Set and save volume |
 | `buzzer_stop` | -- | Immediately silence any currently playing sound |
 | `buzzer_event` | `name:sound` or `name:sound:repeat` | Configure an event's sound. `name` is `alarm`, `countdown`, `timer`, `pomodoro_work`, `pomodoro_break`, or `stopwatch`. `sound=0` disables that event. |
-| `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound once (or looped if `repeat=1`, until `buzzer_stop` is called) |
+| `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound once (or looped if `repeat=1`, until `buzzer_stop` is called or a **Stop Buzzer** button is pressed). Can also be combined with `message`. |
 
 #### ⚙️ System
 
@@ -708,6 +711,19 @@ action:
             - delay: "00:00:10"
 ```
 
+**7. Notification with a sound:**
+```yaml
+alias: Doorbell message and chime
+trigger:
+  - platform: state
+    entity_id: binary_sensor.doorbell
+    to: "on"
+action:
+  - service: rest_command.esptimecast
+    data:
+      payload: "message=DOORBELL&seconds=15&play_sound=2:8"
+```
+
 ### ⚡ curl Examples
 ```bash
 # Send a message
@@ -795,8 +811,10 @@ Examples include:
 | Weather | Toggle Humidity, Toggle Weather Description |
 | Countdown | Toggle Countdown |
 | Rotation | Toggle Rotation |
-| Timer | Pause, Resume, Stop Timer |
-| Stopwatch | Start Stopwatch, Stop Stopwatch |
+| Timer | Pause, Resume, Stop Timer, Timer +1 min, Timer −1 min |
+| Buzzer | Stop Buzzer |
+| Alarm | Stop Alarm, Snooze Alarm |
+| Stopwatch | Start, Resume, Pause, Restart, Reset, Exit Stopwatch |
 | Pomodoro | Start, Pause, Resume, Stop Pomodoro |
 | System | Clear Message, Restart Device |
 
@@ -809,6 +827,16 @@ Examples include:
 - Duplicate GPIO assignments are automatically prevented
 - ESP8266 D-pin labels map to GPIO numbers (for example: **D2 = GPIO4**)
 - Avoid using GPIOs already assigned to the MAX7219 display connections
+
+### Using buttons as a standalone timer
+
+Assign **Timer +1 min** to a button's **short press** and leave its long press empty:
+
+- **Tap:** adds 1 minute. If no timer is running, it starts one.
+- **Hold:** keeps adding a minute while the button is held.
+- **Timer −1 min** works the same way. Below one minute it sets the timer to `00:00`, holds it there for 3 seconds, then cancels it without sounding the alarm.
+- If a button's long press is assigned to something else, that action takes over the hold and the repeat is turned off for that button.
+- Assign **Stop Buzzer** to a button to silence the end-of-timer sound, or a looping sound, without the network.
 
 ### Example
 
@@ -1084,6 +1112,25 @@ Once a timer is running, you can control it by sending the following as a custom
 | `[TIMER RESUME]` or `[TIMER START]` | Resumes a paused timer |
 | `[TIMER RESTART]` | Restarts the timer from its original duration |
 
+### Adjusting a running timer
+
+Add or remove minutes with `/action`, or from a physical button (see Physical Buttons):
+
+```bash
+# Add 1 minute (starts a 1-minute timer if none is running)
+curl "http://<device_ip>/action?timer_add=1"
+
+# Add 5 minutes
+curl "http://<device_ip>/action?timer_add=5"
+
+# Subtract 2 minutes
+curl "http://<device_ip>/action?timer_sub=2"
+```
+
+- Subtracting below zero shows `00:00` for 3 seconds, then cancels the timer silently.
+- Ignored while a stopwatch or Pomodoro is running, or during the end-of-timer animation.
+- Maximum 24 hours.
+
 ### Behavior
 
 - The timer **always overrides the display** while running  
@@ -1251,7 +1298,7 @@ ESPTimeCast supports an optional passive piezo buzzer for audible alerts alongsi
 
 Connect a passive piezo buzzer between a free GPIO pin and GND.
 ```
-GPIO Pin  ──────────────  Button  ──────────────  GND
+GPIO Pin  ──────────────  Buzzer  ──────────────  GND
 ```
 > Only passive piezo buzzers are supported — active buzzers (with a built-in oscillator) will not respond correctly to the volume/frequency control.
 
@@ -1285,7 +1332,7 @@ These IDs work anywhere a sound is selected — `buzzer_event`, `play_sound`, al
 | `buzzer_stop` | -- | Immediately silence any currently playing sound |
 | `buzzer_event` | `name:sound` or `name:sound:repeat` | Configure an event's sound. `name` is `alarm`, `countdown`, `timer`, `pomodoro_work`, `pomodoro_break`, or `stopwatch`. `sound=0` disables that event. |
 | `buzzer_rtttl` | RTTTL string | Play a custom RTTTL tune immediately. Fire-and-forget — doesn't save anything. |
-| `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound once (or looped if `repeat=1`, until `buzzer_stop` is called) |
+| `play_sound` | `id`, `id:volume`, or `id:volume:repeat` | Play a sound once (or looped if `repeat=1`, until `buzzer_stop` is called or a **Stop Buzzer** button is pressed). Can also be combined with `message`. |
 
 ### curl Examples
 
@@ -1305,6 +1352,9 @@ curl "http://<device_ip>/action?buzzer_stop"
 
 # Make Timer use the Chirp sound instead of the default
 curl "http://<device_ip>/action?buzzer_event=timer:2"
+
+# Show a message and play the Chirp sound in one request
+curl -X POST -d "message=DOOR OPEN&seconds=15&play_sound=2:8" "http://<device_ip>/action"
 ```
 
 ### Home Assistant Example
@@ -1453,7 +1503,7 @@ ESPTimeCast™ includes a few optional "power-user" features that aren't visible
 Displays the current temperature with **decimal precision** instead of the rounded temperature normally shown on the display.
 
 **Example:**
-`http://192.168.4.1/full_temp.`  
+`http://192.168.4.1/full_temp`  
 
 &nbsp;
 
@@ -1470,7 +1520,7 @@ Displayed information:
 * Sunrise
 
 **Example:**
-`http://192.168.4.1/full_temp`
+`http://192.168.4.1/full_description`
 
 Calling the endpoint again toggles the feature off.
 
@@ -1481,7 +1531,7 @@ Erases all saved configuration data, Wi-Fi credentials, and uptime history.
 Used to restore the device to its original state. Only available in **AP mode**.
 
 **Example:**
-`http://192.168.4.1/factory_reset.`  
+`http://192.168.4.1/factory_reset`  
 
 &nbsp;
 
@@ -1490,7 +1540,7 @@ Downloads your current configuration (`config.json`) directly from the device.
 This is useful for creating backups or migrating settings between devices.
 
 **Example:**
-`http://your-device-ip/export`.   
+`http://your-device-ip/export`   
 The file will download automatically with your saved WiFi credentials (safely masked for security) and all other settings.  
 
 &nbsp;
