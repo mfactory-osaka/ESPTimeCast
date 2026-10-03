@@ -392,8 +392,8 @@ const unsigned long descriptionScrollPause = 300;  // 300ms pause after scroll
 bool forceMessageRestart = false;
 bool messageBigNumbers = false;
 bool allowInterrupt = true;
-bool messageInvertApplied = false; 
-bool messageInvertScroll = false;  
+bool messageInvertApplied = false;
+bool messageInvertScroll = false;
 
 // Custom font for days and months
 bool useCustomFont = true;
@@ -408,6 +408,7 @@ unsigned long timerOriginalDuration = 0;  // For RESTART command
 unsigned long timerFinishStartTime = 0;
 unsigned long timerEndTime = 0;
 bool isStopwatch = false;
+unsigned long timerZeroHoldUntil = 0;  // != 0 while a timer is parked on 00:00 after "minus"
 
 // Pomodoro
 bool isPomodoroActive = false;
@@ -433,6 +434,9 @@ struct BtnCfg {
 };
 BtnCfg btnCfg[4];
 #define BTN_LONG_MS 800
+#define BTN_REPEAT_MS 300        // hold-to-repeat interval for timer +/-
+#define BTN_REPEAT_DELAY_MS 400  // hold this long after the long-press fires before repeating starts
+#define TIMER_ZERO_HOLD_MS 3000  // how long 00:00 stays visible before cancelling
 
 // --- Forward declarations ---
 void advanceDisplayMode(bool forced = false);
@@ -1678,6 +1682,12 @@ void handleCustomMessageLogic(AsyncWebServerRequest *request) {
     currentScrollCount = 0;
     clockScrollDone = false;
     forceMessageRestart = true;
+
+    // Optional sound with the message, same value format as play_sound alone:
+    // /action?message=Door%20open&play_sound=2   (id | id:volume | id:volume:repeat)
+    if (request->hasArg("play_sound")) {
+      executeAction("play_sound", request->arg("play_sound"));
+    }
 
     // --- FINAL RESPONSE ---
     String responseMsg = "OK (" + String(isFromUI ? "UI" : "API") + ")";
@@ -4759,6 +4769,65 @@ bool handleTimerCommand(String cmd) {
   return false;
 }
 
+// Adds/subtracts whole minutes on the countdown timer (buttons + /action?timer_add=N / timer_sub=N).
+// No timer running: +N starts one, -N does nothing.
+// Minus past zero parks the timer on 00:00; timerZeroHoldCheck() then cancels it silently.
+void timerAdjustMinutes(int deltaMin) {
+  if (deltaMin > 1440) deltaMin = 1440;
+  if (deltaMin < -1440) deltaMin = -1440;
+  if (deltaMin == 0) return;
+  if (alarmRinging || (clockOnlyDuringDimming && dimActive) || !allowInterrupt) return;
+
+  if (!timerActive) {
+    if (deltaMin > 0) handleTimerCommand("[TIMER " + String(deltaMin) + "M]");
+    return;
+  }
+  if (isStopwatch || isPomodoroActive || timerFinished) return;
+
+  unsigned long now = millis();
+  long deltaMs = (long)deltaMin * 60000L;
+  long remaining = timerPaused ? (long)timerRemainingAtPause : (long)(timerEndTime - now);
+  bool zeroHold = timerPaused && timerZeroHoldUntil != 0;
+  if (!timerPaused && remaining <= 0) return;  // finishing this instant, let the state machine handle it
+
+  long target = remaining + deltaMs;
+  if (target > 86400000L) target = 86400000L;  // 24h cap
+
+  if (target <= 0) {  // minus past zero: park on 00:00
+    timerPaused = true;
+    timerRemainingAtPause = 0;
+    timerZeroHoldUntil = now + TIMER_ZERO_HOLD_MS;
+    return;
+  }
+
+  // keep RESTART meaningful: original duration follows the adjustments (1 min .. 24h)
+  long orig = zeroHold ? target : (long)timerOriginalDuration + deltaMs;
+  if (orig < 60000L) orig = 60000L;
+  if (orig > 86400000L) orig = 86400000L;
+  timerOriginalDuration = (unsigned long)orig;
+
+  if (zeroHold) {
+    timerZeroHoldUntil = 0;
+    timerPaused = false;
+  }  // plus from 00:00 -> run again
+  if (timerPaused) timerRemainingAtPause = (unsigned long)target;
+  else timerEndTime = now + (unsigned long)target;
+}
+
+// Cancels a timer that has been parked on 00:00 long enough. Call once per loop().
+void timerZeroHoldCheck() {
+  if (timerZeroHoldUntil == 0) return;
+  if (!(timerActive && timerPaused && !isStopwatch && timerRemainingAtPause == 0)) {
+    timerZeroHoldUntil = 0;  // state changed under us (stopped/resumed), drop the hold
+    return;
+  }
+  if ((long)(millis() - timerZeroHoldUntil) >= 0) {
+    timerZeroHoldUntil = 0;
+    Serial.println(F("[TIMER] Zeroed with minus - cancelled."));
+    handleTimerCommand("[TIMER STOP]");
+  }
+}
+
 //Actions handler
 void executeAction(const String &action, const String &value) {
   if (value.length() > 0) {
@@ -5085,6 +5154,11 @@ void executeAction(const String &action, const String &value) {
     if (!(clockOnlyDuringDimming && dimActive)) handleTimerCommand("[TIMER RESTART]");
   } else if (action == "timer") {
     if (!(clockOnlyDuringDimming && dimActive)) handleTimerCommand("[TIMER " + value + "]");
+  } else if (action == "timer_add" || action == "timer_sub") {
+    // value = minutes, defaults to 1 (buttons pass no value). HA: /action?timer_add=5
+    int mins = hasValue ? v.toInt() : 1;
+    if (mins < 1) mins = 1;
+    timerAdjustMinutes(action == "timer_add" ? mins : -mins);
   } else if (action == "stopwatch" || action == "stopwatch_start") {
     if (!(clockOnlyDuringDimming && dimActive))
       handleTimerCommand("[STOPWATCH]");
@@ -5690,6 +5764,7 @@ void setupButtons() {
 }
 
 void handleButtons() {
+  static unsigned long nextRepeat[4] = { 0, 0, 0, 0 };
   static unsigned long lastPress[4] = { 0, 0, 0, 0 };
   static unsigned long pressStart[4] = { 0, 0, 0, 0 };
   static bool lastState[4] = { HIGH, HIGH, HIGH, HIGH };
@@ -5699,6 +5774,11 @@ void handleButtons() {
     if (btnCfg[i].pin < 0) continue;
     bool cur = digitalRead(btnCfg[i].pin);
 
+    // hold action: the long action if set, otherwise the short action when it's a timer +/-
+    const String &holdAct = (btnCfg[i].longAct.length() == 0 && (btnCfg[i].shortAct == "timer_add" || btnCfg[i].shortAct == "timer_sub"))
+                              ? btnCfg[i].shortAct
+                              : btnCfg[i].longAct;
+
     if (cur == LOW && lastState[i] == HIGH) {  // press down
       pressStart[i] = millis();
       longFired[i] = false;
@@ -5706,10 +5786,17 @@ void handleButtons() {
     if (cur == LOW && !longFired[i]) {  // held
       if (millis() - pressStart[i] >= BTN_LONG_MS) {
         longFired[i] = true;
-        if (btnCfg[i].longAct.length() > 0) {
+        nextRepeat[i] = millis() + BTN_REPEAT_DELAY_MS;  // new
+        if (holdAct.length() > 0) {
           Serial.printf(PSTR("[BUTTON] Button %d LONG → %s\n"), i + 1, btnCfg[i].longAct.c_str());
           executeAction(btnCfg[i].longAct, "");
         }
+      }
+    }
+    if (cur == LOW && longFired[i] && (holdAct == "timer_add" || holdAct == "timer_sub")) {
+      if ((long)(millis() - nextRepeat[i]) >= 0) {
+        nextRepeat[i] = millis() + BTN_REPEAT_MS;
+        executeAction(holdAct, "");
       }
     }
     if (cur == HIGH && lastState[i] == LOW) {  // release
@@ -7993,13 +8080,15 @@ void loop() {
       P.setCharSpacing(1);
       P.setInvert(msgInvert);
       messageInvertApplied = msgInvert;
-      messageInvertScroll = false;  
+      messageInvertScroll = false;
       P.print(msg.c_str());
 
       unsigned long displayUntil = millis() + durationMs;
       while (millis() < displayUntil) {
         if (displayMode != 6) return;
         if (forceMessageRestart) return;
+        handleButtons();
+        buzzerLoop();
         yield();
       }
 
@@ -8017,7 +8106,11 @@ void loop() {
           } else {
             P.getGraphicObject()->transform(MD_MAX72XX::TSL);  // shift left
           }
-          delay(messageScrollSpeed);
+          unsigned long t = millis();
+          while (millis() - t < (unsigned long)messageScrollSpeed) {
+            buzzerLoop();
+            yield();
+          }
         }
       }
 
@@ -8075,7 +8168,7 @@ void loop() {
                        || (messageDisplaySeconds == 0 && messageScrollTimes == 0);
 
       // Final pass: a few lit columns after the last character, then dark
-      const uint16_t LIT_TAIL = 8;  // lit columns kept after the last character
+      const uint16_t LIT_TAIL = 8;                          // lit columns kept after the last character
       uint16_t steps = finalPass ? cols + LIT_TAIL : cols;  // extra shifts so the tail scrolls fully out
 
       for (uint16_t i = 0; i < steps; i++) {
@@ -8102,6 +8195,8 @@ void loop() {
     yield();
     return;
   }
+
+  timerZeroHoldCheck();
 
   if (displayMode == 7) {
     showTimerMode7();
