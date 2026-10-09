@@ -1415,6 +1415,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         margin: 0;
       }
 
+      .support{
+        text-decoration: none;
+        display: inline-flex;
+        gap: 0.3rem;
+        margin-top: 0.5rem;
+        margin-bottom: 2rem;
+      }
     </style>
   </head>
   <body>
@@ -2373,44 +2380,51 @@ const char index_html[] PROGMEM = R"rawliteral(
       >
         OTA Update
       </button>
+      
       <div class="sub-collapsible-content no-ap" aria-hidden="true">
         <div class="content-wrapper" id="otaupdate">
-          <div class="toggle-padding device-info" id="ota-settings">
-            <label class="toggle-row-lg donation-toggle-row">
-              <span class="label-text">Already supporting ESPTimeCast ❤️:</span>
-              <span class="toggle-switch">
-                <input type="checkbox" id="hideDonationMsg" />
-                <span class="toggle-slider"></span>
-              </span>
-            </label>
-            <p class="donation-note">
-              Thanks for supporting the project!<br />
-              Turn this on if you'd rather keep those occasional encouragement
-              messages off your display.
-            </p>
-            <div id="ota-container">
-              <button
-                type="button"
-                id="btn-check-ota"
-                onclick="checkUpdate()"
-                class="primary-button cmsg1"
-              >
-                Check for Updates
-              </button>
-              <div id="ota-update-found">
-                <button
-                  type="button"
-                  onclick="performUpdate()"
-                  class="primary-button cmsg1"
-                >
-                  Install Update
-                </button>
-              </div>
-              <p id="ota-status-text"></p>
-            </div>
-          </div>
-        </div>
+      <div class="toggle-padding device-info" id="ota-settings">
+      <label class="toggle-row-lg donation-toggle-row">
+        <strong>Enjoying ESPTimeCast?</strong>   
+      </label>
+      <span class="small">Your support helps keep development and updates going ❤️</span>
+      <br>
+      <div class="btn-apply-wrap">
+        <a href="https://buymeacoffee.com/mfactory" target="_blank" rel="noopener noreferrer" class="primary-button cmsg1 btn-apply-top support">
+          Support ESPTimeCast <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link-icon lucide-external-link"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
+        </a>
       </div>
+
+      <label class="toggle-row-lg donation-toggle-row">
+        <span class="label-text">Already supporting ESPTimeCast:</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="hideDonationMsg">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+
+      <p class="donation-note">
+        Turn this on if you'd rather keep the occasional encouragement
+        messages off your display.
+      </p>
+
+      <div id="ota-container">
+        <button type="button" id="btn-check-ota" onclick="checkUpdate()" class="primary-button cmsg1">
+          Check for Updates
+        </button>
+
+        <div id="ota-update-found">
+          <button type="button" onclick="performUpdate()" class="primary-button cmsg1">
+            Install Update
+          </button>
+        </div>
+
+        <p id="ota-status-text"></p>
+      </div>
+
+    </div>
+  </div>
+</div>
 
       <button
         type="button"

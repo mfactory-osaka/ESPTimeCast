@@ -360,6 +360,7 @@ const int maxNtpRetries = 30;
 int ntpRetryCount = 0;
 unsigned long lastNtpStatusPrintTime = 0;
 const unsigned long ntpStatusPrintInterval = 1000;  // Print status every 1 seconds (adjust as needed)
+volatile bool ntpKickPending = false;
 
 // Non-blocking IP display globals
 bool showingIp = false;
@@ -1072,6 +1073,18 @@ void connectWiFi() {
     }
     delay(1);
   }
+}
+
+// Restart SNTP and re-apply timezone (safe to call repeatedly)
+void kickSntp() {
+  String posixTZ = ianaToPosix(timeZone);
+#ifdef ESP8266
+  configTime(posixTZ.c_str(), ntpServer1, ntpServer2);
+#else
+  configTime(0, 0, ntpServer1, ntpServer2);
+  setenv("TZ", posixTZ.c_str(), 1);
+  tzset();
+#endif
 }
 
 // -----------------------------------------------------------------------------
@@ -5882,6 +5895,7 @@ void setup() {
         name = "GOT_IP";
         lastWifiConnectTime = millis();
         Serial.println(F("[WIFI EVENT] Re-initializing mDNS due to new IP."));
+        ntpKickPending = true;
         setupMDNS();
         break;
       case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
@@ -6602,6 +6616,11 @@ void loop() {
     yield();
   }
 
+  // Fire SNTP as soon as WiFi gets an IP (loop() may be stuck in the IP scroll)
+  if (ntpKickPending) {
+    ntpKickPending = false;
+    kickSntp();
+  }
 
   // --- IP Display ---
   if (showingIp) {
@@ -6659,6 +6678,15 @@ void loop() {
             Serial.printf(PSTR("[TIME] NTP sync in progress (attempt %d of %d)...\n"), ntpRetryCount + 1, maxNtpRetries);
             lastNtpStatusPrintTime = millis();
           }
+
+          // Re-send SNTP request every 4s in case the first packet was dropped
+          static unsigned long lastSntpKick = 0;
+          if (WiFi.status() == WL_CONNECTED && millis() - lastSntpKick > 4000) {
+            lastSntpKick = millis();
+            Serial.println(F("[TIME] Re-sending SNTP request"));
+            kickSntp();
+          }
+
           // Still increment ntpRetryCount based on your original timing for the timeout logic
           // (even if you don't print a dot for every increment)
           if (millis() - ntpStartTime > ((unsigned long)(ntpRetryCount + 1) * 1000UL)) {
