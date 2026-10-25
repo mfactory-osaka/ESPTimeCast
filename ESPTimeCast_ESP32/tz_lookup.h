@@ -27,6 +27,7 @@ const TimeZoneMapping tz_mappings[] = {
     {"America/Denver", "MST7MDT,M3.2.0,M11.1.0"},
     {"America/Guatemala", "CST6"},
     {"America/Halifax", "AST4ADT,M3.2.0,M11.1.0"},
+    {"America/La_Paz", "BOT4"},
     {"America/Los_Angeles", "PST8PDT,M3.2.0,M11.1.0"},
     {"America/Mexico_City", "CST6"},
     {"America/New_York", "EST5EDT,M3.2.0,M11.1.0"},

@@ -19,7 +19,7 @@ typedef struct {
 
 const MonthsMapping months_mappings[] = {
     { "af", { "jan", "feb", "mar", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "des" } }, // Afrikaans
-    { "cs", { "led", "uno", "bre", "dub", "kve", "cer", "cvc", "srp", "zar", "rij", "lis", "pro" } }, // Czech
+    { "cz", { "led", "uno", "bre", "dub", "kve", "cer", "cvc", "srp", "zar", "rij", "lis", "pro" } }, // Czech
     { "da", { "jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec" } }, // Danish
     { "de", { "jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "dez" } }, // German
     { "en", { "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec" } }, // English

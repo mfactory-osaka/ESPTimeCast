@@ -19,7 +19,7 @@ typedef struct {
 
 const DaysOfWeekMapping days_mappings[] = {
     { "af", { "son", "maa", "din", "woe", "don", "vry", "sat" } },
-    { "cs", { "ned", "pon", "ute", "str", "ctv", "pat", "sob" } },
+    { "cz", { "ned", "pon", "ute", "str", "ctv", "pat", "sob" } },
     { "da", { "son", "man", "tir", "ons", "tor", "fre", "lor" } },
     { "de", { "so", "mo", "di", "mi", "do", "fr", "sa" } },
     { "en", { "sun", "mon", "tue", "wed", "thu", "fri", "sat" } },
