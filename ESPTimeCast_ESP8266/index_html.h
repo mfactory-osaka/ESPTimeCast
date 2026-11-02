@@ -1858,13 +1858,13 @@ const char index_html[] PROGMEM = R"rawliteral(
               <option value="Africa/Casablanca">Africa/Casablanca</option>
               <option value="Africa/Johannesburg">Africa/Johannesburg</option>
               <option value="America/Anchorage">America/Anchorage</option>
-              <option value="America/Argentina/Buenos_Aires">
-                America/Argentina/Buenos_Aires
-              </option>
+              <option value="America/Argentina/Buenos_Aires">America/Argentina/Buenos_Aires</option>
               <option value="America/Chicago">America/Chicago</option>
               <option value="America/Denver">America/Denver</option>
+              <option value="America/Edmonton">America/Edmonton</option>
               <option value="America/Guatemala">America/Guatemala</option>
               <option value="America/Halifax">America/Halifax</option>
+              <option value="America/Inuvik">America/Inuvik</option>
               <option value="America/La_Paz">America/La_Paz</option>
               <option value="America/Los_Angeles">America/Los_Angeles</option>
               <option value="America/Mexico_City">America/Mexico_City</option>
@@ -1875,6 +1875,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               <option value="America/St_Johns">America/St_Johns</option>
               <option value="America/Toronto">America/Toronto</option>
               <option value="America/Vancouver">America/Vancouver</option>
+              <option value="America/Winnipeg">America/Winnipeg</option>
               <option value="Asia/Almaty">Asia/Almaty</option>
               <option value="Asia/Amman">Asia/Amman</option>
               <option value="Asia/Baghdad">Asia/Baghdad</option>
@@ -1939,8 +1940,8 @@ const char index_html[] PROGMEM = R"rawliteral(
               <option value="Pacific/Port_Moresby">Pacific/Port_Moresby</option>
               <option value="Pacific/Tahiti">Pacific/Tahiti</option>
               <option value="UTC">UTC</option>
-              <option value="Etc/GMT+1">Etc/GMT+1</option>
-              <option value="Etc/GMT-1">Etc/GMT-1</option>
+              <option value="Etc/GMT+1">Etc/GMT+1 (UTC-1)</option>
+              <option value="Etc/GMT-1">Etc/GMT-1 (UTC+1)</option>
             </select>
           </div>
 
