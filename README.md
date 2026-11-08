@@ -14,8 +14,9 @@
 **ESPTimeCast™** is a sleek, WiFi-connected LED matrix clock and weather display built on **ESP8266/ESP32** and **MAX7219**.
 It combines real-time NTP time sync, live OpenWeatherMap updates, and a modern web-based configuration interface — all in one compact design.
 
-
-<video src="https://github.com/user-attachments/assets/78b6525d-8dcd-43fc-875e-28805e0f4fab"></video>
+  
+https://github.com/user-attachments/assets/78b6525d-8dcd-43fc-875e-28805e0f4fab
+  
 &nbsp;
 
 ## 🚀 Install in Under a Minute (Recommended)
